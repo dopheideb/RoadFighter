@@ -1,0 +1,6 @@
+Hi-score:
+	After stage 01	17174
+	After stage 02	34348	Points gained in stage 02: 17174
+	After stage 03	50522	Points gained in stage 03: 16174
+	After stage 04	67696	Points gained in stage 04: 17174
+	After stage 05	79419	Game over...
