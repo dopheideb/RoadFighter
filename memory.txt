@@ -1,6 +1,30 @@
+0xE002
+		0x40 Level A
+		0x60 Level B
+0xE003	Increments
+	
 0xE004	Graphics related general purpose timer
 		0x18 During game
 		0x80 After seeing "EMPTY" on screen.
+
+0xE005	Seen at 0x402B
+
+0xE008	Newly pressed keyboard keys, joystick state. I.e. the weren't pressed in 
+	the previous frame
+		0x01 "Up"
+		0x02 "Down"
+		0x04 "Left"
+		0x08 "Right"
+		0x10 "Space" / trigger 1
+		0x20 "Select" / trigger 2
+
+0xE009	Currently pressed keyboard keys, joystick state.
+		0x01 Status of "Up"
+		0x02 Status of "Down"
+		0x04 Status of "Left"
+		0x08 Status of "Right"
+		0x10 Status of "Space" / trigger 1
+		0x20 Status of "Select" / trigger 2
 
 0xE028	Current sound/tune/bleep to emit? (Poking has no effect though.)
 		0x00 Silence
@@ -19,6 +43,7 @@
 		0x00 All okay
 		0x01 Crashed
 		0x02 ?Out of fuel?
+		0x03 ?Out of fuel?
 		0x04 Skidding (player can escape this by steering in correct direction)
 		0x05 Bounced against side of the road. (Not crashed since speed is too low.)
 		0x06 ?Respawn after crash? ?Game over
@@ -31,6 +56,7 @@
 		Pokeable!
 0xE04F	Speed
 		Maximum: 0xD7
+0xE054	Seen at 0x6BCA
 0xE057	Fuel used
 		Increases even when stationary (engine is running).
 		Fuel decreases when this ticker reaches:
@@ -44,7 +70,8 @@
 			0xE0
 		I.e. fuel (0xE083) decreases for every 0x20 consumed here.
 0xE083	Fuel left
-		0xD0 means full fuel
+		0xD7 means really full of fuel (see 0x7765)
+		0xD0 At start of stage ("full fuel")
 		0x09 low fuel warning, see 0x7437
 		0x08 low fuel warning, see 0x7437
 		0x07 low fuel warning, see 0x7437
@@ -55,9 +82,18 @@
 		0x02 low fuel warning, see 0x7437
 		0x01 low fuel warning, see 0x7437
 		0x00 means empty
+		
+		Fuel heart: +0x20, see 0x7763
 0xE084	Fuel related?
+		Seems to go from 0x00 to 0x20 and back
 		0x00 ?
 		0x20 ?
+0xE105	Truck related
+		Stored at 0x5421 
+		Seen at 0x5434
+		Stored at 0x54A3
+0xE106	Truck related
+0xE107	Truck related
 0xE10E	Minicar vertical position
 		0x30 for at finish flag
 		0x6C for at starting line

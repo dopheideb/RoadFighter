@@ -4,3 +4,10 @@ Hi-score:
 	After stage 03	50522	Points gained in stage 03: 16174
 	After stage 04	67696	Points gained in stage 04: 17174
 	After stage 05	79419	Game over...
+
+Letters:
+	21 22 23 24 25 26 27 28 29 2A 2B 2C 2D
+         A  B  C  D  E  F  G  H  I  J  K  L  M
+
+	2E 2F 30 31 32 33 34 35 36 37 38 39 3A
+         N  O  P  Q  R  S  T  U  V  W  X  Y  Z

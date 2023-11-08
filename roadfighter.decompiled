@@ -16,43 +16,72 @@
 	jp 048c9h		;4010
 
 4013_vdp_hook:
-	call 013E_RDVDP		;4013
+	call 013E_RDVDP		;4013 Read VDP status register; clears interrupt.
 	di			;4016 Disable interrupts.
 	call 04bffh		;4017
-	ld hl,0e005h		;401a
+	ld hl,0e005h		;401a hl = 0xE005
 	bit 0,(hl)		;401d
-	jr nz,$+15		;401f
+	jr nz,$+15		;401f if (nz) jump to 0x402E
 	inc (hl)		;4021
 	ei			;4022 Enable interrupts.
-	call 046b6h		;4023
+	call 046b6h		;4023 46b6_read_and_save_joystick_and_keyboard
 	call 04082h		;4026
-	ld a,000h		;4029
-	ld (0e005h),a		;402b
-	call 013E_RDVDP		;402e
+	ld a,000h		;4029 a = 0
+	ld (0e005h),a		;402b *(0xE005) = 0
+	
+	; We can get here from:
+	;   0x401F (jump)
+	;   0x402B (fall)
+	call 013E_RDVDP		;402e Read VDP status register; clears interrupt.
 	or a			;4031
-	di			;4032
+	di			;4032 Disable interrupts.
 	call m,04bffh		;4033
-	ei			;4036
+	ei			;4036 Enable interrupts.
 	ret			;4037
+
+
+
+4038_wrtvdp_hook:
 	jp 0047_WRTVDP		;4038
+
+
+
+; Computes HL += a
+403b_HL+=a:
 	add a,l			;403b
 	ld l,a			;403c
 	ret nc			;403d
 	inc h			;403e
 	ret			;403f
+
+
+
+; Computes DE += a
+4040_DE+=a:
 	add a,e			;4040
 	ld e,a			;4041
 	ret nc			;4042
 	inc d			;4043
 	ret			;4044
 
-	add a,a			;4045
-	pop hl			;4046
-	call 0403bh		;4047
-	ld e,(hl)		;404a
-	inc hl			;404b
-	ld d,(hl)		;404c
-	ex de,hl		;404d
+
+
+; Computes pc += 2 * a (the PC from the caller perspective)
+; 
+; Destroys A, DE, HL
+4045_pc=pc[2*a]:
+	add a,a			;4045 a += a
+	
+	; Z80 pushed the program counter (pc) when this subroutine was 
+	; called. (Actually the PC right after the call.) So, that PC is 
+	; popped here.
+	pop hl			;4046 hl = *(sp)
+	
+	call 0403bh		;4047 hl += a
+	ld e,(hl)		;404a e = *(hl)
+	inc hl			;404b ++hl
+	ld d,(hl)		;404c d = *(hl)
+	ex de,hl		;404d de=hl, hl=de
 	jp (hl)			;404e
 
 
@@ -63,14 +92,16 @@ entry_point:
 setup_vdp_hook:
 	; Set H.KEYI to "jp 0x4013"
 	ld a,0c3h		;4052 a = 0xC3, which is "jp"
-	ld (0fd9ah),a		;4054
+	ld (0fd9ah),a		;4054 "JP"
 	ld hl,04013h		;4057 hl = 0x4013
 	ld (0fd9bh),hl		;405a
-clear_variables:
-	ld sp,0e800h		;405d
+	
+	ld sp,0e800h		;405d Set top of stack.
+	
+	; Clear_variables.
 	ld hl,0e000h		;4060
 	ld de,0e001h		;4063
-	ld bc,007ffh		;4066
+	ld bc,007ffh		;4066 Repeat ldit this many times.
 	ld (hl),000h		;4069
 	ldir			;406b
 
@@ -80,27 +111,32 @@ clear_variables:
 
 	xor a			;4075 a = 0
 	ld (0e005h),a		;4076 *(0xE005) = 0
-	call 013E_RDVDP		;4079 Read VDP register 0.
+	call 013E_RDVDP		;4079 Read VDP status register; clears interrupt.
 	ei			;407c Enable interrupts
-	; end of entry point. Interrupt and 0x4013 take over. (Main does nothing.)
+	; End of entry point. Interrupt and 0x4013 take over. (Main does 
+	; nothing.)
 
 
 main:
 	jr $+0			;407d jump to main
 
 
-
+407f_jump_to_0x4B6E:
 	jp 04b6eh		;407f
+
+
+
 	ld hl,0e003h		;4082
 	inc (hl)		;4085
 	ld a,(0e002h)		;4086
 	add a,a			;4089
 	jp m,04091h		;408a
-	ld hl,043c3h		;408d
+	ld hl,043c3h		;408d hl = 0x43C3
 	push hl			;4090
-	ld bc,(0e000h)		;4091
-	ld a,c			;4095
-	call 04045h		;4096
+	ld bc,(0e000h)		;4091 bc = *(0xE000)
+	ld a,c			;4095 a = c
+	call 04045h		;4096 PC = PC[2 * A]
+;data
 	xor e			;4099
 	ld b,b			;409a
 	dec l			;409b
@@ -124,12 +160,12 @@ main:
 	ret nc			;40b1
 	call 048ddh		;40b2
 	ret nz			;40b5
-	ld de,046fch		;40b6
+	ld de,046fch		;40b6 46fc_software_letters
 	call 0460bh		;40b9
 	xor a			;40bc
 	jp 04167h		;40bd
 	djnz $+13		;40c0
-	call 0440ch		;40c2
+	call 0440ch		;40c2 440c_decrement_timer_and_do_return_magic
 	call 049a6h		;40c5
 	ld a,020h		;40c8
 	jp 04167h		;40ca
@@ -152,7 +188,7 @@ main:
 	and 003h		;40ef
 	add a,a			;40f1
 	ld de,04112h		;40f2
-	call 04040h		;40f5
+	call 04040h		;40f5 DE += a
 	ld a,(de)		;40f8
 	push de			;40f9
 	ld hl,00600h		;40fa
@@ -237,7 +273,7 @@ main:
 	ld (0e004h),a		;41a9
 	jp 0416ah		;41ac
 	djnz $+10		;41af
-	call 0440ch		;41b1
+	call 0440ch		;41b1 440c_decrement_timer_and_do_return_magic
 	ld a,004h		;41b4
 	jp 04167h		;41b6
 	djnz $+7		;41b9
@@ -252,7 +288,7 @@ main:
 	ld a,005h		;41d0
 	jp 04167h		;41d2
 	djnz $+13		;41d5
-	call 0440ch		;41d7
+	call 0440ch		;41d7 440c_decrement_timer_and_do_return_magic
 	dec hl			;41da
 	ld (hl),010h		;41db
 	ld a,009h		;41dd
@@ -295,10 +331,10 @@ main:
 	ld b,048h		;4226
 	ld a,(0e004h)		;4228
 	ld hl,04241h		;422b
-	call 0403bh		;422e
+	call 0403bh		;422e HL += a
 	ld a,(hl)		;4231
 	ld hl,03826h		;4232
-	call 0403bh		;4235
+	call 0403bh		;4235 HL += a
 	ld a,b			;4238
 	call 004D_WRTVRM	;4239
 	inc a			;423c
@@ -329,7 +365,7 @@ main:
 	ld a,050h		;426b
 	jp 04167h		;426d
 	djnz $+15		;4270
-	call 0440ch		;4272
+	call 0440ch		;4272 440c_decrement_timer_and_do_return_magic
 	ld hl,0e045h		;4275
 	ld (hl),001h		;4278
 	ld a,01ah		;427a
@@ -349,7 +385,7 @@ main:
 	ld a,028h		;429a
 	jp 04167h		;429c
 	djnz $+34		;429f
-	call 0440ch		;42a1
+	call 0440ch		;42a1 440c_decrement_timer_and_do_return_magic
 	ld de,07895h		;42a4
 	ld hl,0394ah		;42a7
 	ld bc,00005h		;42aa
@@ -362,9 +398,9 @@ main:
 	ld a,048h		;42bc
 	jp 04167h		;42be
 	djnz $+20		;42c1
-	call 0440ch		;42c3
+	call 0440ch		;42c3 440c_decrement_timer_and_do_return_magic
 	ld a,(0e002h)		;42c6
-	bit 6,a		;42c9
+	bit 6,a			;42c9
 	jp nz,042f8h		;42cb
 	ld hl,00102h		;42ce
 	ld (0e000h),hl		;42d1
@@ -378,7 +414,7 @@ main:
 	ld a,078h		;42e5
 	ld (0e004h),a		;42e7
 	jp 0416ah		;42ea
-	ld de,0471fh		;42ed
+	ld de,0471fh		;42ed 471f_stage_letters
 	call 045f0h		;42f0
 	dec l			;42f3
 	dec l			;42f4
@@ -439,10 +475,10 @@ main:
 	call 0526bh		;4349
 	ld a,006h		;434c
 	ld hl,03b03h		;434e
-	call 004D_WRTVRM		;4351
+	call 004D_WRTVRM	;4351
 	pop bc			;4354
 	djnz $+15		;4355
-	call 0440ch		;4357
+	call 0440ch		;4357 440c_decrement_timer_and_do_return_magic
 	ld hl,0e002h		;435a
 	ld a,(hl)		;435d
 	and 0bfh		;435e
@@ -450,7 +486,7 @@ main:
 	jp 0414eh		;4361
 	call 04429h		;4364
 	ret p			;4367
-	ld de,0475eh		;4368
+	ld de,0475eh		;4368 475e_game_over_letters
 	call 045f0h		;436b
 	ld a,0d8h		;436e
 	jp 04167h		;4370
@@ -470,16 +506,16 @@ main:
 	jp 07495h		;438f
 	djnz $+41		;4392
 	ld hl,0e043h		;4394
-	inc (hl)			;4397
-	ld a,(hl)			;4398
-	cp 007h		;4399
+	inc (hl)		;4397
+	ld a,(hl)		;4398
+	cp 007h			;4399
 	ld bc,00004h		;439b
 	jr nz,$+10		;439e
 	ld bc,00303h		;43a0
 	ld a,001h		;43a3
-	ld (hl),a			;43a5
+	ld (hl),a		;43a5
 	dec hl			;43a6
-	inc (hl)			;43a7
+	inc (hl)		;43a7
 	call 0414fh		;43a8
 	ld (0e000h),bc		;43ab
 	ld (0e00dh),a		;43af
@@ -487,19 +523,22 @@ main:
 	ld a,06ch		;43b5
 	ld (0e10eh),a		;43b7
 	ret			;43ba
-	call 0440ch		;43bb
+
+
+
+	call 0440ch		;43bb 440c_decrement_timer_and_do_return_magic
 	ld a,018h		;43be
 	jp 04167h		;43c0
-	call 046c3h		;43c3
+	call 046c3h		;43c3 46c3_read_joystick_and_keyboard
 	ld hl,0e03ah		;43c6
 	call 046bch		;43c9
 	or a			;43cc
 	ret z			;43cd
 	ld hl,0e004h		;43ce
 	ld (hl),000h		;43d1
-	ld l,(hl)			;43d3
+	ld l,(hl)		;43d3
 	ld de,0e03bh		;43d4
-	ld b,(hl)			;43d7
+	ld b,(hl)		;43d7
 	djnz $+27		;43d8
 	and 030h		;43da
 	jr z,$+43		;43dc
@@ -512,7 +551,7 @@ main:
 	ld (hl),003h		;43e9
 	inc hl			;43eb
 	ld c,000h		;43ec
-	ld (hl),c			;43ee
+	ld (hl),c		;43ee
 	dec c			;43ef
 	jp 05032h		;43f0
 	ld (hl),001h		;43f3
@@ -524,15 +563,33 @@ main:
 	xor a			;4402
 	ld (0e004h),a		;4403
 	ret			;4406
-	ld a,(de)			;4407
+
+
+
+;
+	ld a,(de)		;4407
 	xor 001h		;4408
-	ld (de),a			;440a
+	ld (de),a		;440a
 	ret			;440b
-	ld hl,0e004h		;440c
-	dec (hl)			;440f
-	ret z			;4410
+
+
+
+; Decrement timer and returns to caller or parent of caller.
+440c_decrement_timer_and_do_return_magic:
+	ld hl,0e004h		;440c hl = 0xE004
+	dec (hl)		;440f --*(0xE004)
+	ret z			;4410 if (timer == 0) return
+	
+	; Z80 pushed the program counter (pc) when this subroutine was
+	; called. (Actually the PC right after the call.) So, that PC is
+	; popped here.
 	pop hl			;4411
+	
+	; Return to the PARENT OF THE CALLER.
 	ret			;4412
+
+
+
 	ld hl,0e03fh		;4413
 	ld bc,0010fh		;4416
 	ld d,h			;4419
@@ -640,10 +697,13 @@ main:
 	ld bc,00003h		;44c6
 	ld e,03eh		;44c9
 	ld l,041h		;44cb
-	lddr		;44cd
+	lddr			;44cd
 	ret			;44cf
+
+
+
 	call 044f4h		;44d0
-	ld de,0470dh		;44d3
+	ld de,0470dh		;44d3 470d_hiscore_letters
 	call 045f0h		;44d6
 	ld de,0e03eh		;44d9
 	ld hl,03838h		;44dc
@@ -681,11 +741,11 @@ main:
 	jp 0740bh		;452a
 	ld (hl),b		;452d
 	ld bc,07160h		;452e
-	ld (hl),b			;4531
-	ld (hl),e			;4532
+	ld (hl),b		;4531
+	ld (hl),e		;4532
 	ld bc,00e71h		;4533
 	nop			;4536
-	ld a,(de)			;4537
+	ld a,(de)		;4537
 	rra			;4538
 	rra			;4539
 	rra			;453a
@@ -699,15 +759,15 @@ main:
 	inc b			;4547
 	add a,010h		;4548
 	and c			;454a
-	call 004D_WRTVRM		;454b
+	call 004D_WRTVRM	;454b
 	inc hl			;454e
-	ld a,(de)			;454f
+	ld a,(de)		;454f
 	and 00fh		;4550
 	jr z,$+4		;4552
 	ld c,0ffh		;4554
 	add a,010h		;4556
 	and c			;4558
-	call 004D_WRTVRM		;4559
+	call 004D_WRTVRM	;4559
 	dec de			;455c
 	inc hl			;455d
 	djnz $-39		;455e
@@ -749,7 +809,7 @@ main:
 	call 045a7h		;4578 45a7_copy_to_vram()
 	pop bc			;457b
 	ld a,020h		;457c
-	call 0403bh		;457e
+	call 0403bh		;457e HL += a
 	djnz $-12		;4581
 	ret			;4583
 
@@ -959,8 +1019,8 @@ main:
 	djnz $-4		;4632
 	jr $-32			;4634
 	push de			;4636
-	ld b,010h		;4637
-	call 04679h		;4639
+	ld b,010h		;4637 b = 0x10
+	call 04679h		;4639 4679_vram_copy_reverse_bits_to_vram_de
 	inc hl			;463c
 	inc e			;463d
 	djnz $-5		;463e
@@ -971,19 +1031,19 @@ main:
 	jr z,$-15		;4646
 	pop de			;4648
 	ld a,020h		;4649
-	call 04040h		;464b
+	call 04040h		;464b DE += a
 	dec c			;464e
 	jr nz,$-25		;464f
 	ret			;4651
 
 
 
-	ld b,003h		;4652
+	ld b,003h		;4652 b = 3
 	push bc			;4654
 	push hl			;4655
 	push de			;4656
-	ld b,008h		;4657
-	call 04679h		;4659
+	ld b,008h		;4657 b = 8
+	call 04679h		;4659 4679_vram_copy_reverse_bits_to_vram_de
 	inc hl			;465c
 	inc de			;465d
 	djnz $-5		;465e
@@ -991,26 +1051,59 @@ main:
 	jr nz,$-10		;4661
 	pop hl			;4663
 	ld de,00800h		;4664
-	add hl,de			;4667
-	ex de,hl			;4668
+	add hl,de		;4667
+	ex de,hl		;4668
 	pop hl			;4669
 	pop bc			;466a
 	djnz $-23		;466b
 	ret			;466d
-	push bc			;466e
-	ld c,a			;466f
-	ld b,008h		;4670
-	rr c			;4672
-	rla			;4674
-	djnz $-3		;4675
-	pop bc			;4677
+
+
+
+466e_reverse_bits_of_register_a:
+	push bc			;466e Save bc
+	ld c,a			;466f c = a
+	ld b,008h		;4670 b = 8
+	
+	; ?Is the carry zero here?
+	
+	; Assume c = 'abcdefgh', each letter an unknown bit.
+	; Assume a = 'stuvwxyz', each letter an unknown bit.
+	;         
+	;         | After rr c                  | After rla
+	; --------+-----------------------------+------------------
+	; Round 0 | c = '*abcdefg', carry = 'h' | carry = 's', a = 'tuvwxyzh'
+	; Round 1 | c = 's*abcdef', carry = 'g' | carry = 't', a = 'uvwxyzhg'
+	; Round 2 | c = 'ts*abcde', carry = 'f' | carry = 'u', a = 'vwxyzhgf'
+	; Round 3 | c = 'uts*abcd', carry = 'e' | carry = 'v', a = 'wxyzhgfe'
+	; Round 4 | c = 'vuts*abc', carry = 'd' | carry = 'w', a = 'xyzhgfed'
+	; Round 5 | c = 'wvuts*ab', carry = 'c' | carry = 'x', a = 'yzhgfedc'
+	; Round 6 | c = 'xwvuts*a', carry = 'b' | carry = 'y', a = 'zhgfedcb'
+	; Round 7 | c = 'yxwvuts*', carry = 'a' | carry = 'z', a = 'hgfedcba'
+	;                                                           ^^^^^^^^
+	;                                                           All bits reversed!
+	4672_loop:
+	rr c			;4672 Rotate right reg c via carry.
+	rla			;4674 Rotate left  reg a via carry.
+	djnz $-3		;4675 if (--b != 0) jump to 0x4672
+	
+	pop bc			;4677 Restore bc
 	ret			;4678
-	call 004A_RDVRM		;4679
-	call 0466eh		;467c
+
+
+
+; HL: VRAM source
+; DE: VRAM destination
+4679_vram_copy_reverse_bits_to_vram_de:
+	call 004A_RDVRM		;4679 a = vram[hl]
+	call 0466eh		;467c 466e_reverse_bits_of_register_a
 	ex de,hl		;467f
-	call 004D_WRTVRM	;4680
+	call 004D_WRTVRM	;4680 vram[hl] = a
 	ex de,hl		;4683
 	ret			;4684
+
+
+
 	ld a,0b8h		;4685
 	call 04bf6h		;4687
 	ld a,01bh		;468a
@@ -1018,154 +1111,332 @@ main:
 	xor a			;468f
 	ld h,a			;4690
 	ld l,a			;4691
-	ld bc,04000h		;4692
-	call 0056_FILVRM		;4695
-	ld hl,046a9h		;4698
-	ld d,008h		;469b
-	ld c,000h		;469d
-	ld b,(hl)			;469f
-	call 0047_WRTVDP		;46a0
+	ld bc,04000h		;4692 bc = 0x4000
+	call 0056_FILVRM	;4695
+	ld hl,046a9h		;4698 hl = 0x46A9
+	ld d,008h		;469b d = 8, loop 8 times
+	ld c,000h		;469d c = 0
+	
+	; We can get here from:
+	;   0x469D (fall)
+	;   0x46A6 (jump)
+	ld b,(hl)		;469f
+	call 0047_WRTVDP	;46a0
 	inc hl			;46a3
 	inc c			;46a4
 	dec d			;46a5
-	jr nz,$-7		;46a6
+	jr nz,$-7		;46a6 if (nz) jump to 0x469F
 	ret			;46a8
-	ld (bc),a			;46a9
+
+	ld (bc),a		;46a9
 	jp po,07f0eh		;46aa
 	rlca			;46ad
 	halt			;46ae
 	inc bc			;46af
 	call po,0070eh		;46b0
-	jp 04038h		;46b3
-	call 046c3h		;46b6
-	ld hl,0e009h		;46b9
-	ld c,(hl)		;46bc
-	ld (hl),a		;46bd
-	xor c			;46be
-	and (hl)		;46bf
-	dec hl			;46c0
-	ld (hl),a		;46c1
+	jp 04038h		;46b3 4038_wrtvdp_hook
+
+
+
+; Read keyboard/joystick, and save it in 0xE009.
+;
+; Any keys that were previously unpressed but not pressed, are stored in 
+; 0xE008.
+46b6_read_and_save_joystick_and_keyboard:
+	call 046c3h		;46b6 46c3_read_joystick_and_keyboard
+	ld hl,0e009h		;46b9 hl = 0xE009
+	ld c,(hl)		;46bc C = previous keyboard/joystick input
+	ld (hl),a		;46bd Save new keyboard/joystick input
+	xor c			;46be Compute all differences between previous and current input
+	and (hl)		;46bf Select only differences in currently pressed input.
+	dec hl			;46c0 HL = 0xE008
+	ld (hl),a		;46c1 Save newly pressed keys
 	ret			;46c2
-	ld e,08fh		;46c3
-	ld a,00fh		;46c5
-	call 0093_WRTPSG	;46c7
-	ld a,00eh		;46ca
+
+
+
+; Output: register A, with the following bit meaning:
+;   0x01 Status of "Up"
+;   0x02 Status of "Down"
+;   0x04 Status of "Left"
+;   0x08 Status of "Right"
+;   0x10 Status of "Space" / trigger 1
+;   0x20 Status of "Select" / trigger 2
+46c3_read_joystick_and_keyboard:	
+	; PSG Register 0x0F (15):
+	;   This register makes it possible to control the pins of the general ports to read 
+	;   via register 14 as well as the state of the LED "code" or "kana" depending on the 
+	;   type of keyboard.
+	;
+	; 0x8F:
+	;   yes 0x80 (bit 7) LED control of the "Code" or "Kana" key. (1 to turn off)
+	;   no  0x40 (bit 6) selection of the general port readable via register 14 (1 for port 2)
+	;   no  0x20 (bit 5) pin control 8 of the general port 2 (0 for standard joystick mode)
+	;   no  0x10 (bit 4) pin control 8 of the general port 1 (0 for standard joystick mode)
+	;   yes 0x08 (bit 3) pin control 7 of the general port 2*
+	;   yes 0x04 (bit 2) pin control 6 of the general port 2*
+	;   yes 0x02 (bit 1) pin control 7 of the general port 1*
+	;   yes 0x01 (bit 0) pin control 6 of the general port 1*
+	;
+	; Read joystick A, turn LED off.
+	ld e,08fh		;46c3 e = 0x8F (data to write to PSG reg 15)
+	ld a,00fh		;46c5 a = 0x0F (PSG reg)
+	call 0093_WRTPSG	;46c7 A: PSG reg, E: data
+	
+	
+	
+	; PSG Register 0x0E (14):
+	;
+	; Bit 0 = Pin 1 state of the selected general port (Up if joystick)
+	; Bit 1 = Pin 2 state of the selected general port (Down if joystick)
+	; Bit 2 = Pin 3 state of the selected general port (Left if joystick)
+	; Bit 3 = Pin 4 state of the selected general port (Right if joystick)
+	;
+	; Bit 4 = Pin 6 state of the selected general port (Trigger 1 if joystick)
+	; Bit 5 = Pin 7 state of the selected general port (Trigger 2 if joystick)
+	; Bit 6 = 1 for JIS, 0 for JP50on (only valid for Japanese MSX)
+	; Bit 7 = CASRD (Reading signal on cassette)
+	ld a,00eh		;46ca a = 0x0E
 	di			;46cc
-	call 0096_RDPSG		;46cd
+	call 0096_RDPSG		;46cd The value read is stored in register A.
 	ei			;46d0
-	cpl			;46d1
-	and 03fh		;46d2
-	push af			;46d4
-	ld a,007h		;46d5
-	call 0141_SNSMAT	;46d7
-	cpl			;46da
-	rrca			;46db
-	and 020h		;46dc
-	ld e,a			;46de
-	ld a,008h		;46df a = 8, the line of the keyboard matrix to get
+	cpl			;46d1 Flip all bits (because joystick port is active low).
+	and 03fh		;46d2 up, down, left, right, trigger 1, trigger 2.
+	push af			;46d4 Save joystick state.
+	
+	
+	
+	;;;
+	; Read keyboard.
+	;;;
+	
+	; Note: the player can use both keyboard and joystick A at the 
+	; same time. The keys read from the keyboard are therefore 
+	; mapped to the same bits as the joystick, so we can OR them at 
+	; the end.
+	
+	; Get status of "Select" key.
+	; 
+	; Line 7:
+	; 0x80   0x40   0x20      0x10 0x08 0x04   0x02 0x01
+	; Return Select	Backspace Stop Tab  Escape F5   F4
+	;        ?End?
+	ld a,007h		;46d5 a = 7, the line of the keyboard matrix to get.
+	call 0141_SNSMAT	;46d7 Get specified line from the keyboard matrix.
+	cpl			;46da Flip all bits (because keyboard matrix is active low).
+	rrca			;46db rotate right, bit 0 to both bit 7 and carry.
+	and 020h		;46dc a &= 0x20 ("Select" key)
+	ld e,a			;46de e = a
+	
+	
+	
+	; Get status of spacebar and arrow keys.
+	;
+	; Line 8:
+	; 0x80 0x40 0x20 0x10 0x08 0x04 0x02 0x01
+	;        |    ^
+	; --->   |    |  <---  DEL  INS HOME SPACE
+	;        V    |
+	ld a,008h		;46df a = 8, the line of the keyboard matrix to get.
 	call 0141_SNSMAT	;46e1 Get specified line from the keyboard matrix.
-	cpl			;46e4
-	rrca			;46e5
-	rrca			;46e6
-	ld b,a			;46e7
-	and 004h		;46e8
-	or e			;46ea
+	cpl			;46e4 Flip all bits (because keyboard matrix is active low).
+	rrca			;46e5 rotate right: space right down up left del ins home
+	rrca			;46e6 rotate right: home space right down up left del ins
+	ld b,a			;46e7 Save
+	and 004h		;46e8 a &= 0x04, get status of "Left" key
+	or e			;46ea a |= e, add status of "Select" key (0x20 or 0x00)
 	ld c,a			;46eb
-	ld a,b			;46ec
-	rrca			;46ed
-	rrca			;46ee
-	ld b,a			;46ef
-	and 018h		;46f0
-	or c			;46f2
-	ld c,a			;46f3
-	ld a,b			;46f4
-	rrca			;46f5
-	and 003h		;46f6
-	or c			;46f8
-	pop bc			;46f9
-	or b			;46fa
+	; Post: Bit meaning of register C:
+	;   0x04 Status of "Left" key
+	;   0x20 Status of "Select" key
+	
+	ld a,b			;46ec home space right down up left del ins
+	rrca			;46ed ins home space left down up right del
+	rrca			;46ee del ins home space right down up left
+	ld b,a			;46ef Save
+	and 018h		;46f0 Get status of "Right" key and "Space" key
+	or c			;46f2 Add status of "Left" and "Select" key
+	ld c,a			;46f3 Save
+	; Post: Bit meaning of register C:
+	;   0x04 Status of "Left" key
+	;   0x08 Status of "Right" key
+	;   0x10 Status of "Space" key
+	;   0x20 Status of "Select" key
+	
+	ld a,b			;46f4 del ins home space right down up left
+	rrca			;46f5 left del ins home space right down up
+	and 003h		;46f6 Get status of "Down" key and "Up" key
+	or c			;46f8 Add status of "Left"+"Right"+"Space"+"Select"
+	; Post: Bit meaning of register A:
+	;   0x01 Status of "Up" key
+	;   0x02 Status of "Down" key
+	;   0x04 Status of "Left" key
+	;   0x08 Status of "Right" key
+	;   0x10 Status of "Space" key
+	;   0x20 Status of "Select" key
+	
+	pop bc			;46f9 b = joystick A state (see push at 0x46D4)
+	or b			;46fa Combine input from keyboard and joystick
+	; Post: Bit meaning of register A:
+	;   0x01 Status of "Up"
+	;   0x02 Status of "Down"
+	;   0x04 Status of "Left"
+	;   0x08 Status of "Right"
+	;   0x10 Status of "Space" / trigger 1
+	;   0x20 Status of "Select" / trigger 2
+	
 	ret			;46fb
-	ld c,d			;46fc
-	add hl,sp			;46fd
-	inc c			;46fe
-	ld e,d			;46ff
-	add a,b			;4700
-	ld l,h			;4701
-	add hl,sp			;4702
-	adc a,b			;4703
-	inc sp			;4704
-	cpl			;4705
-	ld h,034h		;4706
-	scf			;4708
-	ld hl,02532h		;4709
-	nop			;470c
-	rla			;470d
-	jr c,$+42		;470e
-	add hl,hl			;4710
-	inc sp			;4711
-	inc hl			;4712
-	cpl			;4713
-	ld (0fe25h),a		;4714
-	ld (hl),a			;4717
-	jr c,$+53		;4718
-	inc hl			;471a
-	cpl			;471b
-	ld (0ff25h),a		;471c
-	ld l,c			;471f
-	add hl,sp			;4720
-	inc sp			;4721
-	inc (hl)			;4722
-	ld hl,02527h		;4723
-	nop			;4726
-	nop			;4727
-	nop			;4728
-	rst 38h			;4729
-	ld c,d			;472a
-	add hl,sp			;472b
-	ld a,(de)			;472c
-	dec hl			;472d
-	cpl			;472e
-	ld l,021h		;472f
-	dec l			;4731
-	add hl,hl			;4732
-	nop			;4733
-	ld de,01819h		;4734
-	dec d			;4737
-	cp 0abh		;4738
-	add hl,sp			;473a
-	jr nc,$+46		;473b
-	ld hl,00039h		;473d
-	inc sp			;4740
-	dec h			;4741
-	inc l			;4742
-	dec h			;4743
-	inc hl			;4744
-	inc (hl)			;4745
-	cp 00dh		;4746
-	ld a,(0252ch)		;4748
-	ld (hl),025h		;474b
-	inc l			;474d
-	nop			;474e
-	ld hl,04dffh		;474f
-	ld a,(0252ch)		;4752
-	ld (hl),025h		;4755
-	inc l			;4757
-	nop			;4758
-	ld (01bffh),hl		;4759
-	inc e			;475c
-	rst 38h			;475d
-	ld l,c			;475e
-	add hl,sp			;475f
-	daa			;4760
-	ld hl,0252dh		;4761
-	nop			;4764
-	cpl			;4765
-	ld (hl),025h		;4766
-	ld (0f8ffh),a		;4768
+
+
+
+46fc_software_letters:
+	defb 0x4A		;46fc
+	defb 0x39		;46fd
+	defb 0x0C		;46fe
+	defb 0x5A		;46ff
+	defb 0x80		;4700
+	defb 0x6C		;4701
+	defb 0x39		;4702
+	defb 0x88		;4703
+	
+	; "SOFTWARE"
+	defb 0x33		;4704 "S"
+	defb 0x2F		;4705 "O"
+	defb 0x26		;4706 "F"
+	defb 0x34		;4707 "T"
+	defb 0x37		;4708 "W"
+	defb 0x21		;4709 "A"
+	defb 0x32		;470a "R"
+	defb 0x25		;470b "E"
+	defb 0x00		;470c ?end?
+	
+470d_hiscore_letters:
+	defb 0x17		;470d
+	defb 0x38		;470e
+	; "HISCORE"
+	defb 0x28		;470f "H"
+	defb 0x29		;4710 "I"
+	defb 0x33		;4711 "S"
+	defb 0x23		;4712 "C"
+	defb 0x2F		;4713 "O"
+	defb 0x32		;4714 "R"
+	defb 0x25		;4715 "E"
+	defb 0xFE		;4716 ?enter/return/cr/lf?
+	
+4717_score_letters:
+	defb 0x77		;4717
+	defb 0x38		;4718
+	; "SCORE"
+	defb 0x33		;4719 "S"
+	defb 0x23		;471a "C"
+	defb 0x2F		;471b "O"
+	defb 0x32		;471c "R"
+	defb 0x25		;471d "E"
+	defb 0xFF		;471e ?end?
+
+471f_stage_letters:
+	defb 0x69		;471f
+	defb 0x39		;4720
+	; "STAGE"
+	defb 0x33		;4721 "S"
+	defb 0x34		;4722 "T"
+	defb 0x21		;4723 "A"
+	defb 0x27		;4724 "G"
+	defb 0x25		;4725 "E"
+	
+	defb 0x00		;4726 ?space?
+	defb 0x00		;4727 ?space?
+	defb 0x00		;4728 ?space?
+	defb 0xFF		;4729 ?end?
+
+472a_copyright_konami_1985_letters:
+	defb 0x4A		;472a
+	defb 0x39		;472b
+	defb 0x1A		;472c © (copyright symbol)
+	; "©KONAMI 1985"
+	defb 0x2B		;472d "K"
+	defb 0x2F		;472e "O"
+	defb 0x2E		;472f "N"
+	defb 0x21		;4730 "A"
+	defb 0x2D		;4731 "M"
+	defb 0x29		;4732 "I"
+	defb 0x00		;4733 space
+	defb 0x11		;4734 "1"
+	defb 0x19		;4735 "9"
+	defb 0x18		;4736 "8"
+	defb 0x15		;4737 "5"
+	defb 0xFE		;4738 newline
+	
+	defb 0xAB		;4739
+	defb 0x39		;473a
+	
+	; "PLAY SELECT"
+	defb 0x30		;473b "P"
+	defb 0x2C		;473c "L"
+	defb 0x21		;473d "A"
+	defb 0x39		;473e "Y"
+	defb 0x00		;473f space
+	defb 0x33		;4740 "S"
+	defb 0x25		;4741 "E"
+	defb 0x2C		;4742 "L"
+	defb 0x25		;4743 "E"
+	defb 0x23		;4744 "C"
+	defb 0x34		;4745 "T"
+	defb 0xFE		;4746 newline
+	
+	defb 0x0D		;4747
+	defb 0x3A		;4748
+	
+	; "LEVEL A"
+	defb 0x2C		;4749 "L"
+	defb 0x25		;474a "E"
+	defb 0x36		;474b "V"
+	defb 0x25		;474c "E"
+	defb 0x2C		;474d "L"
+	defb 0x00		;474e space
+	defb 0x21		;474f "A"
+	defb 0xFF		;4750 end
+	
+	defb 0x4D		;4751
+	defb 0x3A		;4752
+	
+	; "Level B"
+	defb 0x2C		;4753 "L"
+	defb 0x25		;4754 "E"
+	defb 0x36		;4755 "V"
+	defb 0x25		;4756 "E"
+	defb 0x2C		;4757 "L"
+	defb 0x00		;4758 space
+	defb 0x21		;4759 "A"
+	defb 0xFF		;475a end
+	
+475b_hand_pointing_to_right_letters:
+	defb 0x1B		;475b
+	defb 0x1C		;475c
+	defb 0xFF		;475d
+	
+475e_game_over_letters:
+	defb 0x69		;475e
+	defb 0x39		;475f
+	
+	; "GAME OVER"
+	defb 0x27		;4760 "G"
+	defb 0x21		;4761 "A"
+	defb 0x2D		;4762 "M"
+	defb 0x25		;4762 "E"
+	defb 0x00		;4764 space
+	defb 0x2F		;4765 "O"
+	defb 0x36		;4766 "V"
+	defb 0x25		;4767 "E"
+	defb 0x32		;4768 "R"
+	defb 0xFF		;4769 end
+
+476a_unknown_data:
+	defb 0xF8		;476a
 	ld a,(05b5ah)		;476b
 	ld e,h			;476e
 	ld e,l			;476f
-	ld e,(hl)			;4770
+	ld e,(hl)		;4770
 	ld e,a			;4771
 	rst 38h			;4772
 	call 0489ah		;4773
@@ -1439,7 +1710,7 @@ main:
 
 	ld hl,(0e00eh)		;48dd
 	ld de,0ffe0h		;48e0
-	add hl,de			;48e3
+	add hl,de		;48e3
 	ld (0e00eh),hl		;48e4
 	ld a,040h		;48e7
 	ld b,003h		;48e9
@@ -1449,18 +1720,18 @@ main:
 	ld b,c			;48f4
 	call 04901h		;48f5
 	xor a			;48f8
-	call 0056_FILVRM		;48f9
+	call 0056_FILVRM	;48f9
 	ld hl,0e00ah		;48fc
-	dec (hl)			;48ff
+	dec (hl)		;48ff
 	ret			;4900
 	push hl			;4901
-	call 004D_WRTVRM		;4902
+	call 004D_WRTVRM	;4902
 	inc hl			;4905
 	inc a			;4906
 	djnz $-5		;4907
 	pop de			;4909
 	ld hl,00020h		;490a
-	add hl,de			;490d
+	add hl,de		;490d
 	ret			;490e
 	rrca			;490f
 	nop			;4910
@@ -1596,7 +1867,7 @@ main:
 	ld a,001h		;49ba
 	jp 040efh		;49bc
 	call 049a6h		;49bf
-	ld de,0472ah		;49c2
+	ld de,0472ah		;49c2 472a_copyright_konami_1985_letters
 	call 045f0h		;49c5
 	call 045f0h		;49c8
 	ld a,(0e004h)		;49cb
@@ -1635,7 +1906,7 @@ main:
 	inc hl			;4a09
 	inc de			;4a0a
 	ld a,c			;4a0b
-	cp 015h		;4a0c
+	cp 015h			;4a0c
 	jr z,$+6		;4a0e
 	dec de			;4a10
 	dec de			;4a11
@@ -1646,12 +1917,15 @@ main:
 	pop hl			;4a17
 	pop bc			;4a18
 	ld a,020h		;4a19
-	call 0403bh		;4a1b
+	call 0403bh		;4a1b HL += a
 	ld a,c			;4a1e
-	call 04040h		;4a1f
+	call 04040h		;4a1f DE += a
 	djnz $-52		;4a22
 	ret			;4a24
-	ld (bc),a			;4a25
+
+
+
+	ld (bc),a		;4a25
 	rst 38h			;4a26
 	add a,e			;4a27
 	ret nz			;4a28
@@ -1661,7 +1935,7 @@ main:
 	add a,085h		;4a2c
 	call m,006feh		;4a2e
 	rst 20h			;4a31
-	ex (sp),hl			;4a32
+	ex (sp),hl		;4a32 ?!?!
 	inc bc			;4a33
 	ld h,e			;4a34
 	ld b,0c6h		;4a35
@@ -1932,32 +2206,33 @@ main:
 	ld b,001h		;4b77
 	ld hl,0e012h		;4b79
 	and 03fh		;4b7c
-	cp 001h		;4b7e
+	cp 001h			;4b7e
 	jr z,$+35		;4b80
-	cp 005h		;4b82
+	cp 005h			;4b82
 	jr c,$+16		;4b84
-	cp 00fh		;4b86
+	cp 00fh			;4b86
 	jr c,$+6		;4b88
 	inc b			;4b8a
 	inc b			;4b8b
-	jr $+11		;4b8c
+	jr $+11			;4b8c
 	ld hl,0e01dh		;4b8e
 	inc b			;4b91
-	jr $+5		;4b92
+	jr $+5			;4b92
 	ld hl,0e028h		;4b94
 	dec d			;4b97
 	jr z,$+11		;4b98
-	ld a,(hl)			;4b9a
+	ld a,(hl)		;4b9a
 	and 03fh		;4b9b
 	ld e,a			;4b9d
 	ld a,c			;4b9e
 	and 03fh		;4b9f
 	cp e			;4ba1
 	ret c			;4ba2
+
 	and 03fh		;4ba3
 	add a,a			;4ba5
 	ld de,04de0h		;4ba6
-	call 04040h		;4ba9
+	call 04040h		;4ba9 DE += a
 	dec hl			;4bac
 	dec hl			;4bad
 	push hl			;4bae
@@ -1970,32 +2245,38 @@ main:
 	inc hl			;4bbe
 	ld (hl),001h		;4bbf
 	inc hl			;4bc1
-	ld (hl),c			;4bc2
+	ld (hl),c		;4bc2
 	inc hl			;4bc3
-	ld a,(de)			;4bc4
-	ld (hl),a			;4bc5
+	ld a,(de)		;4bc4
+	ld (hl),a		;4bc5
 	inc hl			;4bc6
 	inc de			;4bc7
-	ld a,(de)			;4bc8
-	ld (hl),a			;4bc9
+	ld a,(de)		;4bc8
+	ld (hl),a		;4bc9
 	ld a,007h		;4bca
 	add a,l			;4bcc
 	ld l,a			;4bcd
 	inc de			;4bce
 	djnz $-19		;4bcf
 	ret			;4bd1
+
+
+
 	ld a,(ix+002h)		;4bd2
 	push bc			;4bd5
 	ld d,001h		;4bd6
 	call 04b76h		;4bd8
 	pop bc			;4bdb
-	ex af,af'			;4bdc
+	ex af,af'		;4bdc
 	ld (ix+009h),a		;4bdd
 	ret			;4be0
+
+
+
 	ld a,(0e031h)		;4be1
 	ld e,a			;4be4
 	ld a,c			;4be5
-	cp 001h		;4be6
+	cp 001h			;4be6
 	jr z,$+3		;4be8
 	dec a			;4bea
 	rlca			;4beb
@@ -2005,12 +2286,12 @@ main:
 	jr z,$+6		;4bef
 	cpl			;4bf1
 	and e			;4bf2
-	jr $+3		;4bf3
+	jr $+3			;4bf3
 	or e			;4bf5
 	ld (0e031h),a		;4bf6
 	ld e,a			;4bf9
 	ld a,007h		;4bfa
-	jp 0093_WRTPSG		;4bfc
+	jp 0093_WRTPSG		;4bfc A: PSG reg, E: data
 
 
 
@@ -2093,23 +2374,33 @@ main:
 	sbc hl,de		;4c8f
 	call 04dc3h		;4c91
 	ld a,(E083_fuel)	;4c94
-	cp 010h			;4c97
-	jr c,$+21		;4c99
+	cp 010h			;4c97 Compute a - 10 and set flags.
+	jr c,$+21		;4c99 if (a < 10) jump 0x4CAE
 	ld a,(0e028h)		;4c9b
 	cp 003h			;4c9e
-	jr z,$+14		;4ca0
+	jr z,$+14		;4ca0 if (a == 0x03) jump to 0x4CAE.
 	cp 00ah			;4ca2
-	jr z,$+14		;4ca4
+	jr z,$+14		;4ca4 if (a == 0x0A) jump to 0x4CB2.
 	cp 00dh			;4ca6
-	jr z,$+10		;4ca8
-	ld e,00dh		;4caa
-	jr $+8			;4cac
-	ld e,009h		;4cae
-	jr $+4			;4cb0
-	ld e,000h		;4cb2
-	ld a,008h		;4cb4
-	call 0093_WRTPSG	;4cb6
+	jr z,$+10		;4ca8 if (a == 0x0D) jump to 0x4CB2.
+	ld e,00dh		;4caa E = 0x0D, new volume for PSG channel A.
+	jr $+8			;4cac jump to 0x4CB4.
+	
+	
+	ld e,009h		;4cae E = 0x09, new volume for PSG channel A.
+	jr $+4			;4cb0 jump to 0x4CB4.
+	
+	
+	ld e,000h		;4cb2 E = 0x00, new volume for PSG channel A.
+	
+	4cb4_set_volume:
+	ld a,008h		;4cb4 a = 8, PSG register for volume of channel A
+	call 0093_WRTPSG	;4cb6 A: PSG reg, E: data
+	
 	jp 04c1dh		;4cb9
+
+
+
 	bit 6,a			;4cbc
 	ld d,001h		;4cbe
 	call z,04be1h		;4cc0
@@ -2140,7 +2431,7 @@ main:
 	and 01fh		;4cf5
 	ld e,a			;4cf7
 	ld a,006h		;4cf8
-	call 0093_WRTPSG	;4cfa
+	call 0093_WRTPSG	;4cfa A: PSG reg, E: data
 	ld d,000h		;4cfd
 	call 04be1h		;4cff
 	inc hl			;4d02
@@ -2192,7 +2483,10 @@ main:
 	rrca			;4d58
 	add a,088h		;4d59
 	ld e,h			;4d5b
-	jp 0093_WRTPSG		;4d5c
+	jp 0093_WRTPSG		;4d5c A: PSG reg, E: data
+
+
+
 	ld a,(hl)		;4d5f
 	and 0f0h		;4d60
 	cp 0d0h			;4d62
@@ -2237,7 +2531,7 @@ main:
 	call 04d17h		;4dac
 	ld a,b			;4daf
 	ld hl,04dd6h		;4db0
-	call 0403bh		;4db3
+	call 0403bh		;4db3 HL += a
 	ld l,(hl)		;4db6
 	ld h,000h		;4db7
 	ld a,(ix+005h)		;4db9
@@ -2248,11 +2542,13 @@ main:
 	djnz $-1		;4dc1
 	ld a,c			;4dc3
 	ld e,h			;4dc4
-	call 0093_WRTPSG	;4dc5
+	call 0093_WRTPSG	;4dc5 A: PSG reg, E: data
 	ld a,c			;4dc8
 	dec a			;4dc9
 	ld e,l			;4dca
-	jp 0093_WRTPSG		;4dcb
+	jp 0093_WRTPSG		;4dcb A: PSG reg, E: data
+
+
 
 	inc hl			;4dce
 	ld (ix+003h),l		;4dcf
@@ -2726,7 +3022,7 @@ main:
 	defb 0fdh,068h	;ld iyl,b		;500b
 	rst 38h			;500d
 	out (0fch),a		;500e
-	ex (sp),hl			;5010
+	ex (sp),hl		;5010
 	ld h,c			;5011
 	jp 0bb61h		;5012
 	or b			;5015
@@ -2758,32 +3054,32 @@ main:
 	ld a,(0e03bh)		;5038
 	or a			;503b
 	jr z,$+3		;503c
-	ex de,hl			;503e
+	ex de,hl		;503e
 	push de			;503f
 	call 05046h		;5040
 	pop hl			;5043
 	ld c,000h		;5044
-	ld de,0475bh		;5046
+	ld de,0475bh		;5046 475b_hand_pointing_to_right_letters
 	jp 045f8h		;5049
 	ld hl,0e048h		;504c
 	ld de,0e049h		;504f
 	ld bc,0034eh		;5052
 	ld (hl),000h		;5055
-	ldir		;5057
+	ldir			;5057
 	call 051e5h		;5059
 	ld hl,0e098h		;505c
 	ld de,0e099h		;505f
 	ld (hl),020h		;5062
 	ld c,017h		;5064
-	ldir		;5066
+	ldir			;5066
 	ld hl,0e042h		;5068
-	ld a,(hl)			;506b
+	ld a,(hl)		;506b
 	or a			;506c
 	jr nz,$+11		;506d
 	inc hl			;506f
-	ld a,(hl)			;5070
+	ld a,(hl)		;5070
 	ld hl,050beh		;5071
-	cp 006h		;5074
+	cp 006h			;5074
 	jr nz,$+5		;5076
 	ld hl,050dch		;5078
 	ld (0e0b2h),hl		;507b
@@ -2791,24 +3087,26 @@ main:
 	ld a,008h		;5081
 	ld (0e07dh),a		;5083
 	call 051ffh		;5086
-	ld a,0d0h		;5089
-	ld (E083_fuel),a		;508b
+	
+	ld a,0d0h		;5089 a = 0xD0
+	ld (E083_fuel),a	;508b Set fuel to 0xD0, i.e. full fuel!
+	
 	ld a,(0e043h)		;508e
 	dec a			;5091
 	ld hl,05191h		;5092
-	call 0403bh		;5095
-	ld a,(hl)			;5098
+	call 0403bh		;5095 HL += a
+	ld a,(hl)		;5098
 	ld (0e089h),a		;5099
 	ld a,(0e043h)		;509c
 	dec a			;509f
 	ld l,a			;50a0
 	ld h,000h		;50a1
-	add hl,hl			;50a3
-	add hl,hl			;50a4
-	add hl,hl			;50a5
-	add hl,hl			;50a6
+	add hl,hl		;50a3
+	add hl,hl		;50a4
+	add hl,hl		;50a5
+	add hl,hl		;50a6
 	ld de,0537dh		;50a7
-	add hl,de			;50aa
+	add hl,de		;50aa
 	ld (0e0bdh),hl		;50ab
 	call 07020h		;50ae
 	ld a,004h		;50b1
@@ -2820,14 +3118,15 @@ main:
 	call 05132h		;50bf
 	ld a,(0e043h)		;50c2
 	dec a			;50c5
-	call 04045h		;50c6
+	call 04045h		;50c6 PC = PC[2 * A]
+;data
 	rst 20h			;50c9
 	ld d,b			;50ca
 	ret pe			;50cb
 	ld d,b			;50cc
 	rst 28h			;50cd
 	ld d,b			;50ce
-	ld a,(bc)			;50cf
+	ld a,(bc)		;50cf
 	ld d,c			;50d0
 	ld (0d551h),hl		;50d1
 	ld d,b			;50d4
@@ -2864,7 +3163,7 @@ main:
 	ld bc,00001h		;5118
 	nop			;511b
 	ld d,a			;511c
-	ld a,(hl)			;511d
+	ld a,(hl)		;511d
 	ccf			;511e
 	ld bc,07dc5h		;511f
 	call 0510ah		;5122
@@ -2880,16 +3179,16 @@ main:
 	add a,a			;5138
 	add a,b			;5139
 	ld hl,05161h		;513a
-	call 0403bh		;513d
+	call 0403bh		;513d HL += a
 	ld bc,00006h		;5140
 	ld de,0e071h		;5143
-	ldir		;5146
+	ldir			;5146
 	ld a,001h		;5148
 	ld (0e07fh),a		;514a
 	ld hl,(0e071h)		;514d
 	ld de,0e07ah		;5150
 	ld c,002h		;5153
-	ldir		;5155
+	ldir			;5155
 	ld (0e071h),hl		;5157
 	ld hl,05998h		;515a
 	ld (0e06fh),hl		;515d
@@ -3008,11 +3307,16 @@ main:
 	nop			;5221
 	nop			;5222
 	nop			;5223
+
+
+; We can get here from:
+;     0x413C (call)
+;     0x4308 (call)
 	call 0526bh		;5224
 	call 0597dh		;5227
 	call 070a8h		;522a
 	call 05434h		;522d
-	call 07755h		;5230
+	call 07755h		;5230 contains code about fuel heart (+0x20 fuel)
 	call 06a70h		;5233
 	call 07374h		;5236
 	call 0738ch		;5239
@@ -3054,47 +3358,50 @@ main:
 	inc hl			;5295
 	inc hl			;5296
 	inc hl			;5297
-	ld a,(hl)			;5298
+	ld a,(hl)		;5298
 	sub 0c0h		;5299
-	cp 020h		;529b
+	cp 020h			;529b
 	jr c,$+14		;529d
-	ld a,(hl)			;529f
+	ld a,(hl)		;529f
 	sub 006h		;52a0
-	ld (hl),a			;52a2
+	ld (hl),a		;52a2
 	inc hl			;52a3
 	inc hl			;52a4
 	inc hl			;52a5
 	inc hl			;52a6
-	ld (hl),a			;52a7
+	ld (hl),a		;52a7
 	djnz $-20		;52a8
 	ret			;52aa
 	ld a,b			;52ab
-	cp 001h		;52ac
+	cp 001h			;52ac
 	jp z,0416ah		;52ae
 	ld a,004h		;52b1
-	call 0403bh		;52b3
-	jr $-14		;52b6
+	call 0403bh		;52b3 HL += a
+	jr $-14			;52b6
 	xor a			;52b8
 	ld hl,0e042h		;52b9
-	ld (hl),a			;52bc
-	ld a,r		;52bd
+	ld (hl),a		;52bc
+	ld a,r			;52bd
 	add a,h			;52bf
 	ld c,a			;52c0
 	ld a,(0e003h)		;52c1
 	add a,c			;52c4
 	and 003h		;52c5
 	inc a			;52c7
-	cp 004h		;52c8
+	cp 004h			;52c8
 	jr nz,$+4		;52ca
 	ld a,001h		;52cc
 	inc hl			;52ce
-	ld (hl),a			;52cf
+	ld (hl),a		;52cf
 	ret			;52d0
+
+
+
 	ld a,(0e049h)		;52d1
-	cp 004h		;52d4
+	cp 004h			;52d4
 	jr nz,$+14		;52d6
 	ld a,(0e0b1h)		;52d8
-	cp 015h		;52db
+	cp 015h			;52db
 	jr nc,$+7		;52dd
 	ld a,00ch		;52df
 	ld (0e008h),a		;52e1
@@ -3106,7 +3413,7 @@ main:
 	ld a,(0e04eh)		;52ed
 	sub c			;52f0
 	add a,001h		;52f1
-	cp 007h		;52f3
+	cp 007h			;52f3
 	jr c,$+23		;52f5
 	ld a,(0e04eh)		;52f7
 	cp c			;52fa
@@ -3313,100 +3620,126 @@ main:
 	ld (hl),001h		;5421
 	inc hl			;5423
 	inc hl			;5424
-	ld (hl),b			;5425
+	ld (hl),b		;5425
 	inc hl			;5426
 	inc hl			;5427
-	ld (hl),c			;5428
+	ld (hl),c		;5428
 	inc hl			;5429
 	ld (hl),090h		;542a
 	inc hl			;542c
 	ld (hl),003h		;542d
 	inc hl			;542f
-	ld (hl),e			;5430
+	ld (hl),e		;5430
 	inc hl			;5431
-	ld (hl),d			;5432
+	ld (hl),d		;5432
 	ret			;5433
-	ld hl,0e105h		;5434
-	ld a,(hl)			;5437
+
+
+
+	ld hl,0e105h		;5434 hl = 0xE105
+	ld a,(hl)		;5437 a = *(0xE105)
 	or a			;5438
-	ret z			;5439
-	inc hl			;543a
-	inc hl			;543b
-	ld a,(hl)			;543c
-	cp 0c0h		;543d
+	ret z			;5439 if (a == 0) return ?no truck?
+	
+	inc hl			;543a hl = 0xE106
+	inc hl			;543b hl = 0xE107
+	ld a,(hl)		;543c a = *(0xE107)
+	cp 0c0h			;543d
 	jr nc,$+95		;543f
 	ld a,(0e002h)		;5441
-	bit 6,a		;5444
-	jr z,$+16		;5446
+	
+	; Bit:               0654 3210
+	; Level A: 0x40 == 0b0100_0000
+	; Lavel B: 0x60 == 0b0110_0000
+	bit 6,a			;5444
+	jr z,$+16		;5446 if (neither_levelA_nor_B) jump to 0x5456
+	
 	push hl			;5448
 	ld a,(0e003h)		;5449
-	and 007h		;544c
-	jr nz,$+7		;544e
-	ld a,004h		;5450
-	call 04b6eh		;5452
+	and 007h		;544c a &= 0x07 (keep lower 3 bits)
+	jr nz,$+7		;544e if (a != 0x00) jump to 0x5455
+	ld a,004h		;5450 a = 4
+	call 04b6eh		;5452 sound?
+	
+	; We can here here from:
+	;   0x544E (jump)
+	;   0x5452 (fall)
+	;
+	; Pops value of HL stored at 0x5448.
 	pop hl			;5455
-	ld a,(0e04ch)		;5456
-	sub (hl)			;5459
-	sub 008h		;545a
+	
+	; We can get here from:
+	;   0x5456 (jump)
+	;   0x5455 (fall)
+	ld a,(0e04ch)		;5456 a = car_vpos
+	sub (hl)		;5459 pc_of_caller -= car_vpos
+	sub 008h		;545a a -= 8
 	add a,018h		;545c
 	jr nc,$+14		;545e
 	inc hl			;5460
 	inc hl			;5461
 	ld a,(0e04eh)		;5462
-	sub (hl)			;5465
+	sub (hl)		;5465
 	sub 008h		;5466
 	add a,010h		;5468
 	jr c,$+63		;546a
 	ld hl,0e10ah		;546c
-	ld e,(hl)			;546f
+	ld e,(hl)		;546f
 	inc hl			;5470
-	ld d,(hl)			;5471
+	ld d,(hl)		;5471
 	ld hl,(0e106h)		;5472
-	add hl,de			;5475
+	add hl,de		;5475
 	ld (0e106h),hl		;5476
 	ld hl,0e10ch		;5479
-	ld e,(hl)			;547c
+	ld e,(hl)		;547c
 	inc hl			;547d
-	ld d,(hl)			;547e
+	ld d,(hl)		;547e
 	ld hl,(0e108h)		;547f
-	add hl,de			;5482
+	add hl,de		;5482
 	ld (0e108h),hl		;5483
 	ld hl,0e107h		;5486
 	ld de,0e13eh		;5489
-	ldi		;548c
+	ldi			;548c
 	inc hl			;548e
-	ldi		;548f
+	ldi			;548f
 	ld a,(0e003h)		;5491
 	and 00ch		;5494
 	add a,06ch		;5496
-	ld (de),a			;5498
+	ld (de),a		;5498
 	inc de			;5499
 	ld a,008h		;549a
-	ld (de),a			;549c
+	ld (de),a		;549c
 	ret			;549d
-	ld hl,0e105h		;549e
-	ld (hl),000h		;54a1
-	ld a,0e0h		;54a3
-	ld (0e13eh),a		;54a5
+
+
+
+	ld hl,0e105h		;549e hl = 0xE105
+	ld (hl),000h		;54a1 *(0xE105) = 0x00
+	ld a,0e0h		;54a3 A = 0xE0
+	ld (0e13eh),a		;54a5 *(0xE13E) = 0xE0
 	ret			;54a8
+
+
+
 	call 0549eh		;54a9
 	jp 06f18h		;54ac
 	ld hl,0e0b4h		;54af
-	ld a,(hl)			;54b2
+	ld a,(hl)		;54b2
 	or a			;54b3
 	jr nz,$+44		;54b4
 	ld hl,(0e0b2h)		;54b6
 	ld a,(0e079h)		;54b9
 	cp (hl)			;54bc
 	ret nz			;54bd
+	
 	inc hl			;54be
-	ld a,(hl)			;54bf
+	ld a,(hl)		;54bf
 	inc hl			;54c0
 	ld (0e0b2h),hl		;54c1
 	ld hl,054f9h		;54c4
 	add a,a			;54c7
 	add a,a			;54c8
-	call 0403bh		;54c9
+	call 0403bh		;54c9 HL += a
 	ld (0e0b5h),hl		;54cc
 	ld a,002h		;54cf
 	ld (0e0b4h),a		;54d1
@@ -3419,17 +3752,20 @@ main:
 	ld hl,(0e0b5h)		;54e0
 	ld a,(0e0b7h)		;54e3
 	ld de,0e058h		;54e6
-	call 04040h		;54e9
+	call 04040h		;54e9 DE += a
 	ld bc,00002h		;54ec
-	ldir		;54ef
+	ldir			;54ef
 	ld (0e0b5h),hl		;54f1
 	ld hl,0e0b4h		;54f4
-	dec (hl)			;54f7
+	dec (hl)		;54f7
 	ret			;54f8
+
+
+
 	halt			;54f9
-	ld (hl),a			;54fa
-	ld (hl),h			;54fb
-	ld (hl),l			;54fc
+	ld (hl),a		;54fa
+	ld (hl),h		;54fb
+	ld (hl),l		;54fc
 	ld a,d			;54fd
 	ld a,e			;54fe
 	ld a,b			;54ff
@@ -3453,10 +3789,11 @@ main:
 	call 0447fh		;551a
 	call 0592ah		;551d
 	ld a,(0e043h)		;5520
-	call 04045h		;5523
-	inc (hl)			;5526
+	call 04045h		;5523 PC = PC[2 * A]
+;data
+	inc (hl)		;5526
 	ld d,l			;5527
-	inc (hl)			;5528
+	inc (hl)		;5528
 	ld d,l			;5529
 	ld b,l			;552a
 	ld d,l			;552b
@@ -3566,75 +3903,75 @@ main:
 	dec (hl)			;5603
 	jr nz,$+47		;5604
 	dec hl			;5606
-	dec (hl)			;5607
+	dec (hl)		;5607
 	jr nz,$+18		;5608
 	ld hl,(0e08ah)		;560a
 	inc hl			;560d
 	ld (0e08ah),hl		;560e
-	ld a,(hl)			;5611
+	ld a,(hl)		;5611
 	rra			;5612
 	rra			;5613
 	and 03fh		;5614
 	ld de,0e08ch		;5616
-	ld (de),a			;5619
+	ld (de),a		;5619
 	ld hl,(0e08ah)		;561a
-	ld a,(hl)			;561d
+	ld a,(hl)		;561d
 	and 003h		;561e
 	add a,a			;5620
 	ld hl,0569ch		;5621
-	call 0403bh		;5624
-	ld a,(hl)			;5627
+	call 0403bh		;5624 HL += a
+	ld a,(hl)		;5627
 	inc hl			;5628
-	ld h,(hl)			;5629
+	ld h,(hl)		;5629
 	ld l,a			;562a
 	ld de,0e08dh		;562b
-	ldi		;562e
+	ldi			;562e
 	ld (0e08eh),hl		;5630
 	ld de,0e058h		;5633
 	ld bc,00007h		;5636
 	ld hl,(0e08eh)		;5639
-	ldir		;563c
+	ldir			;563c
 	ld (0e08eh),hl		;563e
 	ret			;5641
 	call 056f7h		;5642
 	call 05600h		;5645
 	ld hl,(0e094h)		;5648
-	ld a,(hl)			;564b
+	ld a,(hl)		;564b
 	inc a			;564c
 	jr nz,$+41		;564d
 	ld hl,0e092h		;564f
-	dec (hl)			;5652
+	dec (hl)		;5652
 	ld hl,(0e090h)		;5653
 	jr nz,$+15		;5656
 	inc hl			;5658
 	ld (0e090h),hl		;5659
-	ld a,(hl)			;565c
+	ld a,(hl)		;565c
 	ld b,a			;565d
 	rra			;565e
 	rra			;565f
 	and 03fh		;5660
 	ld (0e092h),a		;5662
-	ld a,(hl)			;5665
+	ld a,(hl)		;5665
 	and 003h		;5666
 	add a,a			;5668
 	ld hl,056a4h		;5669
-	call 0403bh		;566c
-	ld a,(hl)			;566f
+	call 0403bh		;566c HL += a
+	ld a,(hl)		;566f
 	inc hl			;5670
-	ld h,(hl)			;5671
+	ld h,(hl)		;5671
 	ld l,a			;5672
 	ld (0e094h),hl		;5673
 	exx			;5676
 	ld hl,(0e090h)		;5677
-	ld a,(hl)			;567a
+	ld a,(hl)		;567a
 	and 003h		;567b
-	cp 003h		;567d
+	cp 003h			;567d
 	exx			;567f
 	jr nz,$+11		;5680
 	ld (0e094h),hl		;5682
 	ld bc,00004h		;5685
-	add hl,bc			;5688
-	jr $+13		;5689
+	add hl,bc		;5688
+	jr $+13			;5689
 	ld b,004h		;568b
 	ld de,0e06eh		;568d
 	ld a,(hl)			;5690
@@ -3704,7 +4041,8 @@ main:
 	call 0590eh		;5701
 	ld a,(0e07ah)		;5704
 	and 00fh		;5707
-	call 04045h		;5709
+	call 04045h		;5709 PC = PC[2 * A]
+;data
 	ld l,b			;570c
 	ld d,a			;570d
 	djnz $+90		;570e
@@ -3765,7 +4103,7 @@ main:
 	ld de,0e058h		;577f
 	add a,e			;5782
 	ld e,a			;5783
-	ldi		;5784
+	ldi			;5784
 	ld a,(0e07ah)		;5786
 	rra			;5789
 	rra			;578a
@@ -3774,68 +4112,68 @@ main:
 	and 003h		;578d
 	ld b,a			;578f
 	sub 002h		;5790
-	neg		;5792
+	neg			;5792
 	ld c,a			;5794
 	add a,a			;5795
 	add a,c			;5796
-	call 0403bh		;5797
+	call 0403bh		;5797 HL += a
 	inc b			;579a
 	ld a,b			;579b
 	add a,a			;579c
 	add a,b			;579d
 	ld c,a			;579e
 	ld b,000h		;579f
-	ldir		;57a1
+	ldir			;57a1
 	ld (0e06fh),hl		;57a3
 	ret			;57a6
 	ld hl,05808h		;57a7
 	ld a,(0e07bh)		;57aa
 	and 007h		;57ad
-	call 0403bh		;57af
+	call 0403bh		;57af HL += a
 	ld a,(0e07dh)		;57b2
 	ld de,0e058h		;57b5
 	add a,e			;57b8
 	ld e,a			;57b9
-	ldi		;57ba
+	ldi			;57ba
 	ld hl,(0e06fh)		;57bc
 	ld a,(0e081h)		;57bf
 	ld c,a			;57c2
 	sub 009h		;57c3
-	neg		;57c5
-	call 0403bh		;57c7
+	neg			;57c5
+	call 0403bh		;57c7 HL += a
 	ld b,000h		;57ca
-	ldir		;57cc
+	ldir			;57cc
 	inc hl			;57ce
 	inc hl			;57cf
 	ld (0e06fh),hl		;57d0
 	ld hl,0e07bh		;57d3
-	ld a,(hl)			;57d6
+	ld a,(hl)		;57d6
 	sub 001h		;57d7
-	ld (hl),a			;57d9
+	ld (hl),a		;57d9
 	jp m,0585fh		;57da
-	ld a,(hl)			;57dd
+	ld a,(hl)		;57dd
 	and 007h		;57de
 	ret nz			;57e0
-	ld a,(hl)			;57e1
+	ld a,(hl)		;57e1
 	and a			;57e2
 	ret z			;57e3
 	ld a,(0e07ah)		;57e4
 	ld hl,0e081h		;57e7
-	inc (hl)			;57ea
+	inc (hl)		;57ea
 	and 00fh		;57eb
-	cp 003h		;57ed
+	cp 003h			;57ed
 	jr z,$+4		;57ef
-	dec (hl)			;57f1
-	dec (hl)			;57f2
+	dec (hl)		;57f1
+	dec (hl)		;57f2
 	ld a,(0e07ah)		;57f3
 	ld b,a			;57f6
 	and 00fh		;57f7
 	add a,a			;57f9
 	ld hl,0593ah		;57fa
-	call 0403bh		;57fd
-	ld a,(hl)			;5800
+	call 0403bh		;57fd HL += a
+	ld a,(hl)		;5800
 	inc hl			;5801
-	ld h,(hl)			;5802
+	ld h,(hl)		;5802
 	ld l,a			;5803
 	ld (0e06fh),hl		;5804
 	ret			;5807
@@ -3846,28 +4184,28 @@ main:
 	rst 20h			;580d
 	and 0e7h		;580e
 	ld hl,0e07bh		;5810
-	dec (hl)			;5813
+	dec (hl)		;5813
 	jr z,$+62		;5814
-	ld a,(hl)			;5816
+	ld a,(hl)		;5816
 	and 007h		;5817
 	jr nz,$+37		;5819
 	ld a,(0e07ah)		;581b
 	and 00fh		;581e
 	ld hl,0e07dh		;5820
-	inc (hl)			;5823
-	cp 002h		;5824
+	inc (hl)		;5823
+	cp 002h			;5824
 	jr z,$+4		;5826
-	dec (hl)			;5828
-	dec (hl)			;5829
+	dec (hl)		;5828
+	dec (hl)		;5829
 	ld a,(0e07ah)		;582a
 	ld b,a			;582d
 	and 00fh		;582e
 	add a,a			;5830
 	ld hl,0593ah		;5831
-	call 0403bh		;5834
-	ld a,(hl)			;5837
+	call 0403bh		;5834 HL += a
+	ld a,(hl)		;5837
 	inc hl			;5838
-	ld h,(hl)			;5839
+	ld h,(hl)		;5839
 	ld l,a			;583a
 	ld (0e06fh),hl		;583b
 	ld hl,(0e06fh)		;583e
@@ -3875,42 +4213,42 @@ main:
 	ld de,0e058h		;5844
 	add a,e			;5847
 	ld e,a			;5848
-	ldi		;5849
+	ldi			;5849
 	call 05784h		;584b
 	ld (0e06fh),hl		;584e
 	ret			;5851
 	ld a,(0e07ah)		;5852
 	and 00fh		;5855
 	ld hl,0e07dh		;5857
-	cp 001h		;585a
+	cp 001h			;585a
 	jr z,$+3		;585c
-	inc (hl)			;585e
+	inc (hl)		;585e
 	ld hl,(0e071h)		;585f
 	ld de,0e07ah		;5862
 	ld bc,00002h		;5865
-	ldir		;5868
+	ldir			;5868
 	ld (0e071h),hl		;586a
 	ld a,(0e07ah)		;586d
 	ld b,a			;5870
 	and 00fh		;5871
-	cp 002h		;5873
+	cp 002h			;5873
 	jr nz,$+6		;5875
 	ld hl,0e07dh		;5877
-	dec (hl)			;587a
+	dec (hl)		;587a
 	add a,a			;587b
 	ld hl,0593ah		;587c
-	call 0403bh		;587f
-	ld a,(hl)			;5882
+	call 0403bh		;587f HL += a
+	ld a,(hl)		;5882
 	inc hl			;5883
-	ld h,(hl)			;5884
+	ld h,(hl)		;5884
 	ld l,a			;5885
 	ld (0e06fh),hl		;5886
 	ld a,b			;5889
 	and 00fh		;588a
 	sub 003h		;588c
-	cp 002h		;588e
+	cp 002h			;588e
 	jp nc,056f7h		;5890
-	ex af,af'			;5893
+	ex af,af'		;5893
 	ld a,b			;5894
 	rra			;5895
 	rra			;5896
@@ -3918,52 +4256,52 @@ main:
 	rra			;5898
 	and 00fh		;5899
 	ld b,a			;589b
-	ex af,af'			;589c
+	ex af,af'		;589c
 	add a,b			;589d
 	ld hl,058abh		;589e
-	call 0403bh		;58a1
-	ld a,(hl)			;58a4
+	call 0403bh		;58a1 HL += a
+	ld a,(hl)		;58a4
 	ld (0e081h),a		;58a5
 	jp 056f7h		;58a8
 	inc b			;58ab
 	rlca			;58ac
 	ld b,009h		;58ad
 	ld hl,0e07fh		;58af
-	dec (hl)			;58b2
+	dec (hl)		;58b2
 	jr z,$+12		;58b3
 	ld hl,0e086h		;58b5
-	ld a,(hl)			;58b8
-	cp 001h		;58b9
+	ld a,(hl)		;58b8
+	cp 001h			;58b9
 	ret z			;58bb
-	dec (hl)			;58bc
-	jr $+47		;58bd
+	dec (hl)		;58bc
+	jr $+47			;58bd
 	ld (hl),008h		;58bf
 	ld hl,(0e073h)		;58c1
 	inc hl			;58c4
 	ld (0e073h),hl		;58c5
-	ld a,(hl)			;58c8
+	ld a,(hl)		;58c8
 	inc a			;58c9
 	jr z,$+29		;58ca
 	dec a			;58cc
 	and 00fh		;58cd
 	add a,a			;58cf
 	ld hl,(0e075h)		;58d0
-	call 0403bh		;58d3
-	ld a,(hl)			;58d6
+	call 0403bh		;58d3 HL += a
+	ld a,(hl)		;58d6
 	inc hl			;58d7
-	ld h,(hl)			;58d8
+	ld h,(hl)		;58d8
 	ld l,a			;58d9
-	ld b,(hl)			;58da
+	ld b,(hl)		;58da
 	inc hl			;58db
-	ld c,(hl)			;58dc
+	ld c,(hl)		;58dc
 	ld (0e085h),bc		;58dd
 	inc hl			;58e1
 	ld (0e087h),hl		;58e2
-	jr $+7		;58e5
+	jr $+7			;58e5
 	ld a,008h		;58e7
 	ld (0e086h),a		;58e9
 	ld hl,(0e073h)		;58ec
-	ld a,(hl)			;58ef
+	ld a,(hl)		;58ef
 	inc a			;58f0
 	ret z			;58f1
 	dec a			;58f2
@@ -5720,7 +6058,7 @@ main:
 	ccf			;616d
 	inc bc			;616e
 	rra			;616f
-	add a,(hl)			;6170
+	add a,(hl)		;6170
 	ccf			;6171
 	rst 38h			;6172
 	inc e			;6173
@@ -5732,7 +6070,7 @@ main:
 	adc a,l			;6179
 	jr c,$+1		;617a
 	ld bc,00901h		;617c
-	ld bc,0141_SNSMAT		;617f
+	ld bc,00141h		;617f
 	add a,b			;6182
 	add a,h			;6183
 	add a,b			;6184
@@ -5783,15 +6121,15 @@ main:
 	dec b			;61bd
 	rst 38h			;61be
 	add a,e			;61bf
-	ld bc,0141_SNSMAT		;61c0
-	add hl,bc			;61c3
+	ld bc,00141h		;61c0
+	add hl,bc		;61c3
 	rst 38h			;61c4
 	inc b			;61c5
 	nop			;61c6
 	nop			;61c7
-	ld (bc),a			;61c8
+	ld (bc),a		;61c8
 	inc l			;61c9
-	ld (bc),a			;61ca
+	ld (bc),a		;61ca
 	cpl			;61cb
 	add a,c			;61cc
 	inc l			;61cd
@@ -7372,8 +7710,8 @@ main:
 	jp 045cfh		;6a03
 	ld a,(0e043h)		;6a06
 	ld hl,06a69h		;6a09
-	call 0403bh		;6a0c
-	ld a,(hl)			;6a0f
+	call 0403bh		;6a0c HL += a
+	ld a,(hl)		;6a0f
 	ld (0e09dh),a		;6a10
 	ld hl,00748h		;6a13
 	ld b,080h		;6a16
@@ -7396,10 +7734,10 @@ main:
 	add a,a			;6a34
 	add a,a			;6a35
 	ld hl,06a51h		;6a36
-	call 0403bh		;6a39
-	ld e,(hl)			;6a3c
+	call 0403bh		;6a39 HL += a
+	ld e,(hl)		;6a3c
 	inc hl			;6a3d
-	ld d,(hl)			;6a3e
+	ld d,(hl)		;6a3e
 	push hl			;6a3f
 	ld hl,02400h		;6a40
 	call 045e0h		;6a43
@@ -7437,28 +7775,30 @@ main:
 	ld h,b			;6a6d
 	sub b			;6a6e
 	ret p			;6a6f
-	ld a,(0e008h)		;6a70
-	and 00ch		;6a73
+	ld a,(0e008h)		;6a70 Get newly pressed keys.
+	and 00ch		;6a73 Select only "Left" and "Right".
 	ld hl,0e048h		;6a75
-	jr z,$+3		;6a78
-	ld (hl),a			;6a7a
-	inc hl			;6a7b
-	ld a,(hl)			;6a7c
-	call 04045h		;6a7d
-	sub b			;6a80
-	ld l,d			;6a81
-	cp e			;6a82
-	ld l,d			;6a83
-	dec b			;6a84
-	ld l,e			;6a85
-	ld e,(hl)			;6a86
-	ld l,e			;6a87
-	sub b			;6a88
-	ld l,e			;6a89
-	dec b			;6a8a
-	ld l,h			;6a8b
-	ld sp,03a6ch		;6a8c
-	ld l,h			;6a8f
+	jr z,$+3		;6a78 if (a == 0) jump to 0x6A7B
+	ld (hl),a		;6a7a
+	
+	; We can get here from:
+	;   0x6A78 (jump)
+	;   0x6A7A (fall)
+	inc hl			;6a7b hl = 0xE049
+	ld a,(hl)		;6a7c
+	call 04045h		;6a7d PC = PC[2 * A]
+	defw 0x6A90		;6a80 car state #00 (all okay)
+	defw 0x6ABB		;6a82 car state #01 (crashed)
+	defw 0x6B05		;6a84 car state #02 (out of fuel)
+	defw 0x6B5E		;6a86 car state #03 (?)
+	defw 0x6B90		;6a88 car state #04 (skidding, recoverable)
+	defw 0x6C05		;6a8a car state #05 (bounce against side of the road, no crash)
+	defw 0x6C31		;6a8c car state #06 (respawn? game over?)
+	defw 0x6C4A		;6a8e car state #07 (spinning out of control)
+
+
+
+6a90_car_state_00:
 	call 06cd1h		;6a90
 	ld a,(0e055h)		;6a93
 	add a,a			;6a96
@@ -7470,7 +7810,7 @@ main:
 	and c			;6aa0
 	call nz,06dech		;6aa1
 	ld a,(0e002h)		;6aa4
-	bit 6,a		;6aa7
+	bit 6,a			;6aa7
 	jr z,$+11		;6aa9
 	ld a,(0e010h)		;6aab
 	or a			;6aae
@@ -7479,39 +7819,41 @@ main:
 	xor a			;6ab4
 	ld (0e053h),a		;6ab5
 	jp 06e1dh		;6ab8
+
+6abb_car_state_01:
 	pop hl			;6abb
 	ld a,(0e003h)		;6abc
 	and 007h		;6abf
 	ret nz			;6ac1
 	ld hl,0e04ah		;6ac2
-	dec (hl)			;6ac5
+	dec (hl)		;6ac5
 	jr z,$+25		;6ac6
-	ld a,(hl)			;6ac8
-	cp 00bh		;6ac9
+	ld a,(hl)		;6ac8
+	cp 00bh			;6ac9
 	ld a,008h		;6acb
 	jr z,$+9		;6acd
 	inc a			;6acf
 	cp (hl)			;6ad0
 	ret nz			;6ad1
 	ld a,009h		;6ad2
-	jr $-31		;6ad4
+	jr $-31			;6ad4
 	push af			;6ad6
 	ld a,04fh		;6ad7
 	call 04b6eh		;6ad9
 	pop af			;6adc
-	jr $-40		;6add
+	jr $-40			;6add
 	call 06af4h		;6adf
 	ld a,006h		;6ae2
 	ld (0e049h),a		;6ae4
 	ld a,010h		;6ae7
 	ld (0e004h),a		;6ae9
-	ld a,(E083_fuel)		;6aec
+	ld a,(E083_fuel)	;6aec
 	or a			;6aef
 	jr z,$+44		;6af0
 	pop hl			;6af2
 	ret			;6af3
 	ld hl,E083_fuel		;6af4
-	ld a,(hl)			;6af7
+	ld a,(hl)		;6af7
 	sub 014h		;6af8
 	jr nc,$+3		;6afa
 	xor a			;6afc
@@ -7519,10 +7861,20 @@ main:
 	xor a			;6afe
 	ld (0e0b8h),a		;6aff
 	jp 0452ah		;6b02
+
+
+
+; Low fuel?
+6b05_car_state_02:
 	ld a,(E083_fuel)	;6b05
 	or a			;6b08
-	jp nz,06c2ch		;6b09
-6b0c_out_of_fuel:
+	jp nz,06c2ch		;6b09 if (fuel) jump to 0x6C2C)
+	; Post: no fuel left
+
+
+
+; Out of fuel.
+6b0c_car_state_03:
 	call 06a90h		;6b0c
 	ld hl,0e04fh		;6b0f 
 	ld a,(hl)		;6b12 a = speed
@@ -7593,13 +7945,13 @@ main:
 	xor a			;6b6d
 	ld (0e04fh),a		;6b6e
 	ld hl,0e04ch		;6b71
-	ld a,(hl)			;6b74
+	ld a,(hl)		;6b74
 	sub 0c8h		;6b75
-	cp 008h		;6b77
+	cp 008h			;6b77
 	jr c,$+7		;6b79
-	ld a,(hl)			;6b7b
+	ld a,(hl)		;6b7b
 	sub 004h		;6b7c
-	ld (hl),a			;6b7e
+	ld (hl),a		;6b7e
 	ret			;6b7f
 	ld a,(0e0e6h)		;6b80
 	or a			;6b83
@@ -7610,8 +7962,12 @@ main:
 	ld a,001h		;6b8a
 	ld (0e00dh),a		;6b8c
 	ret			;6b8f
+
+
+; Skidding, recoverable.
+6b90_car_state_04:
 	ld hl,0e0b1h		;6b90
-	dec (hl)			;6b93
+	dec (hl)		;6b93
 	jr nz,$+28		;6b94
 	ld a,(0e054h)		;6b96
 	or a			;6b99
@@ -7638,16 +7994,24 @@ main:
 	ld a,00dh		;6bc5
 	call z,04b6eh		;6bc7
 	ld a,(0e054h)		;6bca
-	and a			;6bcd
-	ld a,(0e008h)		;6bce
-	jr z,$+7		;6bd1
+	and a			;6bcd Set flags.
+	ld a,(0e008h)		;6bce Get newly pressed keys.
+	jr z,$+7		;6bd1 if (*(0xE054) == 0) jump to 0x6BD8
 	and 004h		;6bd3
 	ret z			;6bd5
-	jr $+5		;6bd6
+	jr $+5			;6bd6 Jump to 0x6BDB
+	
+	; We can get here from:
+	;   0x6BD1 (jump)
+	;   0x6BD6 (fall)
 	and 008h		;6bd8
 	ret z			;6bda
-	xor a			;6bdb
-	ld (0e049h),a		;6bdc
+	
+	; We can get here from:
+	;   0x6BD6 (jump)
+	;   0x6BDA (fall)
+	xor a			;6bdb Car state #00: All okay, nothing special.
+	ld (0e049h),a		;6bdc Save car state.
 	jp 06ab5h		;6bdf
 	ld a,007h		;6be2
 	ld (0e053h),a		;6be4
@@ -7667,34 +8031,50 @@ main:
 	inc de			;6bfe
 	ld hl,(0e04dh)		;6bff
 	jp 06e18h		;6c02
+
+
+
+; Bounce against the side of the road. Low speed, so bounce instead of 
+; crash.
+6c05_car_state_05:
 	ld hl,0e004h		;6c05
-	dec (hl)			;6c08
+	dec (hl)		;6c08
 	jr z,$+27		;6c09
 	ld hl,0e051h		;6c0b
-	ld a,(hl)			;6c0e
+	ld a,(hl)		;6c0e
 	and a			;6c0f
 	jr z,$+3		;6c10
-	dec (hl)			;6c12
-	ld a,(hl)			;6c13
+	dec (hl)		;6c12
+	ld a,(hl)		;6c13
 	ld hl,(0e04dh)		;6c14
-	srl a		;6c17
+	srl a			;6c17
 	ld e,a			;6c19
 	ld a,(0e055h)		;6c1a
 	rra			;6c1d
 	call 06e0bh		;6c1e
 	jp 06e1dh		;6c21
-	ld a,(E083_fuel)		;6c24
+	ld a,(E083_fuel)	;6c24
 	and a			;6c27
 	ld a,002h		;6c28
 	jr z,$+3		;6c2a
 	xor a			;6c2c
 	ld (0e049h),a		;6c2d
 	ret			;6c30
+
+
+
+; Respawn? Game over?
+6c31_car_state_06:
 	pop hl			;6c31
-	call 0440ch		;6c32
+	call 0440ch		;6c32 440c_decrement_timer_and_do_return_magic
 	xor a			;6c35
 	ld (0e045h),a		;6c36
 	ret			;6c39
+
+
+
+; ?Spinning out of control?
+6c3a_car_state_07:
 	call 06be2h		;6c3a
 	ld a,(0e003h)		;6c3d
 	and 003h		;6c40
@@ -7705,11 +8085,11 @@ main:
 	call 04b6eh		;6c4a
 	pop hl			;6c4d
 	ld a,(0e054h)		;6c4e
-	dec (hl)			;6c51
+	dec (hl)		;6c51
 	or a			;6c52
 	jr z,$+4		;6c53
-	inc (hl)			;6c55
-	inc (hl)			;6c56
+	inc (hl)		;6c55
+	inc (hl)		;6c56
 	ld a,(hl)			;6c57
 	and 007h		;6c58
 	call 06ab5h		;6c5a
@@ -7929,8 +8309,8 @@ main:
 	rra			;6dd5
 	rra			;6dd6
 	and 01fh		;6dd7
-	call 04040h		;6dd9
-	ld a,(de)			;6ddc
+	call 04040h		;6dd9 DE += a
+	ld a,(de)		;6ddc
 	add a,a			;6ddd
 	and 0f8h		;6dde
 	add a,020h		;6de0
@@ -8020,41 +8400,42 @@ main:
 	ld b,a			;6e66
 	ld hl,(0e0bfh)		;6e67
 	inc hl			;6e6a
-	ld a,(hl)			;6e6b
+	ld a,(hl)		;6e6b
 	or a			;6e6c
 	jp z,06f0ah		;6e6d
 	ld a,b			;6e70
 	call 0736bh		;6e71
 	ld a,(0e04ch)		;6e74
-	sub (hl)			;6e77
+	sub (hl)		;6e77
 	sub 010h		;6e78
 	add a,020h		;6e7a
 	inc hl			;6e7c
 	jp nc,06f0ah		;6e7d
-	ld a,(0e04eh)		;6e80
-	sub (hl)			;6e83
-	ld c,000h		;6e84
+	ld a,(0e04eh)		;6e80 Get car's horizontal position on screen.
+	sub (hl)		;6e83
+	ld c,000h		;6e84 c = 0
 	jr nc,$+3		;6e86
 	inc c			;6e88
 	sub 00ah		;6e89
 	add a,016h		;6e8b
 	jp nc,06f0ah		;6e8d
 	ld a,c			;6e90
-	ld (0e054h),a		;6e91
+	ld (0e054h),a		;6e91 ???
+	
 	ld a,(0e0e4h)		;6e94
-	cp 003h		;6e97
+	cp 003h			;6e97
 	jp z,06f18h		;6e99
 	ld hl,(0e0bfh)		;6e9c
-	ld a,(hl)			;6e9f
+	ld a,(hl)		;6e9f
 	sub 006h		;6ea0
-	cp 002h		;6ea2
+	cp 002h			;6ea2
 	jp c,06f18h		;6ea4
 	inc hl			;6ea7
 	ld (hl),001h		;6ea8
 	inc hl			;6eaa
 	ld (hl),005h		;6eab
 	ld a,009h		;6ead
-	call 0403bh		;6eaf
+	call 0403bh		;6eaf HL += a
 	inc hl			;6eb2
 	ld a,c			;6eb3
 	and a			;6eb4
@@ -8062,8 +8443,8 @@ main:
 	jr nz,$+4		;6eb7
 	ld (hl),0fdh		;6eb9
 	ld hl,0e049h		;6ebb
-	ld a,(hl)			;6ebe
-	cp 007h		;6ebf
+	ld a,(hl)		;6ebe
+	cp 007h			;6ebf
 	jr z,$+84		;6ec1
 	ld a,(0e054h)		;6ec3
 	xor 001h		;6ec6
@@ -8072,15 +8453,16 @@ main:
 	call 07352h		;6ecc
 	ld a,020h		;6ecf
 	ld (0e0b1h),a		;6ed1
-	ld a,004h		;6ed4
-	ld (0e049h),a		;6ed6
+	
+	ld a,004h		;6ed4 Car state #04: skidding (recoverable)
+	ld (0e049h),a		;6ed6 Save car state.
 	call 06e1dh		;6ed9
 	ld hl,(0e0bfh)		;6edc
-	ld a,(hl)			;6edf
-	cp 008h		;6ee0
+	ld a,(hl)		;6edf
+	cp 008h			;6ee0
 	ret nz			;6ee2
 	ld hl,0e0e3h		;6ee3
-	dec (hl)			;6ee6
+	dec (hl)		;6ee6
 	call 06bdbh		;6ee7
 	ld hl,(0e0bfh)		;6eea
 	inc hl			;6eed
@@ -8090,7 +8472,7 @@ main:
 	add a,a			;6ef4
 	add a,a			;6ef5
 	ld hl,0e11ah		;6ef6
-	call 0403bh		;6ef9
+	call 0403bh		;6ef9 HL += a
 	ld (hl),0e0h		;6efc
 	inc hl			;6efe
 	inc hl			;6eff
@@ -8248,21 +8630,21 @@ main:
 	ld (hl),000h		;6ffb
 	add a,a			;6ffd
 	ld hl,0536bh		;6ffe
-	call 0403bh		;7001
+	call 0403bh		;7001 HL += a
 	ld a,(0e0b0h)		;7004
 	add a,a			;7007
 	add a,a			;7008
 	add a,a			;7009
 	add a,003h		;700a
 	ld de,0e11ah		;700c
-	call 04040h		;700f
-	ldi		;7012
+	call 04040h		;700f DE += a
+	ldi			;7012
 	inc de			;7014
 	inc de			;7015
 	inc de			;7016
-	ldi		;7017
+	ldi			;7017
 	ld hl,0e0c1h		;7019
-	dec (hl)			;701c
+	dec (hl)		;701c
 	jp nz,06f5dh		;701d
 	ld hl,(0e0bdh)		;7020
 	inc hl			;7023
@@ -8276,16 +8658,16 @@ main:
 	ld h,000h		;7030
 	add hl,hl			;7032
 	add hl,hl			;7033
-	add hl,hl			;7034
-	add hl,hl			;7035
+	add hl,hl		;7034
+	add hl,hl		;7035
 	ld de,0537dh		;7036
-	add hl,de			;7039
+	add hl,de		;7039
 	ld (0e0bdh),hl		;703a
 	ld a,(0e03bh)		;703d
 	or a			;7040
-	ld a,(hl)			;7041
+	ld a,(hl)		;7041
 	jr nz,$+7		;7042
-	cp 00ah		;7044
+	cp 00ah			;7044
 	jr nz,$+3		;7046
 	dec a			;7048
 	dec a			;7049
@@ -8294,20 +8676,20 @@ main:
 	add a,a			;704c
 	add a,b			;704d
 	ld hl,05311h		;704e
-	call 0403bh		;7051
-	ex de,hl			;7054
+	call 0403bh		;7051 HL += a
+	ex de,hl		;7054
 	ld hl,0e0c1h		;7055
 	ld (hl),002h		;7058
 	inc hl			;705a
 	ld (hl),000h		;705b
 	inc hl			;705d
-	ex de,hl			;705e
-	ex af,af'			;705f
-	ld a,(hl)			;7060
-	ex af,af'			;7061
-	ldi		;7062
+	ex de,hl		;705e
+	ex af,af'		;705f
+	ld a,(hl)		;7060
+	ex af,af'		;7061
+	ldi			;7062
 	ld a,001h		;7064
-	ld (de),a			;7066
+	ld (de),a		;7066
 	inc de			;7067
 	inc de			;7068
 	ld a,(0e03bh)		;7069
@@ -8352,7 +8734,7 @@ main:
 	xor a			;70a8
 	ld (0e0e4h),a		;70a9
 	ld hl,0e0e4h		;70ac
-	ld a,(hl)			;70af
+	ld a,(hl)		;70af
 	inc hl			;70b0
 	add a,a			;70b1
 	add a,a			;70b2
@@ -8360,30 +8742,27 @@ main:
 	add a,a			;70b4
 	ld c,a			;70b5
 	ld b,000h		;70b6
-	add hl,bc			;70b8
+	add hl,bc		;70b8
 	ld (0e0bfh),hl		;70b9
 	inc hl			;70bc
-	ld a,(hl)			;70bd
+	ld a,(hl)		;70bd
 	and a			;70be
 	jp z,07298h		;70bf
 	ld hl,0728ah		;70c2
 	push hl			;70c5
-	call 04045h		;70c6
-	adc a,c			;70c9
-	ld (hl),d			;70ca
-	exx			;70cb
-	ld (hl),b			;70cc
-	and d			;70cd
-	ld (hl),c			;70ce
-	add a,071h		;70cf
-	exx			;70d1
-	ld (hl),b			;70d2
-	add hl,bc			;70d3
-	ld (hl),d			;70d4
-	adc a,d			;70d5
-	ld (hl),d			;70d6
-	add hl,bc			;70d7
-	ld (hl),d			;70d8
+	call 04045h		;70c6 PC = PC[2 * A]
+	
+	defw 0x7289		;70c9 state #00 ?No cars in screen? 
+	defw 0x70D9		;70cb state #01 ?Cars in screen?
+	defw 0x71A2		;70cd state #02 ?2 cars colliding?
+	defw 0x71C6		;70cf state #03
+	defw 0x70D9		;70d1 state #04
+	defw 0x7209		;70d3 state #05 ?Purple car moves?
+	defw 0x728A		;70d5 state #06
+	defw 0x7209		;70d7 state #07 ?Blue car from behind?
+
+
+
 	call 072b8h		;70d9
 	call 071c6h		;70dc
 	call 053ddh		;70df
@@ -8394,18 +8773,18 @@ main:
 	ld c,006h		;70ee
 	call 072f6h		;70f0
 	sub 0c0h		;70f3
-	cp 040h		;70f5
+	cp 040h			;70f5
 	ld a,000h		;70f7
 	jr c,$+8		;70f9
-	ld a,(hl)			;70fb
+	ld a,(hl)		;70fb
 	rra			;70fc
 	rra			;70fd
 	rra			;70fe
 	and 01fh		;70ff
 	ld c,a			;7101
 	ld hl,0e098h		;7102
-	add hl,bc			;7105
-	ld d,(hl)			;7106
+	add hl,bc		;7105
+	ld d,(hl)		;7106
 	ld c,009h		;7107
 	call 072f6h		;7109
 	ld a,d			;710c
@@ -8413,9 +8792,9 @@ main:
 	ld c,a			;710f
 	jp z,07289h		;7110
 	ld a,(0e04fh)		;7113
-	sub (hl)			;7116
+	sub (hl)		;7116
 	jr nc,$+4		;7117
-	neg		;7119
+	neg			;7119
 	add a,a			;711b
 	ld e,a			;711c
 	ld d,000h		;711d
@@ -8433,7 +8812,7 @@ main:
 	ret nc			;7136
 	ld hl,(0e0bfh)		;7137
 	ld de,0000fh		;713a
-	add hl,de			;713d
+	add hl,de		;713d
 	ld (hl),000h		;713e
 	ld e,0f0h		;7140
 	ld d,002h		;7142
@@ -8451,32 +8830,32 @@ main:
 	jp 072e7h		;7151
 	ld c,009h		;7154
 	call 072f6h		;7156
-	ld e,(hl)			;7159
+	ld e,(hl)		;7159
 	inc hl			;715a
-	ld d,(hl)			;715b
+	ld d,(hl)		;715b
 	ld h,b			;715c
 	ld a,(0e04fh)		;715d
 	ld l,a			;7160
 	and a			;7161
 	sbc hl,de		;7162
-	add hl,hl			;7164
-	add hl,hl			;7165
-	add hl,hl			;7166
-	ex de,hl			;7167
+	add hl,hl		;7164
+	add hl,hl		;7165
+	add hl,hl		;7166
+	ex de,hl		;7167
 	ld c,006h		;7168
 	jp 072e7h		;716a
 	ld hl,(0e0bfh)		;716d
-	ld a,(hl)			;7170
-	cp 003h		;7171
+	ld a,(hl)		;7170
+	cp 003h			;7171
 	ret nz			;7173
 	ld bc,00006h		;7174
-	add hl,bc			;7177
+	add hl,bc		;7177
 	ld a,(0e04ch)		;7178
 	sub 040h		;717b
 	cp (hl)			;717d
 	ret c			;717e
 	ld b,a			;717f
-	ld a,(hl)			;7180
+	ld a,(hl)		;7180
 	add a,020h		;7181
 	cp b			;7183
 	ret c			;7184
@@ -8486,18 +8865,18 @@ main:
 	cp (hl)			;718a
 	push af			;718b
 	ld bc,00006h		;718c
-	add hl,bc			;718f
+	add hl,bc		;718f
 	pop af			;7190
 	ld a,001h		;7191
 	jr nc,$+3		;7193
 	dec a			;7195
-	ld (hl),a			;7196
+	ld (hl),a		;7196
 	inc hl			;7197
 	ld (hl),020h		;7198
 	ld a,005h		;719a
 	ld hl,(0e0bfh)		;719c
 	inc hl			;719f
-	ld (hl),a			;71a0
+	ld (hl),a		;71a0
 	ret			;71a1
 	ld c,006h		;71a2
 	call 072f6h		;71a4
@@ -8505,21 +8884,21 @@ main:
 	jr c,$+24		;71aa
 	ld c,00fh		;71ac
 	call 072f6h		;71ae
-	dec (hl)			;71b1
+	dec (hl)		;71b1
 	jr z,$+16		;71b2
 	dec hl			;71b4
-	ld a,(hl)			;71b5
+	ld a,(hl)		;71b5
 	ld de,00100h		;71b6
 	call 07145h		;71b9
 	ld de,0ff00h		;71bc
 	jp 07168h		;71bf
 	ld a,001h		;71c2
-	jr $-40		;71c4
+	jr $-40			;71c4
 	ld c,009h		;71c6
 	call 072f6h		;71c8
-	ex de,hl			;71cb
-	ld a,(de)			;71cc
-	cp 0d7h		;71cd
+	ex de,hl		;71cb
+	ld a,(de)		;71cc
+	cp 0d7h			;71cd
 	ret c			;71cf
 	dec de			;71d0
 	ld a,(0e0e4h)		;71d1
@@ -8528,11 +8907,11 @@ main:
 	jr nz,$+4		;71d8
 	ld l,0f5h		;71da
 	ld c,008h		;71dc
-	add hl,bc			;71de
-	ld c,(hl)			;71df
-	ld a,(de)			;71e0
+	add hl,bc		;71de
+	ld c,(hl)		;71df
+	ld a,(de)		;71e0
 	ld b,a			;71e1
-	sub (hl)			;71e2
+	sub (hl)		;71e2
 	sub 010h		;71e3
 	add a,020h		;71e5
 	ret nc			;71e7
@@ -8540,9 +8919,9 @@ main:
 	dec hl			;71e9
 	dec de			;71ea
 	dec de			;71eb
-	ld a,(de)			;71ec
+	ld a,(de)		;71ec
 	sub 028h		;71ed
-	sub (hl)			;71ef
+	sub (hl)		;71ef
 	sub 008h		;71f0
 	add a,010h		;71f2
 	ret nc			;71f4
@@ -8551,62 +8930,62 @@ main:
 	ld a,000h		;71f7
 	jr nc,$+3		;71f9
 	inc a			;71fb
-	ex de,hl			;71fc
+	ex de,hl		;71fc
 	ld bc,00008h		;71fd
-	add hl,bc			;7200
-	ld (hl),a			;7201
+	add hl,bc		;7200
+	ld (hl),a		;7201
 	inc hl			;7202
 	ld (hl),018h		;7203
 	ld a,007h		;7205
 	jr $-107		;7207
 	ld hl,(0e0bfh)		;7209
 	inc hl			;720c
-	ld d,(hl)			;720d
+	ld d,(hl)		;720d
 	ld bc,0000eh		;720e
-	add hl,bc			;7211
-	dec (hl)			;7212
+	add hl,bc		;7211
+	dec (hl)		;7212
 	jp m,071c2h		;7213
 	dec hl			;7216
 	ld a,d			;7217
 	ld de,000b8h		;7218
-	cp 005h		;721b
+	cp 005h			;721b
 	jr z,$+4		;721d
 	ld e,0a0h		;721f
-	ld a,(hl)			;7221
+	ld a,(hl)		;7221
 	or a			;7222
 	call 07146h		;7223
 	jp 070e5h		;7226
 	call 0724bh		;7229
-	ex af,af'			;722c
-	cp 006h		;722d
+	ex af,af'		;722c
+	cp 006h			;722d
 	jr z,$+5		;722f
-	cp 007h		;7231
+	cp 007h			;7231
 	ret nz			;7233
 	ld a,b			;7234
 	add a,010h		;7235
 	ld b,a			;7237
-	ex af,af'			;7238
+	ex af,af'		;7238
 	add a,004h		;7239
 	ld hl,0e132h		;723b
 	call 0727dh		;723e
 	dec hl			;7241
 	ld (hl),008h		;7242
 	ld bc,0fffch		;7244
-	add hl,bc			;7247
+	add hl,bc		;7247
 	ld (hl),001h		;7248
 	ret			;724a
 	ld hl,(0e0bfh)		;724b
-	ex af,af'			;724e
-	ld a,(hl)			;724f
+	ex af,af'		;724e
+	ld a,(hl)		;724f
 	ld e,a			;7250
-	ex af,af'			;7251
+	ex af,af'		;7251
 	ld bc,00006h		;7252
-	add hl,bc			;7255
-	ld b,(hl)			;7256
+	add hl,bc		;7255
+	ld b,(hl)		;7256
 	ld a,e			;7257
-	cp 002h		;7258
+	cp 002h			;7258
 	jr z,$+6		;725a
-	cp 004h		;725c
+	cp 004h			;725c
 	jr nz,$+10		;725e
 	ld a,(0e003h)		;7260
 	and 003h		;7263
@@ -8614,26 +8993,29 @@ main:
 	inc b			;7267
 	inc hl			;7268
 	inc hl			;7269
-	ld c,(hl)			;726a
+	ld c,(hl)		;726a
 	ld a,(0e0e4h)		;726b
 	call 0736bh		;726e
 	ld a,b			;7271
-	cp 0d0h		;7272
+	cp 0d0h			;7272
 	ret z			;7274
 	ld a,e			;7275
 	ld de,072afh		;7276
-	call 04040h		;7279
-	ld a,(de)			;727c
+	call 04040h		;7279 DE += a
+	ld a,(de)		;727c
 	call 07282h		;727d
 	add a,004h		;7280
-	ld (hl),b			;7282
+	ld (hl),b		;7282
 	inc hl			;7283
-	ld (hl),c			;7284
+	ld (hl),c		;7284
 	inc hl			;7285
-	ld (hl),a			;7286
+	ld (hl),a		;7286
 	inc hl			;7287
 	inc hl			;7288
 	ret			;7289
+
+,
+
 	call 07229h		;728a
 	ld c,006h		;728d
 	call 072f6h		;728f
@@ -8662,7 +9044,7 @@ main:
 	ld d,b			;72b6
 	ld h,b			;72b7
 	ld a,(0e002h)		;72b8
-	bit 6,a		;72bb
+	bit 6,a			;72bb
 	ret z			;72bd
 	ld a,(0e049h)		;72be
 	dec a			;72c1
@@ -8671,19 +9053,19 @@ main:
 	dec a			;72c4
 	ret z			;72c5
 	ld hl,(0e0bfh)		;72c6
-	ld a,(hl)			;72c9
+	ld a,(hl)		;72c9
 	dec a			;72ca
 	ret nz			;72cb
 	ld a,006h		;72cc
-	call 0403bh		;72ce
+	call 0403bh		;72ce HL += a
 	ld a,(0e04ch)		;72d1
 	sub 034h		;72d4
-	sub (hl)			;72d6
+	sub (hl)		;72d6
 	sub 008h		;72d7
 	add a,008h		;72d9
 	ret nc			;72db
 	ld a,(0e04fh)		;72dc
-	cp 090h		;72df
+	cp 090h			;72df
 	ret c			;72e1
 	ld a,009h		;72e2
 	jp 04b6eh		;72e4
@@ -8782,7 +9164,7 @@ main:
 	add a,a			;736c
 	add a,a			;736d
 	ld hl,0e11ah		;736e
-	jp 0403bh		;7371
+	jp 0403bh		;7371 HL += a
 	ld a,(0e049h)		;7374
 	dec a			;7377
 	ret z			;7378
@@ -8791,18 +9173,21 @@ main:
 	or a			;737f
 	jr nz,$+4		;7380
 	ld c,080h		;7382
-	ld hl,(0e056h)		;7384
-	add hl,bc			;7387
-	ld (0e056h),hl		;7388
+	ld hl,(0e056h)		;7384 
+	add hl,bc		;7387
+	ld (0e056h),hl		;7388 Writes fuel ticker (0xE057) as well.
 	ret			;738b
+
+
+
 	ld hl,0e077h		;738c
 	ld a,(0e04fh)		;738f
-	add a,(hl)			;7392
-	ld (hl),a			;7393
+	add a,(hl)		;7392
+	ld (hl),a		;7393
 	jr nc,$+12		;7394
 	ld de,00001h		;7396
 	ld hl,(0e078h)		;7399
-	add hl,de			;739c
+	add hl,de		;739c
 	ld (0e078h),hl		;739d
 	ld a,(0e049h)		;73a0
 	cp 005h		;73a3
@@ -8821,7 +9206,7 @@ main:
 	ld de,073fch		;73be
 	push af			;73c1
 	ld a,009h		;73c2
-	call 04040h		;73c4
+	call 04040h		;73c4 DE += a
 	ld bc,00003h		;73c7
 	call 045a7h		;73ca 45a7_copy_to_vram()
 	ld bc,0ffe0h		;73cd
@@ -8837,7 +9222,7 @@ main:
 	add a,a			;73db
 	add a,b			;73dc
 	ld de,073fch		;73dd
-	call 04040h		;73e0
+	call 04040h		;73e0 DE += a
 	ld bc,00003h		;73e3
 	call 045a7h		;73e6 45a7_copy_to_vram()
 	ld bc,0ffe0h		;73e9
@@ -8873,8 +9258,8 @@ main:
 	ld b,020h		;7414 b = 0x20
 	and b			;7416 a &= 0x20
 	ld d,a			;7417 d = *(0xe057) & 0x20
-	ld hl,0e084h		;7418
-	ld a,(hl)		;741b
+	ld hl,0e084h		;7418 hl = 0xE084
+	ld a,(hl)		;741b a = *(0xE084)
 	and b			;741c a &= 0x20 and set flags
 	xor d			;741d d = 0
 	ret z			;741e if (a == 0) return
@@ -8922,7 +9307,7 @@ main:
 	ld hl,07475h		;746a
 	ld de,0e04ch		;746d
 	ld c,008h		;7470
-	ldir		;7472
+	ldir			;7472
 	ret			;7474
 	xor b			;7475
 	nop			;7476
@@ -8931,22 +9316,22 @@ main:
 	nop			;7479
 	nop			;747a
 	nop			;747b
-	ld a,(bc)			;747c
+	ld a,(bc)		;747c
 	call 06e1dh		;747d
 	ld a,(0e043h)		;7480
 	dec a			;7483
 	ld de,074b6h		;7484
-	call 04040h		;7487
-	ld a,(de)			;748a
+	call 04040h		;7487 DE += a
+	ld a,(de)		;748a
 	ld hl,0e04ch		;748b
-	dec (hl)			;748e
+	dec (hl)		;748e
 	cp (hl)			;748f
 	ret nz			;7490
 	xor a			;7491
 	jp 04167h		;7492
 	call 06e1dh		;7495
 	ld hl,0e004h		;7498
-	dec (hl)			;749b
+	dec (hl)		;749b
 	jr z,$+23		;749c
 	bit 4,(hl)		;749e
 	ld a,0c8h		;74a0
@@ -8954,8 +9339,8 @@ main:
 	ld a,(0e043h)		;74a4
 	dec a			;74a7
 	ld de,074b6h		;74a8
-	call 04040h		;74ab
-	ld a,(de)			;74ae
+	call 04040h		;74ab DE += a
+	ld a,(de)		;74ae
 	ld (0e04ch),a		;74af
 	ret			;74b2
 	jp 0416ah		;74b3
@@ -9572,35 +9957,50 @@ main:
 	or b			;7752
 	xor e			;7753
 	xor d			;7754
-	ld a,(0e0b8h)		;7755
-	dec a			;7758
-	jr z,$+6		;7759
-	dec a			;775b
-	jr z,$+58		;775c
+
+
+
+; We can get here from:
+;   0x5230 (call)
+	ld a,(0e0b8h)		;7755 a = *(0xE0B8)
+	dec a			;7758 --a
+	jr z,$+6		;7759 if (a == 0) jump to 775f_grabbed_fuel_heart
+	dec a			;775b --a
+	jr z,$+58		;775c if (a == 0) jump to 0x7796
 	ret			;775e
+
+
+; We can get here from:
+;   0x7759 (jump)
+775f_grabbed_fuel_heart:
 	ld hl,E083_fuel		;775f
-	ld a,(hl)			;7762
-	add a,020h		;7763
-	ld b,0d7h		;7765
-	cp b			;7767
-	jr c,$+3		;7768
-	ld a,b			;776a
-	ld (hl),a			;776b
+	ld a,(hl)		;7762 a = fuel
+	add a,020h		;7763 a = fuel + 0x20
+	ld b,0d7h		;7765 b = 0xD7
+	cp b			;7767 Compute a - 0xD7 and set flags
+	jr c,$+3		;7768 if (a < 0xD7) jump to 0x776B
+	ld a,b			;776a a = 0xD7, cap fuel to 0xD7
+	
+	; We can get here:
+	;   0x7768 (jump) Fuel below 0xD7
+	;   0x776A (fall) Fuel capped to 0xD7
+	ld (hl),a		;776b Store fuel
+	
 	call 07444h		;776c
 	ld hl,0e0b8h		;776f
-	inc (hl)			;7772
+	inc (hl)		;7772
 	inc hl			;7773
-	inc (hl)			;7774
+	inc (hl)		;7774
 	inc hl			;7775
 	ld (hl),060h		;7776
 	dec hl			;7778
-	ld a,(hl)			;7779
-	cp 004h		;777a
+	ld a,(hl)		;7779
+	cp 004h			;777a
 	jr c,$+4		;777c
 	ld a,004h		;777e
 	ld hl,07791h		;7780
-	call 0403bh		;7783
-	ld d,(hl)			;7786
+	call 0403bh		;7783 HL += a
+	ld d,(hl)		;7786
 	ld e,000h		;7787
 	call 0447fh		;7789
 	ld a,003h		;778c
@@ -9608,23 +10008,23 @@ main:
 	nop			;7791
 	inc bc			;7792
 	dec b			;7793
-	ex af,af'			;7794
+	ex af,af'		;7794
 	djnz $+35		;7795
 	cp d			;7797
 	ret po			;7798
-	dec (hl)			;7799
+	dec (hl)		;7799
 	jr z,$+36		;779a
 	ld de,0e13ah		;779c
 	ld hl,0e112h		;779f
-	ld a,(hl)			;77a2
+	ld a,(hl)		;77a2
 	sub 010h		;77a3
-	ld (de),a			;77a5
+	ld (de),a		;77a5
 	inc de			;77a6
 	inc hl			;77a7
-	ldi		;77a8
+	ldi			;77a8
 	ld a,(0e0b9h)		;77aa
 	dec a			;77ad
-	cp 004h		;77ae
+	cp 004h			;77ae
 	jr c,$+4		;77b0
 	ld a,003h		;77b2
 	add a,a			;77b4
@@ -11323,20 +11723,20 @@ main:
 	adc a,b			;7f64
 	adc a,c			;7f65
 	add a,l			;7f66
-	add a,(hl)			;7f67
+	add a,(hl)		;7f67
 	add a,l			;7f68
-	add a,(hl)			;7f69
+	add a,(hl)		;7f69
 	rrca			;7f6a
 	sub e			;7f6b
 	ld de,00393h		;7f6c
 	inc bc			;7f6f
 	inc de			;7f70
 	rst 38h			;7f71
-	ld (de),a			;7f72
-	ld (de),a			;7f73
-	ld (bc),a			;7f74
+	ld (de),a		;7f72
+	ld (de),a		;7f73
+	ld (bc),a		;7f74
 	inc bc			;7f75
-	ld (bc),a			;7f76
+	ld (bc),a		;7f76
 	inc de			;7f77
 	inc bc			;7f78
 	inc bc			;7f79
@@ -11390,7 +11790,7 @@ main:
 	sub b			;7fae
 	inc de			;7faf
 	sub e			;7fb0
-	ld (bc),a			;7fb1
+	ld (bc),a		;7fb1
 	ld bc,00010h		;7fb2
 	inc bc			;7fb5
 	inc bc			;7fb6
@@ -11407,8 +11807,8 @@ main:
 	sub e			;7fc6
 	inc bc			;7fc7
 	rst 38h			;7fc8
-	ld (de),a			;7fc9
-	ld (de),a			;7fca
+	ld (de),a		;7fc9
+	ld (de),a		;7fca
 	sub e			;7fcb
 	add a,e			;7fcc
 	inc bc			;7fcd
