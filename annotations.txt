@@ -11,3 +11,11 @@ Letters:
 
 	2E 2F 30 31 32 33 34 35 36 37 38 39 3A
          N  O  P  Q  R  S  T  U  V  W  X  Y  Z
+
+VDP:
+	VDP is in Graphics II mode (SCREEN 2)
+	Pattern name table base:	0x3800, i.e. 0x3800-0x3AFF (0x0300 long) 32 * 24
+	Color table base:		0x0000, i.e. 0x0000-0x17FF (0x1800 long) 3 * 8 * 256
+	Pattern generator base:		0x2000, i.e. 0x2000-0x37FF (0x1800 long) 3 * 8 * 256
+	Sprite attribute table base:	0x3B00, i.e. 0x3B00-0x3B7F (0x0080 long)
+	Sprite pattern generator base:	0x1800, i.e. 0x1800-0x1FFF (0x800 long)
