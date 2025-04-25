@@ -1,76 +1,98 @@
-0xE000	Game state
-0xE001	Game substate
-	0xE000	0xE001
-	state	sub	Address		Meaning
-	---------------------------------------
-	0x00	0x00	0x406B ldir	Game starts with this state.
-	0x00	0x01	0x416D inc	Show large Konami logo.
-	0x00	0x02	0x416D inc	Show "SOFTWARE" beneath large Konami logo.
-	0x00	0x03	0x416D inc	Show "ROAD FIGHTER, KONAMI 1985, PLAY SELECT, LEVEL A, LEVEL B"
-	0x00	0x04	0x416D inc	Blink "ROAD FIGHTER" in red,yellow,blue (and make a bleeping sound).
-					Jumps to game state 0x00, substate 0x00.
-	
-	0x01	0x00	0x4300 inc	Player can now start the game (by selecting either "LEVEL A" or "LEVEL B")
-	
-	0x02	0x00	0x4300 inc	Start demo/next stage.
-					Jumps to game state 0x04.
-	0x02	0x01			Play demo.
-					0x414E: After crashing:       jumps to game state 0x00, substate 0x00.
-					0x43F3: After pressing a key: jumps to game state 0x00, substate 0x01.
-	
-	0x03	0x00	0x43E9 ld #03	Start the game (player has selected either "LEVEL A" or "LEVEL B").
-	0x03	0x01	0x416D inc	Play victorious music, blink chosen level.
-	0x03	0x02	0x416D inc	?
-	0x03	0x03	0x416D inc	Clear screen (all black).
-	0x03	0x04	0x416D inc	Draw "STAGE XX" and right side of the screen.
-	0x03	0x05	0x416D inc	?
-	0x03	0x06	0x416D inc	?
-	0x03	0x07	0x416D inc	?
-	0x03	0x08	0x416D inc	Show the whole screen, but without the cars.
-	0x03	0x09	0x416D inc	Show alls the cars and "traffic light".
-					0x425D On actual start: jumps to game state 0x04, substate 0x09
-	
-	0x04	0x00	0x414F/0x4162	Start demo.
-	0x04	0x01	0x416D inc	Screen is black, draw "STAGE XX", "HISCORE" and the rest of the right side of the screen.
-	0x04	0x02	0x416D inc	Show the stage. Scrolls in from the top side of the screen.
-	0x04	0x03	0x416D inc	Stage is completely visible. ?Meaning?
-	0x04	0x04	0x416D inc	Let the player's (computer's) red car appear.
-	0x04	0x05	0x416D inc	Show the "START" letters.
-					0x42CE After the start, jumps to state 0x02, 0x01.
-	?
-	0x04	0x09	0x425D inc	?
-					0x4300: jump to state 0x05, substate 0x00.
-	
-	0x05	0x00	0x4300 inc	Race is started, blue cars drive away. (Player can't move yet.)
-	0x05	0x01	0x416D inc	Player can now accelerate, steer, i.e. RACE.
-			0x433D ld #0105	Player crashed. Player can resume racing now.
-	
-	0x06	0x00	0x4300 inc	Player has crashed. Check if fuel left.
-					0x4300 "EMPTY", jump to game state 0x07, substate 0x00.
-	
-	0x07	0x00	0x4300 inc	No more fuel left. ?Meaning?
-	0x07	0x01	0x416D inc	Screen is blanked. Show "GAME OVER".
-					0x414F jump to game state 0x00, substate 0x00
-	
-	0x08	0x00	0x4319+0x414F	Check point reached, car already out of screen. ?Meaning?
-	0x08	0x01	0x416D inc	Clear screen. (Victorious sound is almost done.)
-	0x08	0x02	0x416D inc	Show progress map, scroll minicar to right height.
-	0x08	0x03	0x416D inc	Blink minicar for a while.
-	0x08	0x04	0x416D inc	?Switch to game state *(E043)?
+== VDP memory ==
+
+0x0000-0x17FF	Color table		defined at 0x46AC
+0x1800-0x1FFF	Sprite pattern table	defined at 0x46AF
+0x2000-0x37FF	Pattern table		defined at 0x46AD
+0x3800-0x3AFF	Name table		defined at 0x46AB
+0x3B00-0x3FFF	Sprite attribute table	defined at 0x46AE
+
+== RAM ==
+0xE000		Game state
+0xE001		Game substate
+		0xE000	0xE001
+		state	sub	Address		Meaning
+		---------------------------------------
+		0x00	0x00	0x406B ldir	Game starts with this state.
+		0x00	0x01	0x416D inc	Show large Konami logo.
+		0x00	0x02	0x416D inc	Show "SOFTWARE" beneath large Konami logo.
+		0x00	0x03	0x416D inc	Show "ROAD FIGHTER, KONAMI 1985, PLAY SELECT, LEVEL A, LEVEL B"
+		0x00	0x04	0x416D inc	Blink "ROAD FIGHTER" in red,yellow,blue (and make a bleeping sound).
+						Jumps to game state 0x00, substate 0x00.
+		
+		0x01	0x00	0x4300 inc	Player can now start the game (by selecting either "LEVEL A" or "LEVEL B")
+		0x01	0x01
+		
+		0x02	0x00	0x4300 inc	Start demo/next stage.
+						Jumps to game state 0x04.
+		0x02	0x01			Play demo.
+						0x414E: After crashing:       jumps to game state 0x00, substate 0x00.
+						0x43F3: After pressing a key: jumps to game state 0x00, substate 0x01.
+		
+		0x03	0x00	0x43E9 ld #03	Start the game (player has selected either "LEVEL A" or "LEVEL B").
+		0x03	0x01	0x416D inc	Play victorious music, blink chosen level.
+		0x03	0x02	0x416D inc	?
+		0x03	0x03	0x416D inc	Clear screen (all black).
+		0x03	0x04	0x416D inc	Draw "STAGE XX" and right side of the screen.
+		0x03	0x05	0x416D inc	?
+		0x03	0x06	0x416D inc	?
+		0x03	0x07	0x416D inc	?
+		0x03	0x08	0x416D inc	Show the whole screen, but without the cars.
+		0x03	0x09	0x416D inc	Show alls the cars and "traffic light".
+						0x425D On actual start: jumps to game state 0x04, substate 0x09
+		
+		0x04	0x00	0x414F/0x4162	Start demo.
+		0x04	0x01	0x416D inc	Screen is black, draw "STAGE XX", "HISCORE" and the rest of the right side of the screen.
+		0x04	0x02	0x416D inc	Show the stage. Scrolls in from the top side of the screen.
+		0x04	0x03	0x416D inc	Stage is completely visible. ?Meaning?
+		0x04	0x04	0x416D inc	Let the player's (computer's) red car appear.
+		0x04	0x05	0x416D inc	Show the "START" letters.
+						0x42CE After the start, jumps to state 0x02, 0x01.
+		?
+		0x04	0x09	0x425D inc	?
+						0x4300: jump to state 0x05, substate 0x00.
+		
+		0x05	0x00	0x4300 inc	Race is started, blue cars drive away. (Player can't move yet.)
+		0x05	0x01	0x416D inc	Player can now accelerate, steer, i.e. RACE.
+				0x433D ld #0105	Player crashed. Player can resume racing now.
+		
+		0x06	0x00	0x4300 inc	Player has crashed. Check if fuel left.
+						0x4300 "EMPTY", jump to game state 0x07, substate 0x00.
+		
+		0x07	0x00	0x4300 inc	No more fuel left. ?Meaning?
+		0x07	0x01	0x416D inc	Screen is blanked. Show "GAME OVER".
+						0x414F jump to game state 0x00, substate 0x00
+		
+		0x08	0x00	0x4319+0x414F	Check point reached, car already out of screen. ?Meaning?
+		0x08	0x01	0x416D inc	Clear screen. (Victorious sound is almost done.)
+		0x08	0x02	0x416D inc	Show progress map, scroll minicar to right height.
+		0x08	0x03	0x416D inc	Blink minicar for a while.
+		0x08	0x04	0x416D inc	?Switch to game state *(E043)?
 
 0xE002
-		0x40 Level A
-		0x60 Level B
-0xE003	Increments
+		0x00 During demo
+		0x20 During demo
+		0x40 Level A, bit 7
+		0x60 Level B, bit 7 and bit 6
+		bit 5 (0x20):
+			0: Level A (also for demo)
+			1: Level B (also for demo)
+		bit 6 (0x40):
+			0: demo
+			1: player is playing
+0xE003		Increments
 	
-0xE004	Graphics related general purpose timer
+0xE004		Graphics related general purpose timer
 		0x18 During game
 		0x80 After seeing "EMPTY" on screen.
+		
+		bit 0 (0x01)
+		bit 1 (0x02)
+		bit 3 (0x04) Tested at 0x502B
 
-0xE005	Seen at 0x402B
+0xE005		Seen at 0x402B
 
-0xE008	Newly pressed keyboard keys, joystick state. I.e. they weren't 
-	pressed in the previous frame.
+0xE008		Newly pressed keyboard keys, joystick state. I.e. they 
+		weren't	pressed in the previous frame.
 
 		0x01 "Up"
 		0x02 "Down"
@@ -79,7 +101,7 @@
 		0x10 "Space" / trigger 1
 		0x20 "Select" / trigger 2
 
-0xE009	Currently pressed keyboard keys, joystick state.
+0xE009		Currently pressed keyboard keys, joystick state.
 		0x01 Status of "Up"
 		0x02 Status of "Down"
 		0x04 Status of "Left"
@@ -87,51 +109,93 @@
 		0x10 Status of "Space" / trigger 1
 		0x20 Status of "Select" / trigger 2
 
-0xE00A	>
-		0x0E Seen at 0x48BB
-0xE00E	?
-		0xAA Seen at 0x48C3
-		0xEA During racing
+0xE00A		?
+			0x0E Seen at 0x48BB
+0xE00D		?from 0x00 to 0x01 after reaching checkpoint and driven out of screen?
+			0x01 Seen at 0x6B8C
+0xE00E		?
+			0xAA Seen at 0x48C3
+			0xEA During racing
+0xE010		?Sound duration left?
+0xE01B		?Sound duration left?
+0xE026		?Sound duration left?
 
-0xE028	Current sound/tune/bleep to emit? (Poking has no effect though.)
-		0x00 Silence
-		0x02 Emit low fuel warning
-		0x03 Bleeps when both parts of red Road Fighter logo join.
-		0x03 Bleeps when user grabbed a fuel heart.
-		0x05 Sound of yellow traffic light (player must wait for green)
-		0x07 Sound of green traffic light (player should start racing now)
-		0x0D Player bounced a car, but car is still controllable.
-		0x1B ? Seen at 0x4120
-		0x4F Player crashes
-		0x92 Victorious tune when player reaches check point
-		0x95 Game over
-		0x98 Tune after selecting either level A or B
-0xE03F	Score: units and tens (BCD)
-0xE040	Score: hundreds and thousands (BCD)
-0xE041	Score: tenthousands and hundredthousands (BCD)
-0xE042	Score: millions and tenmillions (BCD)
+0xE011		?Sound duration?
+0xE01C		?Sound duration?
+0xE027		?Sound duration?
 
-0xE043	?related to game state?
+0xE012		Current sound/tune/bleep ID (for PSG channel ?)
+0xE01D		Current sound/tune/bleep ID (for PSG channel ?)
+0xE028		Current sound/tune/bleep ID (for PSG channel ?)
+		     &0x3F
+		0x00  0x00 (1 channel) Silence
+		0x01  0x01 (1 channel) ?
+		0x02  0x02 (1 channel) Emit low fuel warning
+		0x03  0x03 (1 channel) Bleeps when both parts of red Road Fighter logo join.
+		0x03  0x03 (1 channel) Bleeps when player grabbed a fuel heart.
+		0x04  0x04 (1 channel) ?
+		
+		0x05  0x05 (2 channels) Sound of yellow traffic light (player must wait for green)
+		0x07  0x07 (2 channels) Sound of green traffic light (player should start racing now)
+		0x09  0x09 (2 channels) Weird intermittent sound during a level
+		0x0B  0x0B (2 channels) ?
+		0x0D  0x0D (2 channels) Player bounced a car, but car is still controllable.
+		
+		0x4F  0x0F (3 channels) Player crashes
+		0x92  0x12 (3 channels) Victorious tune when player reaches check point
+		0x95  0x15 (3 channels) Game over
+		0x98  0x18 (3 channels) Tune after selecting either level A or B
 
-0xE049	Car state?
-		0x00 All okay
-		0x01 Crashed
-		0x02 ?Out of fuel?
-		0x03 ?Out of fuel?
-		0x04 Skidding (player can escape this by steering in correct direction)
-		0x05 Bounced against side of the road. (Not crashed since speed is too low.)
-		0x06 ?Respawn after crash? ?Game over
-		0x07 Spinning out of control
+0xE013-0xE014	(PSG channel ?) Address of where the current sound definition is
+0xE01E-0xE01F	(PSG channel ?) Address of where the current sound definition is
+0xE029-0xE02A	(PSG channel ?) Address of where the current sound definition is
 
-0xE04C	Car: vertical position on screen
-		Pokeable!
-		Maximum: 0xB0
-0xE04E	Car: horizontal position on screen
-		Pokeable!
-0xE04F	Speed
-		Maximum: 0xD7
-0xE054	Seen at 0x6BCA
-0xE057	Fuel used
+0xE032-0xE033	?
+0xE034-0xE035	?
+
+0xE038		?
+0xE03B		Level
+			0x00: Level A
+			0x01: Level B
+0xE03C		HiScore: units and tens (BCD)
+0xE03D		HiScore: hundreds and thousands (BCD)
+0xE03E		HiScore: tenthousands and hundredthousands (BCD)
+0xE03F		Score: units and tens (BCD)
+0xE040		Score: hundreds and thousands (BCD)
+0xE041		Score: tenthousands and hundredthousands (BCD)
+0xE042		?Num stage wraparounds?
+0xE043		Stage
+0xE044		Seen at 0x44A8
+0xE045		Seen at 0x6C36
+0xE049		Car state?
+			0x00 All okay
+			0x01 Crashed
+			0x02 ?Out of fuel?
+			0x03 ?Reached checkpoint? 0x5265
+			0x04 Skidding (player can escape this by steering in correct direction)
+			0x05 Bounced against side of the road. (Not crashed since speed is too low.)
+			0x06 ?Respawn after crash? ?Game over
+			0x07 Spinning out of control
+0xE04B-0xE04C	Car: vertical position
+0xE04B		Car: vertical position: "decimals"
+			The word at 0xE04B is increased, and the high 
+			byte is used as the vertical position.
+0xE04C		Car: vertical position on screen, also when in stage map/overview.
+			Pokeable!
+			0x9A: when driving at maximum speed
+			0xB0: maximum
+0xE04E		Car: horizontal position on screen
+			Pokeable!
+0xE04F		Speed
+			0x00-0x17	Seen at 0x6C96
+			0x18-0x4F	Seen at 0x6C9A
+			0xD7		Maximum speed
+
+0xE051		?Shadow car speed?
+		Seen at 0x73AA
+0xE054		Seen at 0x6BCA
+0xE056		?
+0xE057		Fuel used
 		Increases even when stationary (engine is running).
 		Fuel decreases when this ticker reaches:
 			0x00
@@ -143,7 +207,17 @@
 			0xC0
 			0xE0
 		I.e. fuel (0xE083) decreases for every 0x20 consumed here.
-0xE083	Fuel left
+0xE071		Seen at 0x514D, 0x5157
+0xE077-0xE079 (3 bytes!)
+		Distance travelled
+		0xE077 low byte
+		0xE078 middle byte
+		0xE079 high byte
+
+		0x738C: update distance travelled
+0xE07D		Side of left road?
+0xE07F		Seen at 0x514A
+0xE083		Fuel left:
 		0xD7 means really full of fuel (see 0x7765)
 		0xD0 At start of stage ("full fuel")
 		0x09 low fuel warning, see 0x7437
@@ -158,21 +232,31 @@
 		0x00 means empty
 		
 		Fuel heart: +0x20, see 0x7763
-0xE084	Fuel related?
-		Seems to go from 0x00 to 0x20 and back
-		0x00 ?
-		0x20 ?
-0xE0AD	Side of the road?
-0xE105	Truck related
-		Stored at 0x5421 
-		Seen at 0x5434
-		Stored at 0x54A3
-0xE106	Truck related
-0xE107	Truck related
-0xE10E	Minicar vertical position
-		0x30 for at finish flag
-		0x6C for at starting line
-0xE10F	Minicar horizontal position
-		0xD0 always
-0xE112	Speed related?
-0xE116	Speed related?
+0xE084		Fuel related?
+			Seems to go from 0x00 to 0x20 and back
+			0x00 ?
+			0x20 ?
+0xE0AD		Side of the road?
+0xE0B8		Play sound after grabbed fuel heart?
+			0x00
+			0x01 Grabbed a fuel heart (very very briefly, moves almost instantly to 0x01)
+			0x02 Grabbed a fuel heart
+0xE0B9		Streak count of number of grabbed fuel hearts
+0xE0C1		Seen at 0x51E5 (init)
+0xE105		Truck related
+			Stored at 0x5421
+			Seen at 0x5434
+			Stored at 0x54A3
+0xE106		Truck related
+0xE107		Truck related
+0xE10E		Minicar vertical position
+			0x30 for at finish flag
+			0x6C for at starting line
+0xE10F		Minicar horizontal position
+			0xD0 always
+0xE10E-?	Sprite attributes
+		0xE10E-0xE11B	Minicar
+		0xE10E,0xE112,0xE116,0xE11A,0xE11E	Sprite vpos
+		0xE10F,0xE113,0xE117,0xE11B,0xE11F	Sprite hpos
+		0xE110,0xE114,0xE118,0xE11C,0xE120	Sprite pattern
+		0xE111,0xE115,0xE119,0xE11D,0xE121	Sprite color
