@@ -1,12 +1,52 @@
 == VDP memory ==
 
-0x0000-0x17FF	Color table		defined at 0x46AC
-0x1800-0x1FFF	Sprite pattern table	defined at 0x46AF
-0x2000-0x37FF	Pattern table		defined at 0x46AD
-0x3800-0x3AFF	Name table		defined at 0x46AB
-0x3B00-0x3FFF	Sprite attribute table	defined at 0x46AE
+0x0000-0x17FF	Color table		defined at 0x46AC, 8 * 256 * 3, i.e. 8 bytes per character (16 nybbles per character)
+0x1800-0x1FFF	Sprite pattern table	defined at 0x46AF, 8 * 256    , i.e. 8 bytes per sprite
+0x2000-0x37FF	Pattern table		defined at 0x46AD, 8 * 256 * 3, i.e. 8 bytes per character
+0x3800-0x3AFF	Name table		defined at 0x46AB, 1 * 256 * 3, i.e. 1 byte  per character
+0x3B00-0x3BFF	Sprite attribute table	defined at 0x46AE, 4 * 32     , i.e. 4 bytes per sprite
+
+Name table:
+0x3800-0x38FF	Band 0 (upper/top)
+0x3900-0x39FF	Band 1 (middle)
+0x3A00-0x3AFF	Band 2 (lower/bottom)
+
+Name table address layout:
+Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F  10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F  | Row
+---------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+---------
+[r00,U0] | 3800 3801 3802 3803 3804 3805 3806 3807 3808 3809 380A 380B 380C 380D 380E 380F 3810 3811 3812 3813 3814 3815 3816 3817 3818 3819 381A 381B 381C 381D 381E 381F | [r00,U0]
+[r01,U1] | 3820 3821 3822 3823 3824 3825 3826 3827 3828 3829 382A 382B 382C 382D 382E 382F 3830 3831 3832 3833 3834 3835 3836 3837 3838 3839 383A 383B 383C 383D 383E 383F | [r01,U1]
+[r02,U2] | 3840 3841 3842 3843 3844 3845 3846 3847 3848 3849 384A 384B 384C 384D 384E 384F 3850 3851 3852 3853 3854 3855 3856 3857 3858 3859 385A 385B 385C 385D 385E 385F | [r02,U2]
+[r03,U3] | 3860 3861 3862 3863 3864 3865 3866 3867 3868 3869 386A 386B 386C 386D 386E 386F 3870 3871 3872 3873 3874 3875 3876 3877 3878 3879 387A 387B 387C 387D 387E 387F | [r03,U3]
+[r04,U4] | 3880 3881 3882 3883 3884 3885 3886 3887 3888 3889 388A 388B 388C 388D 388E 388F 3890 3891 3892 3893 3894 3895 3896 3897 3898 3899 389A 389B 389C 389D 389E 389F | [r04,U4]
+[r05,U5] | 38A0 38A1 38A2 38A3 38A4 38A5 38A6 38A7 38A8 38A9 38AA 38AB 38AC 38AD 38AE 38AF 38B0 38B1 38B2 38B3 38B4 38B5 38B6 38B7 38B8 38B9 38BA 38BB 38BC 38BD 38BE 38BF | [r05,U5]
+[r06,U6] | 38C0 38C1 38C2 38C3 38C4 38C5 38C6 38C7 38C8 38C9 38CA 38CB 38CC 38CD 38CE 38CF 38D0 38D1 38D2 38D3 38D4 38D5 38D6 38D7 38D8 38D9 38DA 38DB 38DC 38DD 38DE 38DF | [r06,U6]
+[r07,U7] | 38E0 38E1 38E2 38E3 38E4 38E5 38E6 38E7 38E8 38E9 38EA 38EB 38EC 38ED 38EE 38EF 38F0 38F1 38F2 38F3 38F4 38F5 38F6 38F7 38F8 38F9 38FA 38FB 38FC 38FD 38FE 38FF | [r07,U7]
+---------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+---------
+[r08,M0] | 3900 3901 3902 3903 3904 3905 3906 3907 3908 3909 390A 390B 390C 390D 390E 390F 3910 3911 3912 3913 3914 3915 3916 3917 3918 3919 391A 391B 391C 391D 391E 391F | [r08,M0]
+[r09,M1] | 3920 3921 3922 3923 3924 3925 3926 3927 3928 3929 392A 392B 392C 392D 392E 392F 3930 3931 3932 3933 3934 3935 3936 3937 3938 3939 393A 393B 393C 393D 393E 393F | [r09,M1]
+[r0A,M2] | 3940 3941 3942 3943 3944 3945 3946 3947 3948 3949 394A 394B 394C 394D 394E 394F 3950 3951 3952 3953 3954 3955 3956 3957 3958 3959 395A 395B 395C 395D 395E 395F | [r0A,M2]
+[r0B,M3] | 3960 3961 3962 3963 3964 3965 3966 3967 3968 3969 396A 396B 396C 396D 396E 396F 3970 3971 3972 3973 3974 3975 3976 3977 3978 3979 397A 397B 397C 397D 397E 397F | [r0B,M3]
+[r0C,M4] | 3980 3981 3982 3983 3984 3985 3986 3987 3988 3989 398A 398B 398C 398D 398E 398F 3990 3991 3992 3993 3994 3995 3996 3997 3998 3999 399A 399B 399C 399D 399E 399F | [r0C,M4]
+[r0D,M5] | 39A0 39A1 39A2 39A3 39A4 39A5 39A6 39A7 39A8 39A9 39AA 39AB 39AC 39AD 39AE 39AF 39B0 39B1 39B2 39B3 39B4 39B5 39B6 39B7 39B8 39B9 39BA 39BB 39BC 39BD 39BE 39BF | [r0D,M5]
+[r0E,M6] | 39C0 39C1 39C2 39C3 39C4 39C5 39C6 39C7 39C8 39C9 39CA 39CB 39CC 39CD 39CE 39CF 39D0 39D1 39D2 39D3 39D4 39D5 39D6 39D7 39D8 39D9 39DA 39DB 39DC 39DD 39DE 39DF | [r0E,M6]
+[r0F,M7] | 39E0 39E1 39E2 39E3 39E4 39E5 39E6 39E7 39E8 39E9 39EA 39EB 39EC 39ED 39EE 39EF 39F0 39F1 39F2 39F3 39F4 39F5 39F6 39F7 39F8 39F9 39FA 39FB 39FC 39FD 39FE 39FF | [r0F,M7]
+---------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+---------
+[r10,L0] | 3A00 3A01 3A02 3A03 3A04 3A05 3A06 3A07 3A08 3A09 3A0A 3A0B 3A0C 3A0D 3A0E 3A0F 3A10 3A11 3A12 3A13 3A14 3A15 3A16 3A17 3A18 3A19 3A1A 3A1B 3A1C 3A1D 3A1E 3A1F | [r10,L0]
+[r11,L1] | 3A20 3A21 3A22 3A23 3A24 3A25 3A26 3A27 3A28 3A29 3A2A 3A2B 3A2C 3A2D 3A2E 3A2F 3A30 3A31 3A32 3A33 3A34 3A35 3A36 3A37 3A38 3A39 3A3A 3A3B 3A3C 3A3D 3A3E 3A3F | [r11,L1]
+[r12,L2] | 3A40 3A41 3A42 3A43 3A44 3A45 3A46 3A47 3A48 3A49 3A4A 3A4B 3A4C 3A4D 3A4E 3A4F 3A50 3A51 3A52 3A53 3A54 3A55 3A56 3A57 3A58 3A59 3A5A 3A5B 3A5C 3A5D 3A5E 3A5F | [r12,L2]
+[r13,L3] | 3A60 3A61 3A62 3A63 3A64 3A65 3A66 3A67 3A68 3A69 3A6A 3A6B 3A6C 3A6D 3A6E 3A6F 3A70 3A71 3A72 3A73 3A74 3A75 3A76 3A77 3A78 3A79 3A7A 3A7B 3A7C 3A7D 3A7E 3A7F | [r13,L3]
+[r14,L4] | 3A80 3A81 3A82 3A83 3A84 3A85 3A86 3A87 3A88 3A89 3A8A 3A8B 3A8C 3A8D 3A8E 3A8F 3A90 3A91 3A92 3A93 3A94 3A95 3A96 3A97 3A98 3A99 3A9A 3A9B 3A9C 3A9D 3A9E 3A9F | [r14,L4]
+[r15,L5] | 3AA0 3AA1 3AA2 3AA3 3AA4 3AA5 3AA6 3AA7 3AA8 3AA9 3AAA 3AAB 3AAC 3AAD 3AAE 3AAF 3AB0 3AB1 3AB2 3AB3 3AB4 3AB5 3AB6 3AB7 3AB8 3AB9 3ABA 3ABB 3ABC 3ABD 3ABE 3ABF | [r15,L5]
+[r16,L6] | 3AC0 3AC1 3AC2 3AC3 3AC4 3AC5 3AC6 3AC7 3AC8 3AC9 3ACA 3ACB 3ACC 3ACD 3ACE 3ACF 3AD0 3AD1 3AD2 3AD3 3AD4 3AD5 3AD6 3AD7 3AD8 3AD9 3ADA 3ADB 3ADC 3ADD 3ADE 3ADF | [r16,L6]
+[r17,L7] | 3AE0 3AE1 3AE2 3AE3 3AE4 3AE5 3AE6 3AE7 3AE8 3AE9 3AEA 3AEB 3AEC 3AED 3AEE 3AEF 3AF0 3AF1 3AF2 3AF3 3AF4 3AF5 3AF6 3AF7 3AF8 3AF9 3AFA 3AFB 3AFC 3AFD 3AFE 3AFF | [r17,L7]
+---------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+---------
+Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F  10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F  | Row
+
+
 
 == RAM ==
+
 0xE000		Game state
 0xE001		Game substate
 		0xE000	0xE001
@@ -29,7 +69,7 @@
 						0x43F3: After pressing a key: jumps to game state 0x00, substate 0x01.
 		
 		0x03	0x00	0x43E9 ld #03	Start the game (player has selected either "LEVEL A" or "LEVEL B").
-		0x03	0x01	0x416D inc	Play victorious music, blink chosen level.
+		0x03	0x01	0x416D inc	Play victorious music, blink chosen level (A/B).
 		0x03	0x02	0x416D inc	?
 		0x03	0x03	0x416D inc	Clear screen (all black).
 		0x03	0x04	0x416D inc	Draw "STAGE XX" and right side of the screen.
@@ -79,17 +119,41 @@
 		bit 6 (0x40):
 			0: demo
 			1: player is playing
-0xE003		Increments
+0xE003		Game state ticker, increments
 	
-0xE004		Graphics related general purpose timer
+0xE004		State related bits.
 		0x18 During game
 		0x80 After seeing "EMPTY" on screen.
 		
+		Game state 1:
+			Timer. Starts at 256 (0 actually). Decrements each frame. If zero: start demo
+		Game state 3:
+			bit 0 (mask 0x01): Tested at 0x421A
+			bit 1 (mask 0x02):
+			bit 2 (mask 0x04):
+			bit 3 (mask 0x08):
+			bit 4 (mask 0x10): Tested at 0x41EC
+			bit 5 (mask 0x20):
+			bit 6 (mask 0x40):
+			bit 7 (mask 0x80):
+		Game state 3 substate 9:
+			0x09
+			0x01
+
 		bit 0 (0x01)
 		bit 1 (0x02)
-		bit 3 (0x04) Tested at 0x502B
+		bit 2 (0x04) Tested ad 0x4184
+		bit 3 (0x08) Tested at 0x502B
 
-0xE005		Seen at 0x402B
+
+0xE005		[E005_int_sentry] Interrupt sentry.
+		
+		0x00 Previous interrupt done
+		0x01 Previous interrupt in progress
+		
+		This byte (bit 0 actually) is checked at the beginning of the 
+		VDP interrupt hook (right after disabling the interrupts), as 
+		to have only 1 interrupt routine running, not 2 or more.
 
 0xE008		Newly pressed keyboard keys, joystick state. I.e. they 
 		weren't	pressed in the previous frame.
@@ -109,27 +173,47 @@
 		0x10 Status of "Space" / trigger 1
 		0x20 Status of "Select" / trigger 2
 
-0xE00A		?
+0xE00A		Number of times left to scroll the Konami logo upwards.
+		0x0E		Initial value, see 0x48BD.
+		decrementing	See 0x48FC.
+		
 			0x0E Seen at 0x48BB
 0xE00D		?from 0x00 to 0x01 after reaching checkpoint and driven out of screen?
 			0x01 Seen at 0x6B8C
-0xE00E		?
-			0xAA Seen at 0x48C3
-			0xEA During racing
-0xE010		?Sound duration left?
-0xE01B		?Sound duration left?
-0xE026		?Sound duration left?
+0xE00E-0xE00F	Possible different meanings for different game states.
+		
+		Game state 0:
+			[name table] VRAM address of start of middle line of Konami logo:
+				0x3AAA. See 0x48C0, initial value, lowest position on screen
+				0x3A8A
+				0x3A6A
+				0x3A4A
+				0x3A2A
+				0x3A0A
+				0x39EA
+				0x39CA
+				0x39AA
+				0x398A
+				0x396A
+				0x394A
+				0x392A
+				0x390A
+				0x38EA
 
-0xE011		?Sound duration?
-0xE01C		?Sound duration?
-0xE027		?Sound duration?
-
-0xE012		Current sound/tune/bleep ID (for PSG channel ?)
-0xE01D		Current sound/tune/bleep ID (for PSG channel ?)
-0xE028		Current sound/tune/bleep ID (for PSG channel ?)
+0xE010-0xE1A,0xE0B-0xE025,0xE026-0xE030	Uses IX to address memory. See 0x4C07.
+			A      B      C
+	IX+0	0xE010,0xE01B,0xE026		?Sound duration left?
+	IX+1	0xE011,0xE01C,0xE027		?Sound duration?
+	IX+2	0xE012,0xE01D,0xE028		Current sound/tune/bleep ID
+		bit 7   (mask 0x80): ?? 0x4D35
+		bit 6   (mask 0x40): ?player crashed or noise needed? 0x4CBC
+		bit 5   (mask 0x20): Set sound duration to (value&0x0F).
+		bit 4   (mask 0x10): ?0x4CED? Set noise frequency divider to (value&0x1F).
+		bit 0-3 (mask 0x0F): sound ID without flags
+		
 		     &0x3F
 		0x00  0x00 (1 channel) Silence
-		0x01  0x01 (1 channel) ?
+		0x01  0x01 (1 channel) Special. 0x4C25.
 		0x02  0x02 (1 channel) Emit low fuel warning
 		0x03  0x03 (1 channel) Bleeps when both parts of red Road Fighter logo join.
 		0x03  0x03 (1 channel) Bleeps when player grabbed a fuel heart.
@@ -138,6 +222,7 @@
 		0x05  0x05 (2 channels) Sound of yellow traffic light (player must wait for green)
 		0x07  0x07 (2 channels) Sound of green traffic light (player should start racing now)
 		0x09  0x09 (2 channels) Weird intermittent sound during a level
+		0x0A  0x0A (2 channels) ?Seen 0x4CA4?
 		0x0B  0x0B (2 channels) ?
 		0x0D  0x0D (2 channels) Player bounced a car, but car is still controllable.
 		
@@ -145,15 +230,39 @@
 		0x92  0x12 (3 channels) Victorious tune when player reaches check point
 		0x95  0x15 (3 channels) Game over
 		0x98  0x18 (3 channels) Tune after selecting either level A or B
+	IX+3,4	0xE013-0xE014,0xE01E-0xE01F,0xE029-0xE02A	Address of where the current sound definition is
+	IX+5	0xE015,0xE02A,0xE02B Octave offset:
+			0x00: Octave 6, starts at frequency divider 0x0D6
+			0x01: Octave 5, starts at frequency divider 0x1AC
+			0x02: Octave 4, starts at frequency divider 0x358
+			0x03: Octave 3, starts at frequency divider 0x1AC
+			0x04: Octave 2, starts at frequency divider 0x6B0
+			0x05: Octave 1, starts at frequency divider 0xD60
+	IX+6	0xE016?
+	IX+7	0xE017 Note number:
+			0x00 == C
+			0x01 == C#
+			0x02 == D
+			0x03 == D#
+			0x04 == E
+			0x05 == F
+			0x06 == F#
+			0x07 == G
+			0x08 == G#
+			0x09 == A
+			0x0A == A#
+			0x0B == B
+			0x0C: special, see 0x4DA4
+	IX+8	0xE018? Seen at 0x4D20, 0x4D3B
+	IX+9	0xE019? Seen at 0x4D26
+	IX+A	0xE01A? Seen at 0x4D8C
 
-0xE013-0xE014	(PSG channel ?) Address of where the current sound definition is
-0xE01E-0xE01F	(PSG channel ?) Address of where the current sound definition is
-0xE029-0xE02A	(PSG channel ?) Address of where the current sound definition is
-
+0xE031		PSG: the value for PSG register 0x07 (sound and noise generator settings)
 0xE032-0xE033	?
 0xE034-0xE035	?
-
-0xE038		?
+0xE036-0xE037	Engine humming frequency divider minus 0x0DEB or 0x0DEE
+		I.e.: Engine hummy frequency = *(0xE036) + 0x0DEB (or 0x0DEE)
+0xE038		?0x4C57
 0xE03B		Level
 			0x00: Level A
 			0x01: Level B
@@ -166,7 +275,8 @@
 0xE042		?Num stage wraparounds?
 0xE043		Stage
 0xE044		Seen at 0x44A8
-0xE045		Seen at 0x6C36
+0xE045		Seen at 0x6C36, 0x425E
+0xE046		Current pattern names (22 per line, not 24)
 0xE049		Car state?
 			0x00 All okay
 			0x01 Crashed
@@ -182,8 +292,9 @@
 			byte is used as the vertical position.
 0xE04C		Car: vertical position on screen, also when in stage map/overview.
 			Pokeable!
+			0x80: during start (on start grid)
 			0x9A: when driving at maximum speed
-			0xB0: maximum
+			0xB0: maximum, lowest on screen
 0xE04E		Car: horizontal position on screen
 			Pokeable!
 0xE04F		Speed
@@ -193,6 +304,7 @@
 
 0xE051		?Shadow car speed?
 		Seen at 0x73AA
+0xE053		Seen at 0x6E20. Sprite pattern? Car orientation?
 0xE054		Seen at 0x6BCA
 0xE056		?
 0xE057		Fuel used
@@ -207,6 +319,7 @@
 			0xC0
 			0xE0
 		I.e. fuel (0xE083) decreases for every 0x20 consumed here.
+0xE058-0xE06D	Pattern names
 0xE071		Seen at 0x514D, 0x5157
 0xE077-0xE079 (3 bytes!)
 		Distance travelled
@@ -260,3 +373,42 @@
 		0xE10F,0xE113,0xE117,0xE11B,0xE11F	Sprite hpos
 		0xE110,0xE114,0xE118,0xE11C,0xE120	Sprite pattern
 		0xE111,0xE115,0xE119,0xE11D,0xE121	Sprite color
+
+0xE186-		Track pattern name table.
+		
+		The first line of characters looks like this:
+		INDEX    00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F   10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F
+		EXAMPLE  00   A0   A0   A0   A0   A0   42   42   A0   58   D0   D0   D1   D0   D0   59   A0   A0   A0   A0   4B   A0   A0   'H'  'I'  'S'  'C'  'O'  'R'  'E'  00   00    
+		MEMORY  ---- E186 E187 E188 E189 E18A E18B E18C E18D E18E E18F E190 E191 E192 E193 E194 E195 E196 E197 E198 E199 E19A E19B ---- ---- ---- ---- ---- ---- ---- ---- ----
+		
+		Lookup map:
+		column   |  00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F   10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F
+		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+		row 0x00 | ---- E186 E187 E188 E189 E18A E18B E18C E18D E18E E18F E190 E191 E192 E193 E194 E195 E196 E197 E198 E199 E19A E19B ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x01 | ---- E19C E19D E19E E19F E1A0 E1A1 E1A2 E1A3 E1A4 E1A5 E1A6 E1A7 E1A8 E1A9 E1AA E1AB E1AC E1AD E1AE E1AF E1B0 E1B1 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x02 | ---- E1B2 E1B3 E1B4 E1B5 E1B6 E1B7 E1B8 E1B9 E1BA E1BB E1BC E1BD E1BE E1BF E1C0 E1C1 E1C2 E1C3 E1C4 E1C5 E1C6 E1C7 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x03 | ---- E1C8 E1C9 E1CA E1CB E1CC E1CD E1CE E1CF E1D0 E1D1 E1D2 E1D3 E1D4 E1D5 E1D6 E1D7 E1D8 E1D9 E1DA E1DB E1DC E1DD ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x04 | ---- E1DE E1DF E1E0 E1E1 E1E2 E1E3 E1E4 E1E5 E1E6 E1E7 E1E8 E1E9 E1EA E1EB E1EC E1ED E1EE E1EF E1F0 E1F1 E1F2 E1F3 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x05 | ---- E1F4 E1F5 E1F6 E1F7 E1F8 E1F9 E1FA E1FB E1FC E1FD E1FE E1FF E200 E201 E202 E203 E204 E205 E206 E207 E208 E209 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x06 | ---- E20A E20B E20C E20D E20E E20F E210 E211 E212 E213 E214 E215 E216 E217 E218 E219 E21A E21B E21C E21D E21E E21F ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x07 | ---- E220 E221 E222 E223 E224 E225 E226 E227 E228 E229 E22A E22B E22C E22D E22E E22F E230 E231 E232 E233 E234 E235 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+		row 0x08 | ---- E236 E237 E238 E239 E23A E23B E23C E23D E23E E23F E240 E241 E242 E243 E244 E245 E246 E247 E248 E249 E24A E24B ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x09 | ---- E24C E24D E24E E24F E250 E251 E252 E253 E254 E255 E256 E257 E258 E259 E25A E25B E25C E25D E25E E25F E260 E261 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x0A | ---- E262 E263 E264 E265 E266 E267 E268 E269 E26A E26B E26C E26D E26E E26F E270 E271 E272 E273 E274 E275 E276 E277 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x0B | ---- E278 E279 E27A E27B E27C E27D E27E E27F E280 E281 E282 E283 E284 E285 E286 E287 E288 E289 E28A E28B E28C E28D ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x0C | ---- E28E E28F E290 E291 E292 E293 E294 E295 E296 E297 E298 E299 E29A E29B E29C E29D E29E E29F E2A0 E2A1 E2A2 E2A3 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x0D | ---- E2A4 E2A5 E2A6 E2A7 E2A8 E2A9 E2AA E2AB E2AC E2AD E2AE E2AF E2B0 E2B1 E2B2 E2B3 E2B4 E2B5 E2B6 E2B7 E2B8 E2B9 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x0E | ---- E2BA E2BB E2BC E2BD E2BE E2BF E2C0 E2C1 E2C2 E2C3 E2C4 E2C5 E2C6 E2C7 E2C8 E2C9 E2CA E2CB E2CC E2CD E2CE E2CF ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x0F | ---- E2D0 E2D1 E2D2 E2D3 E2D4 E2D5 E2D6 E2D7 E2D8 E2D9 E2DA E2DB E2DC E2DD E2DE E2DF E2E0 E2E1 E2E2 E2E3 E2E4 E2E5 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+		row 0x10 | ---- E2E6 E2E7 E2E8 E2E9 E2EA E2EB E2EC E2ED E2EE E2EF E2F0 E2F1 E2F2 E2F3 E2F4 E2F5 E2F6 E2F7 E2F8 E2F9 E2FA E2FB ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x11 | ---- E2FC E2FD E2FE E2FF E300 E301 E302 E303 E304 E305 E306 E307 E308 E309 E30A E30B E30C E30D E30E E30F E310 E311 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x12 | ---- E312 E313 E314 E315 E316 E317 E318 E319 E31A E31B E31C E31D E31E E31F E320 E321 E322 E323 E324 E325 E326 E327 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x13 | ---- E328 E329 E32A E32B E32C E32D E32E E32F E330 E331 E332 E333 E334 E335 E336 E337 E338 E339 E33A E33B E33C E33D ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x14 | ---- E33E E33F E340 E341 E342 E343 E344 E345 E346 E347 E348 E349 E34A E34B E34C E34D E34E E34F E350 E351 E352 E353 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x15 | ---- E354 E355 E356 E357 E358 E359 E35A E35B E35C E35D E35E E35F E360 E361 E362 E363 E364 E365 E366 E367 E368 E369 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x16 | ---- E36A E36B E36C E36D E36E E36F E370 E371 E372 E373 E374 E375 E376 E377 E378 E379 E37A E37B E37C E37D E37E E37F ---- ---- ---- ---- ---- ---- ---- ---- ----
+		row 0x17 | ---- E380 E381 E382 E383 E384 E385 E386 E387 E388 E389 E38A E38B E38C E38D E38E E38F E390 E391 E392 E393 E394 E395 ---- ---- ---- ---- ---- ---- ---- ---- ----
+		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+		column   |  00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F   10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F

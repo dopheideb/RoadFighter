@@ -18,15 +18,23 @@ def get_word(memory_address):
 
 
 color_table_base_address = 0x0000
+sprite_pattern_table_base_address = 0x1800
 pattern_table_base_address = 0x2000
 
 ## Sorted by DE, because that is the order is which the patterns appear 
 ## in the ROM.
 patterns =\
 (
+    #{
+    #    'VRAM_src': 0x46FE,		## DE = 0x46FE
+    #    'VRAM_src_location': 0x40B6,
+    #    'VRAM_dst_location': 0x46FC,	## HL = 0x394A (inside name table)
+    #    'VRAM_src_offset': 0,
+    #    'VRAM_dst_offset': 0,
+    #},
     {
         'VRAM_src_location': 0x4776,	## DE = 0x478A
-	'VRAM_dst_location': 0x4479,	## HL = 0x2080
+	'VRAM_dst_location': 0x4779,	## HL = 0x2080
         'VRAM_src_offset': 1,
         'VRAM_dst_offset': 1,
     },
@@ -41,6 +49,20 @@ patterns =\
         'VRAM_dst_location': 0x49B4,	## HL = 0x2600
         'VRAM_src_offset': 1,
         'VRAM_dst_offset': 1,
+    },
+    {
+        'VRAM_src': 0x5A73,		## DE = 0x5A73
+        'VRAM_src_location': 0x692E,
+        'VRAM_dst_location': 0x5A71,	## HL = 0x1800 (start at sprite 0x00)
+        'VRAM_src_offset': 0,
+        'VRAM_dst_offset': 0,
+    },
+    {
+        'VRAM_src': 0x5B97,		## DE = 0x5B97
+        'VRAM_src_location': 0x693F,
+        'VRAM_dst_location': 0x5B95,	## HL = 0x1A00 (start at sprite 0x40)
+        'VRAM_src_offset': 0,
+        'VRAM_dst_offset': 0,
     },
     {
         'VRAM_src_location': 0x68AA,	## DE = 0x5DEC
@@ -274,9 +296,6 @@ def print_text_or_color_pattern_data_pointer(pattern_data_pointer):
     ## uses mask 0x3FFFF. Do the same.
     dest &= 0x3FFF
     
-    is_text = dest >= 0x2000
-    vram_offset = pattern_table_base_address if is_text else color_table_base_address
-    
     def decode_data_byte_as_pattern(byte):
         items = []
         for i in range(8):
@@ -316,7 +335,17 @@ def print_text_or_color_pattern_data_pointer(pattern_data_pointer):
         decoded += f'0x{lo_nybble:x}={colornum2name[lo_nybble]:12s}'
         
         return decoded
-    decode_fun = decode_data_byte_as_pattern if is_text else decode_data_byte_as_color
+    type = 'color'
+    vram_offset = color_table_base_address
+    decode_fun = decode_data_byte_as_color
+    if dest >= 0x2000:
+        type = 'pattern'
+        vram_offset = pattern_table_base_address
+        decode_fun = decode_data_byte_as_pattern
+    elif dest >= 0x1800:
+        type = 'sprite'
+        vram_offset = sprite_pattern_table_base_address
+        decode_fun = decode_data_byte_as_pattern
     
     data_lines_generated = 0
     while True:
@@ -364,7 +393,7 @@ def print_text_or_color_pattern_data_pointer(pattern_data_pointer):
             new_vram_address = get_word(addr)
             addr += 2
             print(f'{prefix} HL = 0x{new_vram_address:04X}')
-            raise NotImplementedError
+            #raise NotImplementedError
             continue
         
         
@@ -420,11 +449,20 @@ def print_text_pattern_data_pointers(text_pattern_data_pointers):
 
 def print_patterns(patterns):
     for VRAM in patterns:
-        DE = get_word(VRAM['VRAM_src_location'] + VRAM['VRAM_src_offset'])
+        if 'VRAM_src' in VRAM:
+            DE = VRAM['VRAM_src']
+        else:
+            DE = get_word(VRAM['VRAM_src_location'] + VRAM['VRAM_src_offset'])
         HL = get_word(VRAM['VRAM_dst_location'] + VRAM['VRAM_dst_offset'])
-        is_text = HL >= 0x2000
+        type = 'color'
+        if HL >= 0x2000:
+            type = 'pattern'
+        elif HL >= 0x1800:
+            type = 'sprite'
 
-        print(f"; Compressed {'pattern' if is_text else 'color'} data, seen at 0x{VRAM['VRAM_src_location']:04X}.")
+        print(f"; Compressed {type} data, seen at 0x{VRAM['VRAM_src_location']:04X}.")
+        #print(f"; DE = {DE:04X}")
+        #print(f"; HL = {HL:04X}")
         if 'description' in VRAM:
             print(f"; ")
             print(f"; {VRAM['description']}")
@@ -439,8 +477,11 @@ if __name__ == '__main__':
     else:
         wanted = int(sys.argv[1], base=0)
         for pattern in patterns:
-            if wanted in (
-                pattern['VRAM_src_location'],
-                get_word(pattern['VRAM_src_location'] + pattern['VRAM_src_offset'])
-            ):
+            wanted_list = []
+            if 'VRAM_src_location' in pattern:
+                wanted_list += [pattern['VRAM_src_location']]
+                wanted_list += [get_word(pattern['VRAM_src_location'] + pattern['VRAM_src_offset'])]
+            if 'VRAM_src' in pattern:
+                wanted_list += [pattern['VRAM_src']]
+            if wanted in wanted_list:
                 print_patterns((pattern, ))
