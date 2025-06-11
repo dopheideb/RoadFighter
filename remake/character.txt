@@ -1,0 +1,73 @@
+
+Let's use the copyright as example, using all colors.
+
+The pattern generator (or pattern for short) is:
+	[0x3C, 0x42, 0x99, 0xA1, 0xA1, 0x99, 0x42, 0x3C]
+
+		,-----------------(pattern&128)>>7
+		| ,---------------(pattern& 64)>>6
+		| | ,-------------(pattern& 32)>>5
+		| | | ,-----------(pattern& 16)>>4
+		| | | | ,---------(pattern&  8)>>3
+		| | | | | ,-------(pattern&  4)>>2
+		| | | | | | ,-----(pattern&  2)>>1
+		| | | | | | | ,---(pattern&  1)>>0
+		| | | | | | | |
+	pattern	v v v v v v v v	Other visualation	Colors	Character
+byte 0	0x3C	0 0 1 1 1 1 0 0	. . # # # # . .		0xfE	f f E E E E f f
+byte 1	0x42	0 1 0 0 0 0 1 0	. # . . . . # .		0xdC	d C d d d d C d
+byte 2	0x99	1 0 0 1 1 0 0 1	# . . # # . . #		0xbA	A b b A A b b A
+byte 3	0xA1	1 0 1 0 0 0 0 1	# . # . . . . #		0x98	9 8 9 8 8 8 8 9
+byte 4	0xA1	1 0 1 0 0 0 0 1	# . # . . . . #		0x76	7 6 7 6 6 6 6 7
+byte 5	0x99	1 0 0 1 1 0 0 1	# . . # # . . #		0x54	4 5 5 4 4 5 5 4
+byte 6	0x42	0 1 0 0 0 0 1 0	. # . . . . # .		0x32	3 2 3 3 3 3 2 3
+byte 7	0x3C	0 0 1 1 1 1 0 0	. . # # # # . .		0x10	1 1 0 0 0 0 1 1
+	pattern
+
+Character: [0xF, 0xF, 0xE, 0xE, 0xE, 0xE, 0xF, 0xF, 0xD, 0xC, 0xD ...]
+== numpy ==
+
+The strength of numpy lies in vectors/matrix calculations, its speedwise 
+weakness in addressing every element 1 by 1.
+
+How do we "compile" a characters with vector/matrix operations? Unpacking a 
+byte to its individual bits is a task for numpy.unpackbits:
+
+	>>> pattern = np.array([0x3C, 0x42, 0x99, 0xA1, 0xA1, 0x99, 0x42, 0x3C], dtype=np.uint8)
+	>>> colors  = np.array([0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10], dtype=np.uint8)
+	>>> 
+	>>> bit_pattern = np.unpackbits(pattern)
+	>>> bit_pattern.reshape((8,8))
+	array([[0, 0, 1, 1, 1, 1, 0, 0],
+	       [0, 1, 0, 0, 0, 0, 1, 0],
+	       [1, 0, 0, 1, 1, 0, 0, 1],
+	       [1, 0, 1, 0, 0, 0, 0, 1],
+	       [1, 0, 1, 0, 0, 0, 0, 1],
+	       [1, 0, 0, 1, 1, 0, 0, 1],
+	       [0, 1, 0, 0, 0, 0, 1, 0],
+	       [0, 0, 1, 1, 1, 1, 0, 0]], dtype=uint8)
+	>>> 
+
+The pattern generator table is 3 * 256 * 8 = 6144 bytes long. Since we 
+have 8 pixel for every byte, we have an array of length 3 * 256 * 8 * 8 
+= 49152.
+
+Some functions that are designed to work with choices/testing: choose, 
+where. "where" suits us.
+
+Every pixel has a choice between foreground and background color. So 
+make an array of both choices.
+
+	>>> fg_colors = (colors >> 4)
+	>>> bg_colors = colors & 0xF
+
+Each scanline of a character (8 pixel) has 1 common foreground and 
+background, so we must repeat() 8 times.
+
+	>>> color_values = np.where(bit_patterns, np.repeat(fg_colors, 8), np.repeat(bg_colors, 8))
+
+
+
+This was a massive speedup. Calculating each pixel manually for all 768 
+characters took 0.117 seconds, while the above takes only 0.001 seconds. 
+Frame rate of 50 is now possible :-D.
