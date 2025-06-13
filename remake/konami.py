@@ -2,37 +2,37 @@
 
 import memory
 import numpy as np
+from   typing import Self, List, cast
 
 class Konami:
-	def __init__(self, memory: memory.Memory) -> None:
+	def __init__(self: Self, memory: memory.Memory) -> None:
 		self.memory = memory
 
-	def uncompress_patterns(self, address) -> np.array:
+	def uncompress_patterns(self: Self, address: int) -> np.ndarray:
 		'''
 
 		Uncompresses compressed patterns starting at memory 
-		specified offset.
+		specified by address.
 
-		The resuling numpy array (dtype=np.uint8) is essentially 
-		a list of patterns. Every element is 1 pattern (8 
-		bytes).
+		The resuling numpy array (dtype=np.uint8) is 1 
+		dimensional (like memory). A single pattern is 8 bytes. 
+		So if you want 2D, just use reshape(-1, 8).
 
 		'''
-		## Cut into separate patterns later.
-		patterns_raw = []
+		patterns = []
 
 		while True:
-			opcode = self.memory[address]
+			opcode = cast(int, self.memory[address])
 			if opcode == 0x00:
 				break
 
 			if opcode <= 0x7F:
 				copy_count = opcode
 				address += 1
-				byte = self.memory[address]
+				byte = cast(int, self.memory[address])
 				address += 1
 				for _ in range(copy_count):
-					patterns_raw.append(byte)
+					patterns.append(byte)
 				continue
 
 			if opcode == 0x80:
@@ -43,15 +43,13 @@ class Konami:
 				copy_count = opcode & 0x7F
 				address += 1
 				for _ in range(copy_count):
-					byte = self.memory[address]
+					byte = cast(int, self.memory[address])
 					address += 1
-					patterns_raw.append(byte)
+					patterns.append(byte)
 				continue
 
-		return np.array(
-				patterns_raw,
-				dtype=np.uint8,
-			).reshape((-1, 8))
+		#return patterns
+		return np.array(patterns, dtype=np.uint8)
 
 
 
@@ -78,24 +76,24 @@ if __name__ == '__main__':
 	vdp = TMS9918A()
 
 	## We want to see __all__ characters.
-	vdp.pattern_name_table = np.array([*range(256)] * 3)
+	vdp.set_names(np.tile(np.arange(256), 3), index=0)
 
 	## Symbols: roughly A-Z
 	##
 	## Patterns start at 0x478A.
 	patterns = Konami(mem).uncompress_patterns(mem.get_word(0x4776 + 1))
-	colors   = np.array([mem[0x477F + 1]] * 8 * patterns.shape[0])
+	colors   = np.array([mem[0x477F + 1]] * len(patterns), dtype=np.uint8)
 	for band in range(3):
-		vdp.set_patterns(patterns, index=0x10, band=band)
+		vdp.set_patterns(np.array(patterns), index=0x10, band=band)
 		vdp.set_pattern_colors(colors, index=0x10, band=band)
 
 	## Road Fighter logo.
 	##
 	## Patterns start at 0x4A25.
 	patterns = Konami(mem).uncompress_patterns(mem.get_word(0x49B1 + 1))
-	colors   = np.array([mem[0x48D8 + 1]] * 8 * patterns.shape[0])
+	colors   = np.array([mem[0x48D8 + 1]] * len(patterns))
 	for band in range(3):
-		vdp.set_patterns(patterns, index=0xC0, band=band)
+		vdp.set_patterns(np.array(patterns), index=0xC0, band=band)
 		vdp.set_pattern_colors(colors, index=0xC0, band=band)
 
 	surf = vdp.make_surface()
@@ -122,7 +120,7 @@ if __name__ == '__main__':
 
 	## Patterns start at 0490F.
 	patterns = Konami(mem).uncompress_patterns(mem.get_word(0x48C9 + 1))
-	colors   = np.array([mem[0x48D8 + 1]] * 8 * patterns.shape[0])
+	colors   = np.array([mem[0x48D8 + 1]] * len(patterns))
 	character_id = 0x40
 	for band in range(3):
 		vdp.set_patterns(patterns, index=character_id, band=band)
@@ -132,8 +130,7 @@ if __name__ == '__main__':
 	E00E = 0x3AAA - 0x3800
 	character_id = 0x40
 	for num in (0x03, 0x0B, 0x0C):
-		vdp.pattern_name_table[E00E:E00E+num] = \
-			list(range(character_id, character_id + num))
+		vdp.set_names(names=np.arange(character_id, character_id + num), index=E00E)
 
 		character_id += num
 		E00E += 0x20

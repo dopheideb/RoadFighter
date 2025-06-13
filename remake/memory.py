@@ -1,17 +1,17 @@
-from typing import Final
+from typing import Self, Final, cast, Any
 
 #BYTE: Final[int] = 1
 #WORD: Final[int] = 2
 class Memory:
-	def __init__(self, rom: bytes, bios=None) -> None:
+	def __init__(self: Self, rom: bytes, bios=None) -> None:
 		self._bios = bios
 		self._rom = rom
 		self._ram = bytearray(0x2000)
 
-	def __getitem__(self, key: int|slice) -> bytes | bytearray:
+	def __getitem__(self: Self, key: int|slice) -> Any:
 		if isinstance(key, int):
 			(mem, offset) = self.unmap(address=key)
-			return mem[offset]
+			return cast(int, mem[offset])
 
 		if isinstance(key, slice):
 			(mem,      offset_start) = self.unmap(address=key.start)
@@ -29,7 +29,7 @@ class Memory:
 
 		raise ValueError("Only int and slice are supported arguments.")
 
-	def __setitem__(self, key: int|slice, val) -> None:
+	def __setitem__(self: Self, key: int|slice, val) -> None:
 		if isinstance(key, int):
 			(mem, offset) = self.unmap(address=key)
 			mem[offset] = val
@@ -54,15 +54,15 @@ class Memory:
 	##
 	## Byte
 	##
-	def get_byte(self, offset: int) -> int:
+	def get_byte(self: Self, offset: int) -> int:
 		'''
 		Return a byte from memory as int.
 
 		If you need bytes type, just slice the object.
 		'''
-		return self[offset]
+		return cast(int, self[offset])
 
-	def set_byte(self, offset: int, value: int) -> int:
+	def set_byte(self: Self, offset: int, value: int) -> None:
 		'''
 		Adjust a byte in memory.
 
@@ -76,7 +76,7 @@ class Memory:
 	##
 	## Char
 	##
-	def get_char(self, offset: int) -> str:
+	def get_char(self: Self, offset: int) -> str:
 		'''
 		Return a byte from memory as (1 character) str. This is 
 		a convenience member, without a setter equivalent.
@@ -85,8 +85,10 @@ class Memory:
 		return chr(byte)
 
 
+	##
 	## Word
-	def get_word(self, offset: int) -> int:
+	##
+	def get_word(self: Self, offset: int) -> int:
 		'''
 		Return a word (=2 bytes) from memory as int. A 'word' in 
 		Z80 is read litte endian. So if you read memory b'\dead', 
@@ -94,11 +96,11 @@ class Memory:
 		
 		If you need bytes type, just slice the object.
 		'''
-		lo_byte = self[offset+0]
-		hi_byte = self[offset+1]
+		lo_byte = cast(int, self[offset+0])
+		hi_byte = cast(int, self[offset+1])
 		return (hi_byte << 8) | lo_byte
 
-	def set_word(self, offset: int, value: int) -> None:
+	def set_word(self: Self, offset: int, value: int) -> None:
 		'''
 		Write a little endian word to memory at specified offset.
 		'''
@@ -118,7 +120,7 @@ class Memory:
 		mem_lo_byte[offset_lo_byte] = lo_byte
 		mem_hi_byte[offset_hi_byte] = hi_byte
 
-	def unmap(self, address: int) -> tuple:
+	def unmap(self: Self, address: int) -> tuple:
 		'''
 		Unmap an offset, returning the actual memory object and 
 		the actual offset for said object.

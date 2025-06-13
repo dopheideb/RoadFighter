@@ -1,6 +1,9 @@
 import numpy as np
 import pygame
-from typing import Self
+from typing import Self, Any, List, Union
+
+import sys
+np.set_printoptions(threshold=sys.maxsize)
 
 
 
@@ -42,57 +45,60 @@ class TMS9918A:
 		## The names used are taken from the TMS9918 
 		## documentation. Please don't complain.
 		## 
-		## Because we want to allow level operations, just mimic 
-		## VRAM and use a 1D array.
-		self.pattern_generator_table = np.zeros([3 * 256 * 8], dtype=np.uint8)
-		self.pattern_color_table     = np.zeros([3 * 256 * 8], dtype=np.uint8)
-		## Character placements
-		self.pattern_name_table = np.zeros(3 * 256 * 1, dtype=np.uint8)
+		## Because we want to allow low-level operations, just 
+		## mimic VRAM and use a 1D array.
+		self._vram = np.zeros(16 * 1024, dtype=np.uint8)
 
-		self.sprite_pattern_table   = np.zeros(256 * 8, dtype=np.uint8)
-		self.sprite_attribute_table = np.zeros(4 * 32, dtype=np.uint8)
+		## 8 write-only registers and 1 status register
+		self._register = np.zeros(8+1, dtype=np.uint8)
+		self._register[0] = 0x02		## M3
+		self._register[1] = 0xE2		## BL|IE0|SI
+		self._register[2] = 0x0E		## 0x3800 (name table)
+		self._register[3] = 0x7F		## 0x0000 (color table)
+		self._register[4] = 0x07		## 0x2000 (pattern table)
+		self._register[5] = 0x76		## 0x3B00 (sprite attribute table)
+		self._register[6] = 0x03		## 0x1800 (sprite pattern (generator) table)
+		self._register[7] = 0xE0		## Foreground: gray, background: transparent
 
-		self.registers = bytearray(b'\x00' * 8)
+	def RDVRM(self: Self, address: int) -> int:
+		return self._vram[address]
 
-	def get_character(self, num: int):
-		pattern = self.get_pattern(num)
-		colors  = self.get_color(num)
+	def read_vram(self: Self, start: int, num: int) -> np.ndarray[Any, np.dtype[np.uint8]]:
+		stop = start + num
+		return self._vram[start:stop]
 
-		character = np.zeros((8,8), dtype=np.uint8)
-		for y in range(8):
-			color = (colors[y] & 0x0F, colors[y] >> 4)
-			for x in range(8):
-				character[y, x] = color[(pattern[y] >> (7 - x)) & 1]
+	def write_vram(self: Self, start: int, data: np.ndarray | list[int]) -> None:
+		num = len(data)
+		self._vram[start:start+num] = data
 
-		return character
+	def get_colored_character_2D(self: Self, index: int, band=0) -> np.ndarray:
+		char_index = 256 * band + index
+		return self.get_colored_characters()[char_index]
 
-	def get_characters_WORKING_BUT_UTTERLY_SLOW(self, names: list[int]):
-		length = len(names)
-		patterns = self.get_patterns(names)
-		colors   = self.get_colors(names)
-
-		characters = np.zeros((length, 8,8), dtype=np.uint8)
-		for n in range(length):
-			for y in range(8):
-				color = (colors[n][y] & 0x0F, colors[n][y] >> 4)
-				for x in range(8):
-					characters[n, y, x] = color[(patterns[n][y] >> (7 - x)) & 1]
-
-		return characters
-	def get_characters(self, names: list[int]):
-		length = len(names)
-		patterns = self.get_patterns(names).reshape(-1)
-		colors   = self.get_colors(names).reshape(-1)
+	def get_colored_characters(self: Self) -> np.ndarray:
+		## Note: numpy is slow if we use it for indexing only 
+		## and do de math in Python. numpy is bloody fast if we 
+		## let numpy do the calculation and make just a few 
+		## numpy calls.
+		## 
+		## I.e,: __vectorize__ our calculations. Old slow code 
+		## took 0.117 seconds (!) to generate a mere 768 
+		## character, while the following is done in a blink of 
+		## an eye.
+		patterns = self.get_pgt()
+		colors   = self.get_pct()
 		fg_colors = colors >> 4		## No masking necessary, since type is np.uint8
 		bg_colors = colors & 0xF
 
 		bit_pattern = np.unpackbits(patterns)
 		characters = np.where(bit_pattern, np.repeat(fg_colors, 8), np.repeat(bg_colors, 8))
-		return characters.reshape((length, 8, 8))
+		return characters
+	def get_colored_characters_3D(self: Self) -> np.ndarray:
+		return self.get_colored_characters().reshape((768, 8, 8))
 
-	def get_character_ansi_utf8(self, num: int) -> str:
+	def get_colored_character_ansi_utf8(self: Self, num: int) -> List[List[str]]:
 		character = []
-		vdp_character = self.get_character(num)
+		vdp_character = self.get_colored_character_2D(num)
 		for row in vdp_character:
 			ch_row = []
 			for color_id in row:
@@ -101,95 +107,285 @@ class TMS9918A:
 			character.append(ch_row)
 		return character
 
-	## No need for RGB when using 8 bit mapped colors.
-	#def get_character_numpy(self, num: int):
-	#	character = np.zeros([8, 8, 3], dtype=np.uint8)
-	#	vdp_character = self.get_character(num)
-	#	for y, row in enumerate(vdp_character):
-	#		for x, color_id in enumerate(row):
-	#			(r, g, b) = self._palette[color_id]
-	#			character[y][x] = (r, g, b)
-	#	return character
-
-	def get_color(self: Self, num):
-		return self.pattern_color_table[8 * num : 8 * (num + 1)]
-
-	def get_colors(self: Self, ids: list[int]):
-		return self.pattern_color_table.reshape(3 * 256, 8)[ids]
-
 	def get_palette(self: Self) -> tuple:
 		return self._palette
-	
-	def get_pattern(self: Self, num):
-		return self.pattern_generator_table[8 * num : 8 * (num + 1)]
 
-	def get_patterns(self: Self, ids: list[int]):
-		return self.pattern_generator_table.reshape(3 * 256, 8)[ids]
 
-	def make_surface(self):
-		characters = self.get_characters(self.pattern_name_table)
-		characters_2D = np.zeros([24 * 8, 32 * 8], dtype=np.uint8)
+	##
+	## Color
+	##
+	def get_pct(self: Self) -> np.ndarray:
+		start = self.color_table_base_address
+		num   = 8 * 3 * 256
+		return self.read_vram(start=start, num=num)
 
-		for m in range(24):
-			for n in range(32):
-				num = m * 32 + n
-				characters_2D[m*8 : (m+1)*8, n*8 : (n+1)*8] = characters[num]
-		depth = 8
-		surface = pygame.Surface((characters_2D.shape[1], characters_2D.shape[0]), depth=8)
-		surface.set_palette(TMS9918A.palette_msx1)
-		surface.fill(self.text_color & 0x0F)
-		surface.set_colorkey(0)
-		pygame.pixelcopy.array_to_surface(surface, characters_2D.swapaxes(0,1))
-		return surface
+	def get_color(self: Self, index: int, band: int=0) -> np.ndarray:
+		return self.get_pattern_color(index=index, band=band)
+	def get_pattern_color(self: Self, index: int, band: int=0) -> np.ndarray:
+		## Every color pattern is 8 bytes.
+		elem_size = 8
+		band_offset = elem_size * 256 * band
+		start = self.color_table_base_address\
+			+ band_offset + elem_size * index
+		return self.read_vram(start=start, num=8)
 
-	def set_pattern_colors(self: Self, pattern_colors: np.array, index: int, band :int=0) -> None:
-		## Allow a list of patterns.
-		pattern_colors_1D = np.ravel(pattern_colors)
-		len = pattern_colors_1D.shape[0]
+	def set_colors(self: Self, index: int, colors: np.ndarray, band: int=0) -> None:
+		self.set_pattern_colors(colors=colors, index=index, band=band)
+	def set_pattern_colors(self: Self, colors: np.ndarray, index: int, band: int=0) -> None:
+		'''
+		Set the colors for the pattern with index 'index'.
+
+		The pattern_colors must be an numpy array of size 64, 
+		and of type numpy.uint8.
+
+		Each pattern is made up of 8 scanlines of 8 pixels. Each 
+		scanline can use 2 colors. Each color is a 4-bit color 
+		ID, so 2 colors are 8-bit (i.e. byte/np.uint8).
+
+		Example:
+			pattern_colors = numpy.array([0xF1, 0x1F] * 4, dtype=numpy.uint8)
+
+			The scanlines alternate between black+white and 
+			white+black.
+		'''
 
 		## Every color pattern is 8 bytes.
-		offset = {0: 0, 1: 8 * 256, 2: 8 * 512}[band] + index * 8
-		self.pattern_color_table[offset : offset + len] =\
-			pattern_colors_1D
+		elem_size = 8
+		band_offset = elem_size * 256 * band
+		start = self.color_table_base_address\
+			+ band_offset + elem_size * index
+		self.write_vram(start=start, data=colors)
 
-	def set_pattern(self: Self, pattern: np.array, index, band=0):
-		pt_offset = {0: 0, 1: 256, 2: 512}[band] + index * 8
-		self.pattern_generator_table[pt_offset : pt_offset + 8] =\
-			pattern
+	##
+	## Name
+	##
+	def set_names(self: Self, names: np.ndarray, index: int, band: int=0) -> None:
+		band_offset = 256 * band
+		start = self.name_table_base_address + band_offset + index
+		end   = start + len(names)
+		self._vram[start:end] = names
 
-	def set_patterns(self: Self, patterns: np.array, index, band=0):
-		## Allow a list of patterns.
-		patterns_1D = np.ravel(patterns)
-		len = patterns_1D.shape[0]
+	##
+	## Pattern
+	##
+	def get_pattern(self: Self, index: int, band: int=0) -> np.ndarray:
+		elem_size = 8
+		band_offset = 256 * band
+		start = self.pattern_generator_base_address + elem_size * (band_offset + index)
+		return self.read_vram(start=start, num=8)
 
+	def get_pattern_2D(self: Self, index: int) -> np.ndarray:
+		return np.unpackbits(self.get_pattern(index)).reshape(8, 8)
+
+	def set_pattern(self: Self, pattern: np.ndarray, index: int, band: int=0) -> None:
+		return self.set_patterns(patterns=pattern, index=index, band=band)
+
+	def set_patterns(self: Self, patterns: np.ndarray | list[int], index: int, band: int=0) -> None:
 		## Every pattern is 8 bytes.
-		pgt_offset = {0: 0, 1: 8 * 256, 2: 8 * 512}[band] + index * 8
-		self.pattern_generator_table[pgt_offset : pgt_offset + len] =\
-			patterns_1D
+		band_offset = 8 * 256 * band
+		start = self.pattern_generator_base_address + band_offset + 8 * index
+		self.write_vram(start, patterns)
+
+
+
+	def get_pgt(self) -> np.ndarray:
+		num_patterns_per_band = 256
+		num_bands = 3
+		elem_size = 8
+		num = elem_size * num_bands * num_patterns_per_band
+		start = self.pattern_generator_base_address
+		return self.read_vram(start=start, num=num)
+
+	def get_pnt(self) -> np.ndarray:
+		start = self.name_table_base_address
+		end   = start + 3 * 256
+		return self._vram[start:end]
+
+	def make_framebuffer(self: Self, pnt: None|np.ndarray=None) -> np.ndarray:
+		if pnt is None:
+			pnt = self.get_pnt()
+		## The PNT must be 768 element long. Enlarge/shrink.
+		pnt.resize(768)
+
+		## Use the pattern name table to know which patterns are 
+		## needed and where they are needed. Same for the colors.
+		patterns = self.get_pgt().reshape(768, 8)[pnt]
+		colors   = self.get_pct().reshape(768, 8)[pnt]
+
+		## Every pattern bit represent a single pixel, 
+		## split/unpack every byte into 8 bits.
+		fg_bg_pattern = np.unpackbits(patterns)
+
+		## Every color byte consists of 2 nybbles: the high 
+		## nybble is the foreground color palette index, the low 
+		## nybble is the background color palette index.
+		bg_colors = colors & 0x0F
+		fg_colors = colors >> 4
+
+		characters = np.where(
+			fg_bg_pattern,
+			np.repeat(fg_colors, 8),
+			np.repeat(bg_colors, 8)
+		)
+		if not hasattr(self, 'framebuffer_mapping'):
+			## Character 0: bytes 0..63
+			## Character 1: bytes 64..128
+			## Character 2: bytes 128..192
+			indices = np.arange(256 * 192, dtype=np.uint16)
+
+			## But the character need to be mapped to the 
+			## framebuffer order:
+			##
+			##   ch00_00..ch00_07, ch01_00..ch01_07, .. ch31_00, ch31_07,
+			##   ...
+			##   ch00_56..ch07_63, ch01_56..ch01_63, .. ch31_56, ch31_63,
+			##   ch32_00..ch32_07, ch33_00..ch33_07, .. ch63_00..ch63_07,
+			##   ...
+			##   ch32_56..ch32_63, ch33_56..ch33_63, .. ch63_56..ch63_63,
+			##   ...
+
+			## Cut into 24 rows. Each row consists of 32 
+			## character, Each character is 8 scanlines of 
+			## each 8 pixels. Hence: the reshape to (24, 32, 
+			## 8, 8).
+			##
+			## Dimension 0: row
+			## Dimension 1: column
+			## Dimension 2: scanline
+			## Dimension 3: pixel
+			## 
+			## indices_as_2D_characters[0][ 0] is character 0 as 8x8.
+			## indices_as_2D_characters[0][ 1] is character 1 as 8x8.
+			## indices_as_2D_characters[0][31] is character 31 as 8x8.
+			## indices_as_2D_characters[1][ 0] is character 32 as 8x8.
+			## indices_as_2D_characters[r][ c] is character 32*r+c as 8x8.
+			indices_as_2D_characters = indices.reshape(24, 32, 8, 8)
+
+			## indices_as_2D_characters[n] has all the right 
+			## characters, but its element needs to be 
+			## arranged differently: We must have the first 
+			## scan line from the first element, the first 
+			## scan line from the second element, etc. We 
+			## just need to swap scanline (dimension 2) with 
+			## the column (dimension 1).
+			screen_characters = indices_as_2D_characters.swapaxes(2, 1)
+
+			## Make it 1D again, and cache the outcome.
+			self.map_characters2framebuffer = screen_characters.ravel()
+		return characters[self.map_characters2framebuffer]
+
+	def make_surface(self: Self, pnt: np.ndarray|None=None):
+		framebuffer = self.make_framebuffer(pnt)
+
+		depth = 8
+		surface = pygame.Surface((256, 192), depth=8)
+		surface.set_palette(TMS9918A.palette_msx1)
+		surface.set_colorkey(0)
+		pygame.pixelcopy.array_to_surface(
+			surface,
+			framebuffer.reshape(192,256).swapaxes(0,1)
+		)
+		return surface
+
+
+
+	##
+	## Registers: named bits
+	##
+	@property
+	def M1(self: Self): return (self.reg1 & 0x10) >> 4
+	@property
+	def M2(self: Self): return (self.reg1 & 0x08) >> 3
+	@property
+	def M3(self: Self): return (self.reg0 & 0x02) >> 1
+	##
+	## Registers: register 0 (mode register)
+	##
+	@property
+	def reg0(self: Self) -> int: return self._register[0]
+	@reg0.setter
+	def reg0(self: Self, value: int) -> None: self._register[0] = value
+
+	##
+	## Registers: register 1 (mode register)
+	##
+	@property
+	def reg1(self: Self) -> int: return self._register[1]
+	@reg1.setter
+	def reg1(self: Self, value: int) -> None: self._register[1] = value
+
+	##
+	## Registers: register 2 (name table)
+	##
+	@property
+	def reg2(self: Self) -> int: return self._register[2]
+	@reg2.setter
+	def reg2(self: Self, value: int) -> None: self._register[2] = value
+	@property
+	def name_table_base_address(self: Self) -> int:
+		return 0x400 * (self.reg2 & 0x0F)
+
+	##
+	## Registers: register 3 (color table)
+	##
+	@property
+	def reg3(self: Self) -> int: return self._register[3]
+	@reg3.setter
+	def reg3(self: Self, value: int) -> None: self._register[3] = value
+	@property
+	def color_table_base_address(self: Self) -> int:
+		if self.M1 == 0 and self.M2 == 0 and self.M3 == 1:
+			## Graphics II mode
+			return 0x2000 * ((self.reg3 & 0x80) >> 7)
+		return 0x40 * self.reg3
+
+	##
+	## Registers: register 4 (pattern table)
+	##
+	@property
+	def reg4(self: Self) -> int: return self._register[4]
+	@reg4.setter
+	def reg4(self: Self, value: int) -> None: self._register[4] = value
+	@property
+	def pattern_generator_base_address(self: Self) -> int:
+		if self.M1 == 0 and self.M2 == 0 and self.M3 == 1:
+			## Graphics II mode
+			return 0x2000 * ((self.reg4 & 7) >> 2)
+		return 0x800 * (self.reg4 & 0x07)
+	@property
+	def pattern_table_base_address(self: Self) -> int:
+		return self.pattern_generator_base_address
+
+	##
+	## Registers: register 5 (sprite attribute table)
+	##
+	@property
+	def reg5(self: Self) -> int: return self._register[5]
+	@reg5.setter
+	def reg5(self: Self, value: int) -> None: self._register[5] = value
+	@property
+	def sprite_attribute_table_base_address(self: Self) -> int:
+		return 0x80 * (self._register[5] & 0x7F)
+
+	##
+	## Registers: register 6 (sprite pattern table)
+	##
+	@property
+	def reg6(self: Self) -> int: return self._register[6]
+	@reg6.setter
+	def reg6(self: Self, value: int) -> None: self._register[6] = value
+	@property
+	def sprite_pattern_table_base_address(self) -> int:
+		return 0x800 * (self._register[6] & 0x03)
 
 	@property
-	def color_table_base_address(self) -> int:
-		return 0x2000 * ((self.registers[3] & 0x80) >> 7)
-
+	def reg7(self: Self) -> int: return self._register[7]
+	@reg7.setter
+	def reg7(self: Self, value: int) -> None: self._register[7] = value
 	@property
-	def name_table_base_address(self) -> int:
-		return 0x400 * (self.registers[2] & 0x0F)
-
-	@property
-	def pattern_generator_base_address(self) -> int:
-		return 0x800 * (self.registers[4] & 0x07)
-
-	@property
-	def sprite_attribute_table_base_address(self) -> int:
-		return 0x80 * (self.registers[5] & 0x7F)
-
-	@property
-	def sprite_pattern_generator_base_address(self) -> int:
-		return 0x800 * (self.registers[6] & 0x03)
-
-	@property
-	def text_color(self) -> int:
-		return self.registers[7]
+	def color_register(self: Self) -> int: return self.reg7
+	@color_register.setter
+	def color_register(self: Self, value: int) -> None: self.reg7 = value
 
 
 
@@ -197,22 +393,69 @@ if __name__ == '__main__':
 	pygame.init()
 	vdp = TMS9918A()
 
+	print(f"M1 M2 M3={vdp.M1} {vdp.M2} {vdp.M3}")
+	assert vdp.M1 == 0
+	assert vdp.M2 == 0
+	assert vdp.M3 == 1
+
+	print(f"reg[2] Name table : 0x{vdp.name_table_base_address:04X}")
+	assert 0x3800 == vdp.name_table_base_address
+
+	print(f"reg[3] Color table: 0x{vdp.color_table_base_address:04X}")
+	assert 0x0000 == vdp.color_table_base_address
+
+	print(f"reg[4] Pattern table: 0x{vdp.pattern_table_base_address:04X}")
+	assert 0x2000 == vdp.pattern_table_base_address
+
+	print(f"reg[5] Sprite attribute table: 0x{vdp.sprite_attribute_table_base_address:04X}")
+	assert 0x3B00 == vdp.sprite_attribute_table_base_address
+
+	print(f"reg[6] Sprite pattern table: 0x{vdp.sprite_pattern_table_base_address:04X}")
+	assert 0x1800 == vdp.sprite_pattern_table_base_address
+
 	## Draw a ball like character.
-	pattern = (0x18, 0x3C, 0x7E, 0x7E, 0x7E, 0x7E, 0x3C, 0x18)
+	pattern = np.array([0x18, 0x3C, 0x7E, 0x7E, 0x7E, 0x7E, 0x3C, 0x18], dtype=np.uint8)
 	vdp.set_pattern(index=0, pattern=pattern)
 
 	## Use all 15 colors.
-	vdp.pattern_color_table[0] = 0x0F
-	vdp.pattern_color_table[1] = 0x1E
-	vdp.pattern_color_table[2] = 0x2D
-	vdp.pattern_color_table[3] = 0x3C
-	vdp.pattern_color_table[4] = 0x4B
-	vdp.pattern_color_table[5] = 0x5A
-	vdp.pattern_color_table[6] = 0x69
-	vdp.pattern_color_table[7] = 0x78
+	colors = np.array([0x0F, 0x1E, 0x2D, 0x3C, 0x4B, 0x5A, 0x69, 0x78], dtype=np.uint8)
+	vdp.set_pattern_colors(index=0, colors=colors)
 
-	print(vdp.get_character(num=0))
-	for row in vdp.get_character_ansi_utf8(num=0):
-		print(''.join(row))
+	print(vdp.get_pattern_2D(index=0))
+	#for row in vdp.get_colored_character_ansi_utf8(num=0):
+	#	print(''.join(row))
 
-	vdp.pattern_name_table[0:768] = (list(range(256)) * 3)
+	copyright_character = np.array([0x38, 0x44, 0xBA, 0xAA, 0xB2, 0xAA, 0x44, 0x38])
+	copyright_colors    = np.array([0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40])
+	vdp.set_pattern(index=1, pattern=copyright_character)
+	vdp.set_pattern_colors(index=1, colors=copyright_colors)
+
+	np.set_printoptions(formatter={'int':hex})
+	print(f"PGT[1]: {vdp.read_vram(start=vdp.pattern_table_base_address+8, num=8)}")
+	np.set_printoptions(formatter={'int': str})
+	print(vdp.get_pattern_2D(index=1))
+	#for row in vdp.get_character_ansi_utf8(num=1):
+	#	print(''.join(row))
+	np.set_printoptions(formatter={'int':hex})
+	print(vdp.get_pgt().reshape(768, 8)[[1, 0]])
+	print(vdp.get_pct().reshape(768, 8)[[1, 0]])
+	np.set_printoptions(formatter={'int': str})
+	print(vdp.get_colored_characters()[64:128].reshape(8,8))
+
+	pgt = vdp.get_pgt()
+	pct = vdp.get_pct()
+	pnt = np.zeros(4, dtype=np.uint8)
+	pnt[0] = 2
+	pnt[1] = 1
+	pnt[2] = 0
+	print(f"pnt={pnt}")
+	pats = pgt.reshape(768, 8)[pnt]
+	cols = pct.reshape(768, 8)[pnt]
+	print(f"{pats}")
+	print(f"{cols}")
+	bg_colors = cols & 0x0F
+	fg_colors = cols >> 4
+	fg_bg_pattern = np.unpackbits(pats)
+	chars = np.where(fg_bg_pattern, np.repeat(fg_colors, 8), np.repeat(bg_colors, 8))
+	print(f"chars={chars}")
+	#print(f"{chars.reshape(-1, 8, 8)}")

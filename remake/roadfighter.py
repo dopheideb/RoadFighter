@@ -5,10 +5,10 @@ from   memory import Memory
 import numpy as np
 import pygame
 import pygame.locals
-import pygame.surfarray as psa
-import rom
+import rom as _rom
 import sys
 from   tms9918a import TMS9918A
+from   typing import cast
 
 ## Initialize all used pygame modules.
 pygame.init()
@@ -28,7 +28,7 @@ msx_vdp_patterns_rect = ((width, 0), (width, height))
 BACKGROUND = (0,0x80,0)
 window.fill(BACKGROUND)
 
-rom = rom.ROM(file='./RoadFighter.rom')
+rom = _rom.ROM(file='./RoadFighter.rom')
 mem = Memory(rom)
 vdp = TMS9918A()
 
@@ -39,34 +39,33 @@ KONAMI_LOGO_PNT_ADDRESS = 0xE00E
 
 ## Implements 0x48DD.
 def write_upwards_scrolling_konami_logo(vdp: TMS9918A, mem: Memory):
-	name_table_base = 0x3800	## 0x46AB
-
-	pnt = mem.get_word(KONAMI_LOGO_PNT_ADDRESS)
-	pnt -= 0x20
-	mem.set_word(KONAMI_LOGO_PNT_ADDRESS, pnt)
+	name_offset = mem.get_word(KONAMI_LOGO_PNT_ADDRESS)
+	name_offset -= 0x20
+	mem.set_word(KONAMI_LOGO_PNT_ADDRESS, name_offset)
 
 	## Patterns start at 0x490F, see 0x48C9.
 	patterns = Konami(mem).uncompress_patterns(address=mem.get_word(0x48C9 + 1))
-	num_patterns = patterns.shape[0]
+	num_patterns = len(patterns)
 	## Just 1 color (white), see 0x48D8.
 	color = mem.get_word(0x48D8 + 1)
 	colors = np.array([color] * (8 * num_patterns))
 
 	character_id = 0x40
+	## Copy characters to VRAM.
 	for band in range(3):
 		vdp.set_patterns(patterns, index=character_id, band=band)
 		vdp.set_pattern_colors(colors, index=character_id, band=band)
 
 	for num in (0x03, 0x0B, 0x0C):
-		addr = pnt - name_table_base
-		vdp.pattern_name_table[addr:addr+num] =\
-			list(range(character_id, character_id + num))
+		vdp.write_vram(name_offset,
+			np.arange(character_id, character_id + num)
+		)
 
-		pnt += 0x20
+		name_offset += 0x20
 		character_id += num
-	addr = pnt - name_table_base
 	num = 0x0C
-	vdp.pattern_name_table[addr:addr+num] = np.zeros((num, ))
+	vdp.write_vram(name_offset, np.zeros(num))
+	vdp.write_vram(0x3800, [0x59])
 
 	mem[KONAMI_LOGO_SCROLL_UP_NUM_LEFT] -= 1
 
@@ -78,15 +77,16 @@ def gamestate00_substate01(vdp: TMS9918A, mem: Memory):
 	mem[GAME_SUBSTATE] += 1
 
 
-vdp.registers[7] = 0xE4	## 0x46B0
-while True:
+all_names = np.tile(np.arange(256), 3)	## [0, ..., 255, 0, ..., 255, 0, ..., 255]
+vdp.color_register = 0xE4	## 0x46B0
+running = True
+while running:
 	for event in pygame.event.get():
-		if event.type == pygame.locals.QUIT:
-			pygame.quit()
-			sys.exit()
+		if event.type == pygame.QUIT:
+			running = False
 
 	## Start with a new canvas, with the backdrop color.
-	vdp_backdrop_color_id  = vdp.text_color & 0x0F
+	vdp_backdrop_color_id  = vdp.color_register & 0x0F
 	vdp_backdrop_color_rgb = vdp.get_palette()[vdp_backdrop_color_id]
 	window.fill(vdp_backdrop_color_rgb, rect=msx_screen_rect)
 
@@ -108,12 +108,9 @@ while True:
 
 	## Show all available characters.
 	if True:
-		vdp_pnt = np.array(vdp.pattern_name_table)	## Deep copy.
-		vdp.pattern_name_table[:] = (list(range(256)) * 3)
-		vdp_patterns_surface = vdp.make_surface()
+		vdp_patterns_surface = vdp.make_surface(pnt=all_names)
 		window.blit(source=vdp_patterns_surface, dest=msx_vdp_patterns_rect)
-		vdp.pattern_name_table = vdp_pnt
 
 	pygame.display.update()
 	fps_clock.tick(FPS)
-	#break
+	#fps_clock.tick(10)
