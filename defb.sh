@@ -24,6 +24,10 @@ if [ "${END:0:2}" = '0x' ]
 then
 	## Interpret as hex.
 	END=$[ ${END} ]
+elif [ "${END:0:1}" = '+' ]
+then
+	## Interpret as length.
+	END=$[ ${START} + ${END} - 1 ]
 fi
 
 dd\
