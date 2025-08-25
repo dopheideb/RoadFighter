@@ -106,8 +106,8 @@
 
 
 
-; Computes HL += a
-403b_HL+=a:
+; Computes HL += A
+403b_HL+=A:
 	add a,l			;403b
 	ld l,a			;403c
 	ret nc			;403d
@@ -137,7 +137,7 @@
 	; popped here.
 	pop hl			;4046 hl = *(sp)
 	
-	call 0403bh		;4047 hl += a
+	call 0403bh		;4047 HL += A
 	ld e,(hl)		;404a e = *(hl)
 	inc hl			;404b ++hl
 	ld d,(hl)		;404c d = *(hl)
@@ -398,7 +398,7 @@
 
 415a_:
 	call 052b8h		;415a
-	call 0504ch		;415d
+	call 0504ch		;415d 504c_init()
 	ld a,004h		;4160 A = 0x04 (demo state)
 	jp 414f_store_game_state_and_reset_timer	;4162
 
@@ -428,6 +428,16 @@
 ;   0x7492 (jump) A == 0x00
 4167_increase_game_substate_and_set_E004_to_regA:
 	ld (0e004h),a			;4167 *(0xE004) = A
+	; Fall to 416a_increase_game_substate.
+
+; We can get here from:
+;   0x4167 (fall)
+;   0x41AC (jump)
+;   0x41C8 (jump)
+;   0x42EA (jump)
+;   0x52AE (jump)
+;   0x74B3 (jump)
+416a_increase_game_substate:
 	ld hl,e001_game_substate	;416a HL = 0xE001
 	inc (hl)			;416d Increase game substate
 	ret				;416e return
@@ -475,7 +485,7 @@
 	call 04429h		;4197
 	ret p			;419a
 	call 068aah		;419b
-	call 0504ch		;419e
+	call 0504ch		;419e 504c_init()
 	call 044d0h		;41a1
 	call 042edh		;41a4
 	ld a,078h		;41a7
@@ -508,9 +518,9 @@
 	;   0x41B9 (DJNZ)
 	djnz $+11		;41c0 if (--B != 0) jump to 0x41CB
 41c2_state03_substate06:
-	call 077c8h		;41c2
-	call 0573ah		;41c5
-	jp 0416ah		;41c8
+	call 077c8h		;41c2 77c8_copy_start_of_coarse_stage01_to_coarse_memory()
+	call 0573ah		;41c5 573a_copy_coarse_to_VRAM()
+	jp 0416ah		;41c8 416a_increase_game_substate()
 
 
 
@@ -519,7 +529,7 @@
 	djnz $+10		;41cb if (--B != 0) jump to 0x41D5
 41cd_state03_substate07:
 	call 05197h		;41cd
-	ld a,005h		;41d0
+	ld a,005h		;41d0 A = 0x05
 	jp 04167h		;41d2
 
 
@@ -787,7 +797,7 @@
 
 ; See jump table 0x4099. Player crashed the car.
 4325_game_state_06:
-	ld a,(E083_fuel)	;4325 a = *(0xE083), load fuel
+	ld a,(E083_fuel)	;4325 A = *(0xE083), load fuel
 	or a			;4328
 	jr z,$+24		;4329 if (no fuel left) jump to 0x4341 (game over)
 	call 051c5h		;432b
@@ -795,7 +805,8 @@
 	ld (0e045h),a		;4330
 	ld hl,0433ah		;4333
 	push hl			;4336
-	call 0573ah		;4337
+	call 0573ah		;4337 573a_copy_coarse_to_VRAM()
+	
 	ld hl,00105h		;433a
 	ld (e000_game_state),hl	;433d
 	ret			;4340
@@ -838,7 +849,7 @@
 4373_game_state_08:
 	push bc			;4373
 	call 0526bh		;4374
-	call 0597dh		;4377
+	call 0597dh		;4377 597d_update_minicar_vpos_and_color
 	pop bc			;437a
 	djnz $+13		;437b if (--B != 0) jump to 0x4388
 	call 04429h		;437d
@@ -869,7 +880,7 @@
 	call 0414fh		;43a8
 	ld (e000_game_state),bc	;43ab Store game state and game sub state.
 	ld (0e00dh),a		;43af
-	call 0504ch		;43b2
+	call 0504ch		;43b2 504c_init()
 	ld a,06ch		;43b5 A = 0x6C
 	ld (e10e_mcar_vpos),a	;43b7
 	ret			;43ba
@@ -1139,7 +1150,7 @@
 	djnz $-7		;44c4 if (--B != 0) jump to 0x44BD
 
 	44c6_copy_score_to_highscore:
-	ld bc,00003h		;44c6 BC = 0x0003 (count of lddr at 0x44CD)
+	ld bc,00003h		;44c6 LDDR count: 0x0003
 	ld e,03eh		;44c9 E = 0x3E
 	ld l,041h		;44cb L = 0x41
 	lddr			;44cd Copy *HL to *DE BC times, decrementing HL and DE.
@@ -1161,6 +1172,9 @@
 	ld de,e043_stage	;44ed
 	ld b,001h		;44f0
 	jr $+67			;44f2 jump to 0x4535
+
+
+
 	ld hl,038b9h		;44f4
 	ld a,06fh		;44f7
 	ld bc,00004h		;44f9
@@ -2697,7 +2711,7 @@
 	ld hl,(0e00eh)		;48dd HL = *(0xE00E)
 	ld de,0ffe0h		;48e0 DE = 0xFFE0
 	add hl,de		;48e3 HL -= 0x20
-	ld (0e00eh),hl		;48e4 Store back. New value is 1 VDP line highter than previous.
+	ld (0e00eh),hl		;48e4 Store back. New value is 1 VDP line higher than previous.
 	ld a,040h		;48e7 A = 0x40 (first character to copy to VRAM)
 	ld b,003h		;48e9 B = 0x03 (top of capital K is 3 characters)
 	call 04901h		;48eb 4901_WRTVRM_consecutive_characters(VRAM_start_address=konami_logo_vertical_center,first_character=0x40,count=0x03)
@@ -5049,8 +5063,10 @@
 
 
 
+504c_init:
+	; Clear/zero 0xE048 upto and including 0xE395.
 	ld hl,0e048h		;504c LDIR: Source
-	ld de,e049_car_state	;504f LDIR: Destination
+	ld de,0e049h		;504f LDIR: Destination
 	ld bc,0034eh		;5052 LDIR: Count: 0x034E, copy this many bytes
 	ld (hl),000h		;5055
 	ldir			;5057
@@ -5083,23 +5099,29 @@
 	ld (E083_fuel),a	;508b Set fuel to 0xD0, i.e. (almost) full fuel!
 	
 	ld a,(e043_stage)	;508e
-	dec a			;5091
+	dec a			;5091 Make stage 0-based instead of 1-based.
 	ld hl,05191h		;5092
-	call 0403bh		;5095 HL += a
+	call 0403bh		;5095 HL += A
 	ld a,(hl)		;5098
 	ld (0e089h),a		;5099
 	ld a,(e043_stage)	;509c
-	dec a			;509f
+	dec a			;509f Make stage 0-based instead of 1-based.
+	
+	; HL = stage_0based * 16
 	ld l,a			;50a0
 	ld h,000h		;50a1
 	add hl,hl		;50a3
 	add hl,hl		;50a4
 	add hl,hl		;50a5
 	add hl,hl		;50a6
+	
+	; HL = 0x537D + stage_0based * 16
 	ld de,0537dh		;50a7
 	add hl,de		;50aa
+	
 	ld (0e0bdh),hl		;50ab
 	call 07020h		;50ae
+	
 	ld a,004h		;50b1
 	ld (0e086h),a		;50b3
 	ld de,0e186h		;50b6
@@ -5183,15 +5205,15 @@
 	ldir			;5146
 	
 	ld a,001h		;5148 A = 1
-	ld (0e07fh),a		;514a
-	ld hl,(0e071h)		;514d
+	ld (0e07fh),a		;514a *(0xE07F) = 1
+	ld hl,(0e071h)		;514d HL = stage_something_pointer[0]
 	ld de,0e07ah		;5150 LDIR: destination
 	ld c,002h		;5153 LDIR: count (B is still 0)
 	ldir			;5155
 	
-	ld (0e071h),hl		;5157
-	ld hl,05998h		;515a
-	ld (0e06fh),hl		;515d
+	ld (0e071h),hl		;5157 Store HL
+	ld hl,05998h		;515a HL = 0x5998 (contains 0xE7)
+	ld (0e06fh),hl		;515d *(0xE06F) = 0x5998
 	ret			;5160
 
 
@@ -5238,13 +5260,22 @@
 	defb 0x52		;518e Sprite attr #02 (car foreground) hpos
 	defb 0x00		;518f Sprite attr #02 (car foreground) name
 	defb 0x06		;5190 Sprite attr #02 (car foreground) code == dark red
-	
+
+
+
 ; Data, see 0x5092.
-	defb 0xA0		;5191
-	push bc			;5192
-	xor e			;5193
-	ld b,009h		;5194
-	add a,b			;5196
+	defb 0xA0		;5191 Stage 01
+	defb 0xC5		;5192 Stage 02
+	defb 0xAB		;5193 Stage 03
+	defb 0x06		;5194 Stage 04
+	defb 0x09		;5195 Stage 05
+	defb 0x80		;5196 Stage 06
+
+
+
+; We can get here from:
+;   0x41CD (call)
+5197_:
 	ld de,0e11ah		;5197
 	ld bc,00551h		;519a
 	call 051a5h		;519d
@@ -5334,34 +5365,34 @@
 
 
 5219_car_initial_values:
-	defb 0x00		;5219 Copied to 0xE049. Car: state: All okay
-	defb 0x00		;521a Copied to 0xE04A.
-	defb 0x00		;521b Copied to 0xE04B.
-	defb 0x80		;521c Copied to 0xE04C.
-	defb 0x00		;521d Copied to 0xE04D.
+	defb 0x00		;5219 Copied to 0xE049. Car: state (0x00 == All okay)
+	defb 0x00		;521a Copied to 0xE04A. Car: ?
+	defb 0x00		;521b Copied to 0xE04B. Car: vertical position (low byte)
+	defb 0x80		;521c Copied to 0xE04C. Car: vertical position on screen
+	defb 0x00		;521d Copied to 0xE04D. Car: ?
 	defb 0x52		;521e Copied to 0xE04E. Car: horizontal position on screen
 	defb 0x00		;521f Copied to 0xE04F. Car: speed
-	defb 0x00		;5220 Copied to 0xE050.
-	defb 0x00		;5221 Copied to 0xE051.
-	defb 0x00		;5222 Copied to 0xE052.
-	defb 0x00		;5223 Copied to 0xE053.
+	defb 0x00		;5220 Copied to 0xE050. Car: ?
+	defb 0x00		;5221 Copied to 0xE051. Car: ?
+	defb 0x00		;5222 Copied to 0xE052. Car: ?
+	defb 0x00		;5223 Copied to 0xE053. Car: ?
 
 
 ; We can get here from:
 ;   0x413C (call)
 ;   0x4308 (call)
 	call 0526bh		;5224
-	call 0597dh		;5227
+	call 0597dh		;5227 597d_update_minicar_vpos_and_color
 	call 070a8h		;522a
 	call 05434h		;522d
 	call 07755h		;5230 contains code about fuel heart (+0x20 fuel)
 	call 06a70h		;5233
-	call 07374h		;5236
+	call 07374h		;5236 7374_increment_fuel_used
 	call 0738ch		;5239
-	call 05251h		;523c call 5251_check_if_checkpoint_reached
+	call 05251h		;523c 5251_check_if_checkpoint_reached
 	call 06e4ah		;523f
 	call 05501h		;5242
-	call 07411h		;5245
+	call 07411h		;5245 7411_decrement_fuel
 	call 06ca1h		;5248
 	call 06f25h		;524b
 	jp 044d9h		;524e
@@ -5446,7 +5477,7 @@
 	cp 001h			;52ac
 	jp z,0416ah		;52ae
 	ld a,004h		;52b1
-	call 0403bh		;52b3 HL += a
+	call 0403bh		;52b3 HL += A
 	jr $-14			;52b6 jump to 0x52A8
 	xor a			;52b8
 	ld hl,0e042h		;52b9
@@ -5499,6 +5530,10 @@
 	xor a			;530c
 	jr $-8			;530d jump to 0x5305
 	ld a,004h		;530f
+
+
+
+; Data, see 0x704E.
 	nop			;5311
 	inc b			;5312
 	jr nz,$+2		;5313 if (nz) jump to 0x5315
@@ -5570,83 +5605,126 @@
 	ex af,af'		;537a
 	rrca			;537b
 	dec c			;537c
-	ld bc,00402h		;537d
-	dec b			;5380
-	ld (bc),a		;5381
-	inc bc			;5382
-	inc b			;5383
-	ex af,af'		;5384
-	ld (bc),a		;5385
-	ld b,005h		;5386
-	inc b			;5388
-	ld (bc),a		;5389
-	ld bc,0ff03h		;538a
-	ld bc,00802h		;538d
-	inc b			;5390
-	dec b			;5391
-	ld bc,0080fh		;5392
-	ld bc,00508h		;5395
-	dec bc			;5398
-	rrca			;5399
-	rst 38h			;539a
-	rst 38h			;539b
-	rst 38h			;539c
-	ld (bc),a		;539d
-	ex af,af'		;539e
-	ld b,00fh		;539f
-	dec b			;53a1
-	ld a,(bc)		;53a2
-	inc bc			;53a3
-	ld (bc),a		;53a4
-	ld a,(bc)		;53a5
-	ex af,af'		;53a6
-	rlca			;53a7
-	dec b			;53a8
-	ex af,af'		;53a9
-	ld b,00ah		;53aa
-	rst 38h			;53ac
-	ld bc,00902h		;53ad
-	ex af,af'		;53b0
-	dec b			;53b1
-	ld a,(bc)		;53b2
-	ld (bc),a		;53b3
-	ld a,(bc)		;53b4
-	ex af,af'		;53b5
-	add hl,bc		;53b6
-	dec b			;53b7
-	ld a,(bc)		;53b8
-	inc bc			;53b9
-	ld a,(bc)		;53ba
-	ex af,af'		;53bb
-	rst 38h			;53bc
-	rrca			;53bd
-	ld a,(bc)		;53be
-	ld b,00bh		;53bf
-	rrca			;53c1
-	dec bc			;53c2
-	dec b			;53c3
-	dec bc			;53c4
-	ex af,af'		;53c5
-	ld b,00fh		;53c6
-	ld a,(bc)		;53c8
-	ld b,00ah		;53c9
-	rst 38h			;53cb
-	rst 38h			;53cc
-	ld bc,00804h		;53cd
-	rrca			;53d0
-	ex af,af'		;53d1
-	rrca			;53d2
-	dec b			;53d3
-	ld a,(bc)		;53d4
-	ld c,008h		;53d5
-	rrca			;53d7
-	ld (bc),a		;53d8
-	ld a,(bc)		;53d9
-	rrca			;53da
-	ld a,(bc)		;53db
-	rst 38h			;53dc
-	ld hl,(0e078h)		;53dd
-	ld bc,00f00h		;53e0
+
+
+
+; Data, see 0x50A7.
+; 
+; Stage 01.
+	defb 0x01		;537d
+	defb 0x02		;537e
+	defb 0x04		;537f
+	defb 0x05		;5380
+	defb 0x02		;5381
+	defb 0x03		;5382
+	defb 0x04		;5383
+	defb 0x08		;5384
+	defb 0x02		;5385
+	defb 0x06		;5386
+	defb 0x05		;5387
+	defb 0x04		;5388
+	defb 0x02		;5389
+	defb 0x01		;538a
+	defb 0x03		;538b
+	defb 0xFF		;538c
+
+; Stage 02.
+	defb 0x01		;538d
+	defb 0x02		;538e
+	defb 0x08		;538f
+	defb 0x04		;5390
+	defb 0x05		;5391
+	defb 0x01		;5392
+	defb 0x0F		;5393
+	defb 0x08		;5394
+	defb 0x01		;5395
+	defb 0x08		;5396
+	defb 0x05		;5397
+	defb 0x0B		;5398
+	defb 0x0F		;5399
+	defb 0xFF		;539a
+	defb 0xFF		;539b
+	defb 0xFF		;539c
+
+; Stage 03.
+	defb 0x02		;539d
+	defb 0x08		;539e
+	defb 0x06		;539f
+	defb 0x0F		;53a0
+	defb 0x05		;53a1
+	defb 0x0A		;53a2
+	defb 0x03		;53a3
+	defb 0x02		;53a4
+	defb 0x0A		;53a5
+	defb 0x08		;53a6
+	defb 0x07		;53a7
+	defb 0x05		;53a8
+	defb 0x08		;53a9
+	defb 0x06		;53aa
+	defb 0x0A		;53ab
+	defb 0xFF		;53ac
+
+; Stage 04.
+	defb 0x01		;53ad
+	defb 0x02		;53ae
+	defb 0x09		;53af
+	defb 0x08		;53b0
+	defb 0x05		;53b1
+	defb 0x0A		;53b2
+	defb 0x02		;53b3
+	defb 0x0A		;53b4
+	defb 0x08		;53b5
+	defb 0x09		;53b6
+	defb 0x05		;53b7
+	defb 0x0A		;53b8
+	defb 0x03		;53b9
+	defb 0x0A		;53ba
+	defb 0x08		;53bb
+	defb 0xFF		;53bc
+
+; Stage 05.
+	defb 0x0F		;53bd
+	defb 0x0A		;53be
+	defb 0x06		;53bf
+	defb 0x0B		;53c0
+	defb 0x0F		;53c1
+	defb 0x0B		;53c2
+	defb 0x05		;53c3
+	defb 0x0B		;53c4
+	defb 0x08		;53c5
+	defb 0x06		;53c6
+	defb 0x0F		;53c7
+	defb 0x0A		;53c8
+	defb 0x06		;53c9
+	defb 0x0A		;53ca
+	defb 0xFF		;53cb
+	defb 0xFF		;53cc
+
+; Stage 06.
+	defb 0x01		;53cd
+	defb 0x04		;53ce
+	defb 0x08		;53cf
+	defb 0x0F		;53d0
+	defb 0x08		;53d1
+	defb 0x0F		;53d2
+	defb 0x05		;53d3
+	defb 0x0A		;53d4
+	defb 0x0E		;53d5
+	defb 0x08		;53d6
+	defb 0x0F		;53d7
+	defb 0x02		;53d8
+	defb 0x0A		;53d9
+	defb 0x0F		;53da
+	defb 0x0A		;53db
+	defb 0xFF		;53dc
+
+
+
+; We can get here from:
+;   0x70DF (call)
+53dd_:
+	ld hl,(0e078h)		;53dd HL = *(0xE078), distance travelled
+	ld bc,00f00h		;53e0 BC = 0x0F00
 	and a			;53e3
 	sbc hl,bc		;53e4
 	ret nc			;53e6
@@ -5788,12 +5866,20 @@
 	ret			;54a8
 
 
-
+; We can get here from:
+;   0x546A (jump)
+54a9_:
 	call 0549eh		;54a9
 	jp 06f18h		;54ac
-	ld hl,0e0b4h		;54af
-	ld a,(hl)		;54b2
-	or a			;54b3
+
+
+
+; We can get here from:
+;   0x553D (call)
+54af_:
+	ld hl,0e0b4h		;54af HL = 0xE0B4
+	ld a,(hl)		;54b2 A = *(0xE0B4)
+	or a			;54b3 Set Z/NZ flag.
 	jr nz,$+44		;54b4 if (nz) jump to 0x54E0
 	ld hl,(0e0b2h)		;54b6
 	ld a,(0e079h)		;54b9
@@ -5807,7 +5893,7 @@
 	ld hl,054f9h		;54c4
 	add a,a			;54c7
 	add a,a			;54c8
-	call 0403bh		;54c9 HL += a
+	call 0403bh		;54c9 HL += A
 	ld (0e0b5h),hl		;54cc
 	ld a,002h		;54cf
 	ld (0e0b4h),a		;54d1
@@ -5853,9 +5939,9 @@
 	ld a,(hl)		;5514
 	xor b			;5515
 	ld (hl),a		;5516
-	ld de,00003h		;5517
+	ld de,00003h		;5517 DE = 0x0003
 	call 0447fh		;551a 447f_update_score_and_hiscore
-	call 0592ah		;551d
+	call 0592ah		;551d 592a_init_next_coarse_line()
 	ld a,(e043_stage)	;5520
 	call 04045h		;5523 PC = PC[2 * A]
 	defw 0x5534		;5526 #00 Jump target for stage 0x00 (unused???)
@@ -5866,14 +5952,30 @@
 	defw 0x5642		;5530 #05 Jump target for stage 0x05
 	defw 0x56AC		;5532 #06 Jump target for stage 0x06
 
-; Stage 1
+; We can get here from:
+;   0x5523 (jump) stage == 1
+;   0x56C9 (jump) stage == 6
 	call 058afh		;5534
+
+; We can get here from:
+;   0x5534 (fall) [stage 1+6]
+;   0x5560 (jump) [stage 2]
+;   0x55FD (jump) [stage 4]
+5537_:
 	call 056f7h		;5537
+; We can get here from:
+;   0x5537 (fall) [stage 1,2,4,6]
+;   0x55D9 (jump) [stage 3]
+;   0x55E1 (jump) [stage 3]
+;   0x5699 (jump) [stage 5]
+553a_:
 	call 05944h		;553a
 	call 054afh		;553d
 	call 05716h		;5540
-	pop hl			;5543
+	pop hl			;5543 ?Don't return to caller?
 	ret			;5544
+
+
 
 ; Stage 2
 	call 058afh		;5545
@@ -5954,6 +6056,8 @@
 	ld (hl),006h		;55e5
 	jr $-52			;55e7 jump to 0x55B3
 
+
+
 ; Stage 4
 	call 05600h		;55e9
 	ld bc,0fff9h		;55ec
@@ -5967,12 +6071,25 @@
 	inc hl			;55fa
 	djnz $-6		;55fb if (--B != 0) jump to 0x55F5
 	jp 05537h		;55fd
-	ld hl,0e08dh		;5600
+
+
+
+; Note: stages 4 and 5 are both red, and the left scenery contains green 
+; bushes/tree. That may explain the common code.
+; 
+; We can get here from:
+;   0x55E9 (call) [stage 4]
+;   0x5645 (call) [stage 5]
+5600_:
+	ld hl,0e08dh		;5600 HL = 0xE08D
 	dec (hl)		;5603
 	jr nz,$+47		;5604 if (nz) jump to 0x5633
+	
+	; Number of scenery lines remaining is 0.
 	dec hl			;5606
 	dec (hl)		;5607
 	jr nz,$+18		;5608 if (nz) jump to 0x561A
+	
 	ld hl,(0e08ah)		;560a
 	inc hl			;560d
 	ld (0e08ah),hl		;560e
@@ -5984,23 +6101,38 @@
 	ld (de),a		;5619
 	ld hl,(0e08ah)		;561a
 	ld a,(hl)		;561d
-	and 003h		;561e
-	add a,a			;5620
-	ld hl,0569ch		;5621
-	call 0403bh		;5624 HL += a
+	and 003h		;561e A &= 0x03 (since table has only 4 entries)
+	add a,a			;5620 A *= 2 (since table consists of pointers)
+	
+	ld hl,0569ch		;5621 HL = 0x569C
+	; Read pointer at HL[A] into HL.
+	call 0403bh		;5624 HL += A
 	ld a,(hl)		;5627
 	inc hl			;5628
 	ld h,(hl)		;5629
 	ld l,a			;562a
-	ld de,0e08dh		;562b
-	ldi			;562e
+	
+	; ?Read length of scenery/track/coarse data?
+	ld de,0e08dh		;562b DE = 0xE08D
+	ldi			;562e *(DE++) = *(HL++), --BC
 	ld (0e08eh),hl		;5630
-	ld de,0e058h		;5633
-	ld bc,00007h		;5636
-	ld hl,(0e08eh)		;5639
+
+; We can get here from:
+;   0x5604 (jump)
+;   0x5630 (fall)
+5633_:
+	; Copy scenery data for left side of the track.
+	; 
+	; Copy 7 bytes from *(0xE08E) to 0xE058.
+	ld de,0e058h		;5633 DE = 0xE058
+	ld bc,00007h		;5636 BC = 0x0007
+	ld hl,(0e08eh)		;5639 HL = *(0xE08E)
 	ldir			;563c
-	ld (0e08eh),hl		;563e
+	
+	ld (0e08eh),hl		;563e Store beginning of next scenery line.
 	ret			;5641
+
+
 
 ; Stage 5
 	call 056f7h		;5642
@@ -6025,7 +6157,7 @@
 	and 003h		;5666
 	add a,a			;5668
 	ld hl,056a4h		;5669
-	call 0403bh		;566c HL += a
+	call 0403bh		;566c HL += A
 	ld a,(hl)		;566f
 	inc hl			;5670
 	ld h,(hl)		;5671
@@ -6052,13 +6184,13 @@
 	ld (0e094h),hl		;5696
 	jp 0553ah		;5699
 
-; Data, see 0x5621
+; Data, see 0x5621. Stage 4+5.
 	defw 0x7C92		;569c #00
 	defw 0x7CA1		;569e #01
-	defw 0x7CB0		;56a0 #02
+	defw 0x7CB0		;56a0 #02 Stage 4+5, left scenery.
 	defw 0x7D7C		;56a2 #03
 
-; Data, see 0x5669
+; Data, see 0x5669. Only for stage 5? Railroad track
 	defw 0x7D94		;56a4 #00
 	defw 0x7DC5		;56a6 #01
 	defw 0x7E26		;56a8 #02
@@ -6081,38 +6213,84 @@
 	ld hl,07fe4h		;56c3
 	ld (0e090h),hl		;56c6
 	jp 05534h		;56c9
-	ld b,00ch		;56cc
-	ld hl,(0e090h)		;56ce
-	ld a,(hl)		;56d1
-	inc hl			;56d2
-	ld l,(hl)		;56d3
-	ld h,a			;56d4
-	ld a,(e043_stage)	;56d5
-	cp 003h			;56d8
-	jr z,$+17		;56da if (z) jump to 0x56EB
-	sla l			;56dc
-	rl h			;56de
-	ld a,080h		;56e0
+
+
+
+; We can get here from:
+;   0x5566 (call) Stage == 3, DE == 0xE058
+;   0x56AF (call) Stage == 6, DE == 0xE058
+56cc_:
+	ld b,00ch		;56cc B = 0x0C (12)
+	ld hl,(0e090h)		;56ce HL = *(0xE090)
+
+	; HL points to a BIG endian word (weird!). Dereference and store 
+	; back in HL.
+	ld a,(hl)		;56d1 A = *(HL)
+	inc hl			;56d2 ++HL
+	ld l,(hl)		;56d3 L = *(HL)
+	ld h,a			;56d4 H = A
+
+	ld a,(e043_stage)	;56d5 A = stage
+	cp 003h			;56d8 Compute A - 3 and set flags.
+	jr z,$+17		;56da if (stage == 3) jump to 0x56EB
+	
+	; Stage == 6 (since stage==3 jumped away)
+	;
+	; HL *= 2
+	sla l			;56dc L <<= 1
+	rl h			;56de H <<= 1 (actually a rotate left)
+	ld a,080h		;56e0 A = 0x80
 	jr c,$+4		;56e2 if (c) jump to 0x56E6
-	ld a,00fh		;56e4
-	ld (de),a		;56e6
-	inc de			;56e7
+	ld a,00fh		;56e4 A = 0x0F
+
+
+
+	; We can get here from:
+	;   0x56E2 (jump) A == 0x80, B == 0x0C
+	;   0x56E4 (fall) A == 0x0F, B == 0x0C
+	;   0x56F1 (jump) A == 0x9B, B == 0x0C
+	;   0x56F5 (jump) A == 0x04, B == 0x0C
+56e6_start_of_djnz_loop:
+	ld (de),a		;56e6 *(DE) = A
+	inc de			;56e7 --DE
 	djnz $-19		;56e8 if (--B != 0) jump to 0x56D5
 	ret			;56ea
-	sla l			;56eb
-	rl h			;56ed
-	ld a,09bh		;56ef
+
+
+
+	; We can get here from:
+	;   0x56DA (jump) Stage == 3
+	; HL *= 2
+	sla l			;56eb L <<= 1
+	rl h			;56ed H <<= 1 (actually a rotate left)
+
+	ld a,09bh		;56ef A = 0x9B
 	jr c,$-11		;56f1 if (c) jump to 0x56E6
-	ld a,004h		;56f3
+	ld a,004h		;56f3 A = 0x04
 	jr $-15			;56f5 jump to 0x56E6
-	ld a,(0e07ah)		;56f7
-	cp 0feh			;56fa
+
+
+
+; We can get here from:
+;   0x5537 (call)
+;   0x5642 (call)
+;   0x5890 (jump)
+;   0x58A8 (jump)
+56f7_:
+	ld a,(0e07ah)		;56f7 A = *(0xE07A)
+	cp 0feh			;56fa Special value 0xFE is seen as 0x78E4.
 	jr nz,$+5		;56fc if (nz) jump to 0x5701
 	call 050bfh		;56fe
+
+	; We can get here from:
+	;   0x56FC (jump) *(0xE07A) != 0xFE (skips call to 0x50BF)
+	;   0x56FE (fall) *(0xE07A) == 0xFE (call to 0x50BF is done)
 	call 0590eh		;5701
-	ld a,(0e07ah)		;5704
-	and 00fh		;5707
+
+	ld a,(0e07ah)		;5704 A = *(0xE07A)
+	and 00fh		;5707 A &= 0x0F (extract low nybble)
 	call 04045h		;5709 PC = PC[2 * A]
+
 	; Jump table for 0x5709.
 	defw 0x5768		;570c #00
 	defw 0x5810		;570e #01
@@ -6123,7 +6301,7 @@
 
 
 ; We can get here from:
-;   0x5540 (call)
+;   0x5540 (call) A == ?
 5716_:
 	ld hl,(0e046h)		;5716
 	ld bc,0ffeah		;5719 BC = -0x16
@@ -6136,19 +6314,28 @@
 	ld hl,0e380h		;5728 HL = 0xE380
 	ld (0e046h),hl		;572b
 	
+	; Copy 1 line of new coarse to current coarse.
 	ld de,(0e046h)		;572e
-	ld hl,0e058h		;5732
-	ld bc,00016h		;5735 LDIR: loop count
+	ld hl,0e058h		;5732 HL = 0xE058
+	ld bc,00016h		;5735 LDIR: loop count == 22
 	ldir			;5738
-	
+	; Fall to 573a_copy_coarse_to_VRAM().
+
+
+
+; We can get here from:
+;   0x41C5 (call)
+;   0x4337 (call)
+;   0x5738 (fall)
+573a_copy_coarse_to_VRAM:
 	ld hl,03801h		;573a HL = 0x3801, VDP name table, character 1 (character 0 is elsewhere set to black)
 	ld a,018h		;573d A = 0x18, 24 character per line
-	ld de,(0e046h)		;573f
+	ld de,(0e046h)		;573f DE = course_pattern_names
 	
 	; We can get here from:
-	;   0x573F (fall)
+	;   0x573F (fall) A == 0x18, HL = 0x3801
 	;   0x5764 (jump)
-	ex af,af'		;5743
+	ex af,af'		;5743 Store A. Restore at 0x5763.
 	call 0053_SETWRT	;5744 [BIOS]: Set VDP for writing, HL=VRAM address
 	ld a,(00006h)		;5747
 	ld c,a			;574a C = VDP I/O port
@@ -6161,19 +6348,22 @@
 	djnz $-4		;5751 if (--B != 0) jump to 0x573D
 	
 	ld a,0e3h		;5753 A = 0xE3
-	cp d			;5755 Compute A - D and set flags
-	jr nz,$+10		;5756 if () jump to 0x5760
-	ld a,096h		;5758
+	cp d			;5755 Compute A - D and set flags.
+	jr nz,$+10		;5756 if (D != 0xE3) jump to 0x5760
+	
+	ld a,096h		;5758 A = 0x96
 	cp e			;575a
-	jr nz,$+5		;575b if (nz) jump to 0x5760
-	ld de,0e186h		;575d
+	jr nz,$+5		;575b if (DE != 0xE396) jump to 0x5760
+	; Post: DE is past last value of coarse pattern names, i.e. stop 
+	; copying.
+	ld de,0e186h		;575d DE = E186_coarse_pattern_name_table
 	
 	; We can get here from:
 	;   0x5756 (jump)
-	;   0x573D (fall)
+	;   0x573D (fall) DE == 0xE186
 	ld c,020h		;5760 C = 0x20 (32)
-	add hl,bc		;5762
-	ex af,af'		;5763
+	add hl,bc		;5762 HL += 0x20
+	ex af,af'		;5763 Restore A. Stored at 0x5743.
 	dec a			;5764
 	jr nz,$-34		;5765 if (A != 0) jump to 0x5743
 	; Post: A == 0
@@ -6209,7 +6399,7 @@
 	ld c,a			;5794
 	add a,a			;5795
 	add a,c			;5796
-	call 0403bh		;5797 HL += a
+	call 0403bh		;5797 HL += A
 	inc b			;579a
 	ld a,b			;579b
 	add a,a			;579c
@@ -6222,7 +6412,7 @@
 	ld hl,05808h		;57a7
 	ld a,(0e07bh)		;57aa
 	and 007h		;57ad
-	call 0403bh		;57af HL += a
+	call 0403bh		;57af HL += A
 	ld a,(0e07dh)		;57b2
 	ld de,0e058h		;57b5
 	add a,e			;57b8
@@ -6233,7 +6423,7 @@
 	ld c,a			;57c2
 	sub 009h		;57c3
 	neg			;57c5
-	call 0403bh		;57c7 HL += a
+	call 0403bh		;57c7 HL += A
 	ld b,000h		;57ca
 	ldir			;57cc
 	inc hl			;57ce
@@ -6263,7 +6453,7 @@
 	and 00fh		;57f7
 	add a,a			;57f9
 	ld hl,0593ah		;57fa
-	call 0403bh		;57fd HL += a
+	call 0403bh		;57fd HL += A
 	ld a,(hl)		;5800
 	inc hl			;5801
 	ld h,(hl)		;5802
@@ -6295,7 +6485,7 @@
 	and 00fh		;582e
 	add a,a			;5830
 	ld hl,0593ah		;5831
-	call 0403bh		;5834 HL += a
+	call 0403bh		;5834 HL += A
 	ld a,(hl)		;5837
 	inc hl			;5838
 	ld h,(hl)		;5839
@@ -6330,7 +6520,7 @@
 	dec (hl)		;587a
 	add a,a			;587b
 	ld hl,0593ah		;587c
-	call 0403bh		;587f HL += a
+	call 0403bh		;587f HL += A
 	ld a,(hl)		;5882
 	inc hl			;5883
 	ld h,(hl)		;5884
@@ -6352,24 +6542,33 @@
 	ex af,af'		;589c
 	add a,b			;589d
 	ld hl,058abh		;589e
-	call 0403bh		;58a1 HL += a
+	call 0403bh		;58a1 HL += A
 	ld a,(hl)		;58a4
 	ld (0e081h),a		;58a5
 	jp 056f7h		;58a8
 	inc b			;58ab
 	rlca			;58ac
 	ld b,009h		;58ad
-	ld hl,0e07fh		;58af
+
+; We can get here from:
+;   0x5534 (call) Stage 1
+;   0x58AD (fall)
+	ld hl,0e07fh		;58af HL = 0xE07F
 	dec (hl)		;58b2
 	jr z,$+12		;58b3 if (z) jump to 0x58BF
-	ld hl,0e086h		;58b5
+	
+	ld hl,0e086h		;58b5 HL = 0xE086
 	ld a,(hl)		;58b8
 	cp 001h			;58b9
 	ret z			;58bb
+	
 	dec (hl)		;58bc
 	jr $+47			;58bd jump to 0x58EC
+	
+	; We can get here from:
+	;   0x58B3 (jump)
 	ld (hl),008h		;58bf
-	ld hl,(0e073h)		;58c1
+	ld hl,(0e073h)		;58c1 HL = *(0xE073)
 	inc hl			;58c4
 	ld (0e073h),hl		;58c5
 	ld a,(hl)		;58c8
@@ -6377,9 +6576,9 @@
 	jr z,$+29		;58ca if (z) jump to 0x58E7
 	dec a			;58cc
 	and 00fh		;58cd
-	add a,a			;58cf
+	add a,a			;58cf A *= 2
 	ld hl,(0e075h)		;58d0
-	call 0403bh		;58d3 HL += a
+	call 0403bh		;58d3 HL += A
 	ld a,(hl)		;58d6
 	inc hl			;58d7
 	ld h,(hl)		;58d8
@@ -6439,12 +6638,17 @@
 
 
 
-592a_:
-	ld hl,0e058h		;592a
-	ld de,0e059h		;592d
-	ld a,(0e089h)		;5930
+; Initializes the next coarse line (0xE058, 22 bytes) with the pattern 
+; specified by the value in 0xE089.
+; 
+; We can get here from:
+;   0x551D (call)
+592a_init_next_coarse_line:
+	ld hl,0e058h		;592a HL = 0xE058
+	ld de,0e059h		;592d DE = 0xE059
+	ld a,(0e089h)		;5930 A = *(0xE089)
 	ld (hl),a		;5933
-	ld bc,00015h		;5934
+	ld bc,00015h		;5934 LDIR: loop count (21)
 	ldir			;5937
 	ret			;5939
 
@@ -6503,23 +6707,32 @@
 
 
 
-597d_unknown:
-	ld hl,(0e078h)		;597d
-	add hl,hl		;5980
-	add hl,hl		;5981
-	ld a,h			;5982
-	ld hl,e10e_mcar_vpos	;5983
-	sub 06ch		;5986
-	neg			;5988
-	ld (hl),a		;598a
-	ld l,011h		;598b
-	ld a,(0e003h)		;598d
-	and 00fh		;5990
-	ret nz			;5992
+597d_update_minicar_vpos_and_color:
+	; HL = 4 * distance_travelled
+	ld hl,(0e078h)		;597d HL = distance_travelled (middle and high byte)
+	add hl,hl		;5980 HL *= 2
+	add hl,hl		;5981 HL *= 2
+
+	ld a,h			;5982 A = H
+	ld hl,e10e_mcar_vpos	;5983 HL = 0xE10E
+	sub 06ch		;5986 A -= 0x6C
+	neg			;5988 A = -A
+	ld (hl),a		;598a Store vpos of minicar
+
+	ld l,011h		;598b HL = 0xE111 (minicar sprite color)
 	
-	ld a,006h		;5993
-	xor (hl)		;5995
-	ld (hl),a		;5996
+	; Check game ticker.
+	ld a,(0e003h)		;598d A = *(0xE003)
+	and 00fh		;5990 A &= 0x0F
+	ret nz			;5992 if ((*(0xE003)&0x0F) != 0) return
+	
+	; (*(0xE003) & 0x0F) == 0
+	ld a,006h		;5993 minicar color = dark red
+	
+	; Alternate between dark red and transparent
+	xor (hl)		;5995 A ^= *(HL)
+	ld (hl),a		;5996 *(HL) = A
+	
 	ret			;5997
 
 
@@ -14334,7 +14547,7 @@
 
 	ld a,(e043_stage)	;6a06
 	ld hl,06a69h		;6a09
-	call 0403bh		;6a0c HL += a
+	call 0403bh		;6a0c HL += A
 	ld a,(hl)		;6a0f
 	ld (0e09dh),a		;6a10
 	ld hl,00748h		;6a13
@@ -14427,8 +14640,8 @@
 	call 04045h		;6a7d PC = PC[2 * A]
 	defw 0x6A90		;6a80 car state #00 (all okay)
 	defw 0x6ABB		;6a82 car state #01 (crashed)
-	defw 0x6B05		;6a84 car state #02 (out of fuel)
-	defw 0x6B5E		;6a86 car state #03 (?)
+	defw 0x6B05		;6a84 car state #02 (low on fuel)
+	defw 0x6B5E		;6a86 car state #03 (out of fuel)
 	defw 0x6B90		;6a88 car state #04 (skidding, recoverable)
 	defw 0x6C05		;6a8a car state #05 (bounce against side of the road, no crash)
 	defw 0x6C31		;6a8c car state #06 (respawn? game over?)
@@ -14436,14 +14649,14 @@
 
 
 
-6a90_car_state_00:
+6a90_car_state_00__all_okay:
 	call 06cd1h		;6a90
 	ld a,(0e055h)		;6a93
-	add a,a			;6a96
-	add a,a			;6a97
-	and 00ch		;6a98
-	ld c,a			;6a9a
-	ld a,(0e009h)		;6a9b
+	add a,a			;6a96 A *= 2
+	add a,a			;6a97 A *= 2
+	and 00ch		;6a98 A &= 0x0C
+	ld c,a			;6a9a C = A
+	ld a,(0e009h)		;6a9b A = *(0xE009)
 	and 00ch		;6a9e
 	and c			;6aa0
 	call nz,06dech		;6aa1
@@ -14454,35 +14667,52 @@
 	or a			;6aae
 	ld a,001h		;6aaf
 	call z,04b6eh		;6ab1
-	xor a			;6ab4
+	xor a			;6ab4 A = 0
+
+	; We can get here from:
+	;   0x6AB4 (fall)
+	;   0x6AD4 (jump) A == 0x09, From car state #01 (crashed)
+	;   0x6ADD (jump) A == 0x08, From car state #01 (crashed)
+	;   0x6BDF (jump) A == 0x00, From car state #04 (skidding, just recovered)
+	;   0x6C5A (call) A == ????, From car state #07 (spinning out of control)
 	ld (0e053h),a		;6ab5
 	jp 06e1dh		;6ab8 6e1d_store_car_sprite_attributes
 
+
+
 ; Crashed??
 6abb_car_state_01:
-	pop hl			;6abb
-	ld a,(0e003h)		;6abc
-	and 007h		;6abf
-	ret nz			;6ac1
-	ld hl,0e04ah		;6ac2
-	dec (hl)		;6ac5
+	pop hl			;6abb ?Remove return address? ?Return to grand parent?
+	ld a,(0e003h)		;6abc A = *(0xE003)
+	and 007h		;6abf A &= 0x07
+	ret nz			;6ac1 if (game state ticker & 0x07 != 0) return
+
+	; We get here in only 1 out of 8 frames.
+	ld hl,0e04ah		;6ac2 HL = 0xE04A
+	dec (hl)		;6ac5 
 	jr z,$+25		;6ac6 if (z) jump to 0x6ADF
-	ld a,(hl)		;6ac8
-	cp 00bh			;6ac9
-	ld a,008h		;6acb
-	jr z,$+9		;6acd if (z) jump to 0x6AD6
-	inc a			;6acf
+	ld a,(hl)		;6ac8 A = *(0xE04A)
+	cp 00bh			;6ac9 Compute A - 0x0B and set flags.
+	ld a,008h		;6acb A = 0x08
+	jr z,$+9		;6acd if (*(0xE04A) == 0x0B) jump to 0x6AD6
+	inc a			;6acf ++A
 	cp (hl)			;6ad0
 	ret nz			;6ad1
-	ld a,009h		;6ad2
+	ld a,009h		;6ad2 A = 0x09
 	jr $-31			;6ad4 jump to 0x6AB5
-	push af			;6ad6
+
+	; We can get here from:
+	;   0x6ACD (jump)
+	push af			;6ad6 Store A (0x08)
 	ld a,04fh		;6ad7
 	call 04b6eh		;6ad9
-	pop af			;6adc
+	pop af			;6adc Restore A (0x08)
 	jr $-40			;6add jump to 0x6AB5
-	call 06af4h		;6adf
-	ld a,006h		;6ae2
+
+	; We can get here from:
+	;   0x6AC6 (jump)
+	call 06af4h		;6adf ?Subtract 0x20 fuel?
+	ld a,006h		;6ae2 A = 6
 	ld (e049_car_state),a	;6ae4
 	ld a,010h		;6ae7
 	ld (0e004h),a		;6ae9
@@ -14490,19 +14720,22 @@
 	or a			;6aef
 	jr z,$+44		;6af0 if (fuel == 0) jump to 6b1c_out_of_fuel_and_no_more_speed (GAME OVER)
 	; Still some fuel left.
-	pop hl			;6af2
+	pop hl			;6af2 ?Remove return address? ?Return to grand parent?
 	ret			;6af3
 
+; ?CRASHED? 0x20 fuel is subtracted.
+; We can get here from:
+;   0x6ADF (call)
 6af4_:
 	ld hl,E083_fuel		;6af4
 	ld a,(hl)		;6af7 A = *(0xE083), load fuel
 	sub 014h		;6af8 A -= 20
-	jr nc,$+3		;6afa if (fuel >= 20) jump to 0x6AFD
+	jr nc,$+3		;6afa if (*E083_fuel >= 20) jump to 0x6AFD
 	xor a			;6afc A = 0
 	ld (hl),a		;6afd *(0xE083) = A, store fuel
 	xor a			;6afe A = 0
 	ld (0e0b8h),a		;6aff Stop playing fuel heart tune
-	jp 0452ah		;6b02
+	jp 0452ah		;6b02 0x452A jumps to 0x740B
 
 
 
@@ -14515,7 +14748,9 @@
 
 
 
-; Out of fuel.
+; Two purposes:
+;   1. Reached checkpoint (see 0x6C5A)
+;   2. Out of fuel (see 0x0B09)
 6b0c_car_state_03:
 	call 06a90h		;6b0c
 	ld hl,e04fh_speed	;6b0f 
@@ -14617,71 +14852,93 @@
 
 
 
-; Skidding, recoverable.
+; Skidding, recoverable. Ticks left is at 0xE0B1.
 6b90_car_state_04:
 	ld hl,0e0b1h		;6b90
-	dec (hl)		;6b93
+	dec (hl)		;6b93 Decrement skid ticks left.
 	jr nz,$+28		;6b94 if (nz) jump to 0x6BB0
-	ld a,(0e054h)		;6b96
-	or a			;6b99
-	ld a,007h		;6b9a
+	
+	; Skidding, but timer ran out.
+	ld a,(0e054h)		;6b96 Car orientation during skidding (0x00: north-west, 0x01: north-east)
+	or a			;6b99 Test A
+	ld a,007h		;6b9a A = 0x07
 	jr z,$+4		;6b9c if (z) jump to 0x6BA0
-	ld a,001h		;6b9e
-	ld (hl),a		;6ba0
-	ld a,007h		;6ba1
+	ld a,001h		;6b9e A = 0x01
+	
+	; We can get here from:
+	;   0x6B9C (jump) A == 0x07 (car starts its rotation in north-west orientation, will rotate counter clockwise)
+	;   0x6B9E (fall) A == 0x01 (car starts its rotation in north-east orientation, will rotate clockwise)
+	ld (hl),a		;6ba0 Store orientation
+	ld a,007h		;6ba1 A = 0x07
 	ld hl,e049_car_state	;6ba3
-	ld (hl),a		;6ba6
+	ld (hl),a		;6ba6 Set car state to 0x07 (spinning out of control).
 	ld a,(e04fh_speed)	;6ba7 A = speed
 	cp 0a0h			;6baa
-	ret nc			;6bac
-	ld (hl),000h		;6bad
+	ret nc			;6bac if (speed >= 0xA0) return
+	
+	; Car speed is low enough, automatic recovery!
+	ld (hl),000h		;6bad Set car state to 0x00 (all okay).
 	ret			;6baf
+
+	; We can get here from:
+	;   0x6B94 (skidding, recoverable, timer hasn't ran out yet)
 	call 06be2h		;6bb0
 	call 06cd1h		;6bb3
 	call 06e1dh		;6bb6 6e1d_store_car_sprite_attributes
 	ld a,(0e002h)		;6bb9
 	bit 6,a			;6bbc
-	jr z,$+12		;6bbe if (z) jump to 0x6BCA
+	jr z,$+12		;6bbe if (demo) jump to 0x6BCA (skips sound for skidding)
 	ld a,(0e003h)		;6bc0
 	and 003h		;6bc3
-	ld a,00dh		;6bc5
-	call z,04b6eh		;6bc7
-	ld a,(0e054h)		;6bca
+	ld a,00dh		;6bc5 A = 0x0D (sound ID for skidding)
+	call z,04b6eh		;6bc7 if (game state ticker & 0x03 == 0) call 4b6e_sound_something
+
+	; We can get here from:
+	;   0x6BBE (jump) demo
+	;   0x6BC7 (fall) not demo, player is playing.
+	ld a,(0e054h)		;6bca Car orientation during skidding (0x00: north-west, 0x01: north-east)
 	and a			;6bcd Set flags.
 	ld a,(0e008h)		;6bce Get newly pressed keys.
 	jr z,$+7		;6bd1 if (*(0xE054) == 0) jump to 0x6BD8
-	and 004h		;6bd3
-	ret z			;6bd5
+	
+	; Skidding north-east. Recoverable by pressing to the left.
+	and 004h		;6bd3 A &= 0x04
+	ret z			;6bd5 if (not pressed left) return
 	jr $+5			;6bd6 Jump to 0x6BDB
 	
 	; We can get here from:
-	;   0x6BD1 (jump)
-	;   0x6BD6 (fall)
+	;   0x6BD1 (jump) Skidding north-west. Recoverable by pressing to the right.
 	and 008h		;6bd8
-	ret z			;6bda
-	
+	ret z			;6bda if (not pressed right) return
+	                 
 	; We can get here from:
-	;   0x6BD6 (jump)
-	;   0x6BDA (fall)
+	;   0x6BD6 (jump) Recovered from skidding, north-east.
+	;   0x6BDA (fall) Recovered from skidding, north-west.
 	xor a			;6bdb Car state #00: All okay, nothing special.
 	ld (e049_car_state),a	;6bdc Save car state.
-	jp 06ab5h		;6bdf
-	ld a,007h		;6be2
+	jp 06ab5h		;6bdf Jump to end of car state #00.
+
+
+
+; We can get here from:
+;   0x6BB0 (call) Car state == 0x04 (skidding)
+;   0x6C3A (call) Car state == 0x07 (spinning)
+	ld a,007h		;6be2 A = 0x07
 	ld (0e053h),a		;6be4
 	ld a,(0e051h)		;6be7
-	sub 00ch		;6bea
-	ld e,a			;6bec
-	ld d,000h		;6bed
+	sub 00ch		;6bea A -= 0x0C
+	ld e,a			;6bec E = A
+	ld d,000h		;6bed D = 0x00
 	ld a,(0e054h)		;6bef
 	and a			;6bf2
 	jr z,$+12		;6bf3 if (z) jump to 0x6BFF
-	ld a,001h		;6bf5
+	ld a,001h		;6bf5 A = 0x01
 	ld (0e053h),a		;6bf7
-	dec d			;6bfa
-	ld a,e			;6bfb
-	cpl			;6bfc
-	ld e,a			;6bfd
-	inc de			;6bfe
+	dec d			;6bfa --D
+	ld a,e			;6bfb A = E
+	cpl			;6bfc A = ~A
+	ld e,a			;6bfd E = A
+	inc de			;6bfe ++DE
 	ld hl,(0e04dh)		;6bff
 	jp 06e18h		;6c02
 
@@ -14861,10 +15118,11 @@
 ; We can get here from:
 ;   0x6A90 (call)
 ;   0x6BB3 (call)
+; ???BOUNC CHECKER+ACTIONER???
 6cd1_:
 	ld hl,0e04ch		;6cd1
 	call 06dc1h		;6cd4
-	ld hl,0e055h		;6cd7
+	ld hl,0e055h		;6cd7 HL = 0xE055
 	ld (hl),0ffh		;6cda
 	ret nc			;6cdc
 	ld (hl),b		;6cdd
@@ -14872,23 +15130,31 @@
 	ret nc			;6ce1
 	ld hl,00c01h		;6ce2
 	ld (e049_car_state),hl	;6ce5
+	
 	ld a,(e04fh_speed)	;6ce8
 	cp 0a0h			;6ceb
-	jp nc,06d04h		;6ced
-	ld a,005h		;6cf0
-	ld (e049_car_state),a	;6cf2
-	ld a,0bch		;6cf5
-	ld (0e051h),a		;6cf7
-	ld a,018h		;6cfa
+	jp nc,06d04h		;6ced if (car speed >= 0xA0) jump
+	ld a,005h		;6cf0 A = 0x05
+	ld (e049_car_state),a	;6cf2 Set car state to #05, bounced against side of the road.
+	
+	ld a,0bch		;6cf5 A = 0xBC
+	ld (0e051h),a		;6cf7 ???
+	ld a,018h		;6cfa A = 0x18
 	ld (0e004h),a		;6cfc
-	xor a			;6cff
+	xor a			;6cff A = 0x00
 	ld (0e053h),a		;6d00
 	ret			;6d03
-	pop hl			;6d04
-	pop hl			;6d05
+	
+	; We can get here from:
+	;   0x6CED (jump)
+	pop hl			;6d04 Remove return address.
+	pop hl			;6d05 Remove return address.
 	jp 06f1eh		;6d06
-	ld a,d			;6d09
-	sub 074h		;6d0a
+	
+	; We can get here from:
+	;   0x6CDE (call)
+	ld a,d			;6d09 A = D
+	sub 074h		;6d0a A -= 0x74
 	cp 008h			;6d0c
 	ccf			;6d0e
 	ret c			;6d0f
@@ -14927,7 +15193,7 @@
 	ld b,001h		;6d49
 	jr $+62			;6d4b jump to 0x6D89
 	ld a,b			;6d4d
-	cp 0ech		;6d4e
+	cp 0ech			;6d4e
 	jr nz,$-7		;6d50 if (nz) jump to 0x6D49
 	ld b,0e0h		;6d52
 	jr $-25			;6d54 jump to 0x6D3B
@@ -14935,10 +15201,10 @@
 	call 06d8bh		;6d58
 	ret nc			;6d5b
 	ld a,b			;6d5c
-	cp 0fch		;6d5d
+	cp 0fch			;6d5d
 	jr nc,$+25		;6d5f if (nc) jump to 0x6D78
 	sub 0e1h		;6d61
-	cp 008h		;6d63
+	cp 008h			;6d63
 	jr nc,$+23		;6d65 if (nc) jump to 0x6D7C
 	ld a,c			;6d67
 	push af			;6d68
@@ -14956,7 +15222,7 @@
 	ld b,002h		;6d78
 	jr $+15			;6d7a jump to 0x6D89
 	ld a,b			;6d7c
-	cp 0f3h		;6d7d
+	cp 0f3h			;6d7d
 	jr nz,$-7		;6d7f if (nz) jump to 0x6D78
 	ld b,0e1h		;6d81
 	jr $-28			;6d83 jump to 0x6D67
@@ -14965,15 +15231,15 @@
 	ret			;6d88
 	scf			;6d89
 	ret			;6d8a
-	ld a,(hl)			;6d8b
+	ld a,(hl)		;6d8b
 	inc hl			;6d8c
 	inc hl			;6d8d
-	ld h,(hl)			;6d8e
+	ld h,(hl)		;6d8e
 	add a,004h		;6d8f
 	ld l,a			;6d91
 	sub 0c0h		;6d92
 	jr c,$+10		;6d94 if (c) jump to 0x6D9E
-	cp 018h		;6d96
+	cp 018h			;6d96
 	ld l,000h		;6d98
 	jr nc,$+4		;6d9a if (nc) jump to 0x6D9E
 	ld l,0b8h		;6d9c
@@ -14990,51 +15256,71 @@
 	exx			;6daf
 	ld b,a			;6db0
 	ld d,a			;6db1
-	cp 0cfh		;6db2
+	cp 0cfh			;6db2
 	jr c,$-43		;6db4 if (c) jump to 0x6D89
-	cp 0d9h		;6db6
+	cp 0d9h			;6db6
 	jr c,$-51		;6db8 if (c) jump to 0x6D85
 	sub 0d9h		;6dba
-	cp 010h		;6dbc
+	cp 010h			;6dbc
 	jr nc,$-53		;6dbe if (nc) jump to 0x6D89
 	ret			;6dc0
-	push hl			;6dc1
-	ld a,(hl)			;6dc2
-	ld b,a			;6dc3
-	sub 0c0h		;6dc4
+
+
+; We can get here from:
+;   0x6C60 (call) HL == 0xE04C
+;   0x6CD4 (call) HL == 0xE04C
+;   0x6FB8 (call) HL == ??????
+;   0x7133 (call) HL == ??????
+;   0x71A7 (call) HL == ??????
+6dc1_:
+	push hl			;6dc1 Store HL (restored at 0x6DE5).
+	ld a,(hl)		;6dc2
+	ld b,a			;6dc3 B = A
+	sub 0c0h		;6dc4 A -= 0xC0
 	jr c,$+10		;6dc6 if (c) jump to 0x6DD0
 	ld b,000h		;6dc8
-	cp 010h		;6dca
+	cp 010h			;6dca
 	jr nc,$+4		;6dcc if (nc) jump to 0x6DD0
 	ld b,0b8h		;6dce
-	ld a,b			;6dd0
-	ld de,0e098h		;6dd1
-	rra			;6dd4
-	rra			;6dd5
-	rra			;6dd6
-	and 01fh		;6dd7
-	call 04040h		;6dd9 DE += a
-	ld a,(de)		;6ddc
-	add a,a			;6ddd
-	and 0f8h		;6dde
-	add a,020h		;6de0
-	inc hl			;6de2
-	inc hl			;6de3
-	cp (hl)			;6de4
-	pop hl			;6de5
+	
+	; We can get here from:
+	;   0x6DC6 (jump) B == *(HL)
+	;   0x6dCC (jump) B == 0x00
+	;   0x6DCE (fall) B == 0xB8
+	ld a,b			;6dd0 A = B
+	ld de,0e098h		;6dd1 DE = 0x0E098
+	
+	; A /= 8.
+	rra			;6dd4 Rotate right (via carry)
+	rra			;6dd5 Rotate right (via carry)
+	rra			;6dd6 Rotate right (via carry)
+	and 01fh		;6dd7 A &= 0x1F
+
+	call 04040h		;6dd9 DE += A
+	ld a,(de)		;6ddc A = *(DE)
+	add a,a			;6ddd A *= 2
+	and 0f8h		;6dde A &= 0xF8
+	add a,020h		;6de0 A += 0x20
+	inc hl			;6de2 ++HL
+	inc hl			;6de3 ++HL
+	cp (hl)			;6de4 Compute A - *(HL).
+	pop hl			;6de5 Restore HL (stored at 0x6DC1).
 	jp nc,06d56h		;6de6
 	jp 06d2ah		;6de9
+
+
+
 	ld hl,(0e04dh)		;6dec
 	ld a,(0e051h)		;6def
 	or a			;6df2
 	jr z,$+6		;6df3 if (z) jump to 0x6DF9
-	srl a		;6df5
+	srl a			;6df5
 	add a,008h		;6df7
 	ld e,a			;6df9
 	ld a,(0e009h)		;6dfa
 	ld b,a			;6dfd
 	and 00ch		;6dfe
-	cp 00ch		;6e00
+	cp 00ch			;6e00
 	jr nz,$+6		;6e02 if (nz) jump to 0x6E08
 	ld a,(0e048h)		;6e04
 	and b			;6e07
@@ -15048,9 +15334,13 @@
 	cpl			;6e11
 	ld e,a			;6e12
 	inc de			;6e13
-	sla e		;6e14
-	rl d		;6e16
-	add hl,de			;6e18
+	sla e			;6e14
+	rl d			;6e16
+
+; We can get here from:
+;   0x6C02 (jump) Car state in [0x04, 0x07]
+;   0x6E16 (fall)
+	add hl,de		;6e18
 	ld (0e04dh),hl		;6e19
 	ret			;6e1c
 
@@ -15132,35 +15422,49 @@
 6e4a_:
 	ld a,(e049_car_state)	;6e4a
 	dec a			;6e4d
-	ret z			;6e4e
-	ld hl,0e0e4h		;6e4f
-	xor a			;6e52
-	ld (hl),a		;6e53
-	ld hl,0e0e4h		;6e54
-	ld a,(hl)		;6e57
-	push af			;6e58
-	inc hl			;6e59
+	ret z			;6e4e if (car_state == 1) return
+	
+	; Not crashed.
+	ld hl,0e0e4h		;6e4f HL = 0xE0E4
+	xor a			;6e52 A = 0
+	ld (hl),a		;6e53 *(0xE0E4) = 0
+
+; We can get here from:
+;   0x6E53 (fall) *(0xE0E4) == 0	
+;   0x6F11 (jump)
+6e54_:
+	ld hl,0e0e4h		;6e54 HL = 0xE0E4
+	ld a,(hl)		;6e57 A = *(0xE0E4)
+	
+	push af			;6e58 Store A. Restore at 0x6E65.
+	inc hl			;6e59 HL = 0xE0E5
+	
+	; A *= 16
 	add a,a			;6e5a
 	add a,a			;6e5b
 	add a,a			;6e5c
 	add a,a			;6e5d
+	
+	; BC = A
 	ld b,000h		;6e5e
 	ld c,a			;6e60
-	add hl,bc		;6e61
-	ld (0e0bfh),hl		;6e62
-	pop af			;6e65
-	ld b,a			;6e66
-	ld hl,(0e0bfh)		;6e67
-	inc hl			;6e6a
+	
+	add hl,bc		;6e61 HL = 0xE0E5 + *(0xE0E4) * 16
+	ld (0e0bfh),hl		;6e62 *(0xE0BF) = HL
+	pop af			;6e65 Restore A. Stored at 0x6E58.
+	
+	ld b,a			;6e66 B = *(0xE0E4)
+	ld hl,(0e0bfh)		;6e67 HL = *(0xE0BF)
+	inc hl			;6e6a HL = *(0xE0BF) + 1
 	ld a,(hl)		;6e6b
 	or a			;6e6c
-	jp z,06f0ah		;6e6d
-	ld a,b			;6e70
-	call 0736bh		;6e71
-	ld a,(0e04ch)		;6e74
-	sub (hl)		;6e77
-	sub 010h		;6e78
-	add a,020h		;6e7a
+	jp z,06f0ah		;6e6d if (A == 0) jump to 0x6F0A
+	ld a,b			;6e70 A = *(0xE0E4)
+	call 0736bh		;6e71 736b_set_HL_to_0xE11A_plus_8_times_A
+	ld a,(0e04ch)		;6e74 A = car_vertical_position
+	sub (hl)		;6e77 A -= *HL
+	sub 010h		;6e78 A -= 0x10
+	add a,020h		;6e7a A += 0x20, set NC/C flag.
 	inc hl			;6e7c
 	jp nc,06f0ah		;6e7d
 	ld a,(0e04eh)		;6e80 Get car's horizontal position on screen.
@@ -15172,8 +15476,7 @@
 	add a,016h		;6e8b
 	jp nc,06f0ah		;6e8d
 	ld a,c			;6e90
-	ld (0e054h),a		;6e91 ???
-	
+	ld (0e054h),a		;6e91
 	ld a,(0e0e4h)		;6e94
 	cp 003h			;6e97
 	jp z,06f18h		;6e99
@@ -15187,7 +15490,7 @@
 	inc hl			;6eaa
 	ld (hl),005h		;6eab
 	ld a,009h		;6ead
-	call 0403bh		;6eaf HL += a
+	call 0403bh		;6eaf HL += A
 	inc hl			;6eb2
 	ld a,c			;6eb3
 	and a			;6eb4
@@ -15224,7 +15527,7 @@
 	add a,a			;6ef4
 	add a,a			;6ef5
 	ld hl,0e11ah		;6ef6
-	call 0403bh		;6ef9 HL += a
+	call 0403bh		;6ef9 HL += A
 	ld (hl),0e0h		;6efc
 	inc hl			;6efe
 	inc hl			;6eff
@@ -15382,7 +15685,7 @@
 	ld (hl),000h		;6ffb
 	add a,a			;6ffd
 	ld hl,0536bh		;6ffe
-	call 0403bh		;7001 HL += a
+	call 0403bh		;7001 HL += A
 	ld a,(0e0b0h)		;7004
 	add a,a			;7007
 	add a,a			;7008
@@ -15398,37 +15701,52 @@
 	ld hl,0e0c1h		;7019
 	dec (hl)		;701c
 	jp nz,06f5dh		;701d
+
+; We can get here from:
+;   0x50AE (call)
+;   0x51D5 (jump)
+;   0x701D (fall)
 	ld hl,(0e0bdh)		;7020
 	inc hl			;7023
 	ld (0e0bdh),hl		;7024
+	
+	; Check for special value 0xFF.
 	ld a,(hl)		;7027
 	inc a			;7028
 	jr nz,$+20		;7029 if (nz) jump to 0x703D
+	
 	ld a,(e043_stage)	;702b
-	dec a			;702e
+	dec a			;702e Make stage 0-based instead of 1-based.
+	
+	; HL = stage_0based * 16
 	ld l,a			;702f
 	ld h,000h		;7030
 	add hl,hl		;7032
 	add hl,hl		;7033
 	add hl,hl		;7034
 	add hl,hl		;7035
+	
+	; HL = 0x537D + stage_0based * 16
 	ld de,0537dh		;7036
 	add hl,de		;7039
+	
 	ld (0e0bdh),hl		;703a
-	ld a,(0e03bh_levelAB)	;703d
+	ld a,(0e03bh_levelAB)	;703d A == 0: Level A, A == 1: Level B
+	
 	or a			;7040
 	ld a,(hl)		;7041
-	jr nz,$+7		;7042 if (nz) jump to 0x7049
+	jr nz,$+7		;7042 if (levelB) jump to 0x7049
 	cp 00ah			;7044
 	jr nz,$+3		;7046 if (nz) jump to 0x7049
 	dec a			;7048
+	
 	dec a			;7049
 	add a,a			;704a
 	ld b,a			;704b
 	add a,a			;704c
 	add a,b			;704d
-	ld hl,05311h		;704e
-	call 0403bh		;7051 HL += a
+	ld hl,05311h		;704e HL = 0x5311
+	call 0403bh		;7051 HL += A
 	ex de,hl		;7054
 	ld hl,0e0c1h		;7055
 	ld (hl),002h		;7058
@@ -15483,17 +15801,30 @@
 	exx			;70a4
 	jr nz,$-70		;70a5 if (nz) jump to 0x705F
 	ret			;70a7
-	xor a			;70a8
-	ld (0e0e4h),a		;70a9
-	ld hl,0e0e4h		;70ac
+
+
+
+; We can get here from:
+;   0x522A (call)
+70a8_:
+	xor a			;70a8 A = 0
+	ld (0e0e4h),a		;70a9 *(0xE0E4) = 0
+
+; We can get here from:
+;   0x70A9 (fall) *(0xE0E4) == 0
+;   0x72a0 (jump)
+	ld hl,0e0e4h		;70ac HL = 0xE0E4
 	ld a,(hl)		;70af
 	inc hl			;70b0
 	add a,a			;70b1
 	add a,a			;70b2
 	add a,a			;70b3
 	add a,a			;70b4
+	
+	; BC = A
 	ld c,a			;70b5
 	ld b,000h		;70b6
+	
 	add hl,bc		;70b8
 	ld (0e0bfh),hl		;70b9
 	inc hl			;70bc
@@ -15515,6 +15846,9 @@
 
 
 
+; We can get here from:
+;   0x70C6 (jump) jump table, index 0x01
+;   0x70C6 (jump) jump table, index 0x04
 	call 072b8h		;70d9
 	call 071c6h		;70dc
 	call 053ddh		;70df
@@ -15543,7 +15877,7 @@
 	and 003h		;710d
 	ld c,a			;710f
 	jp z,07289h		;7110
-	ld a,(e04fh_speed)		;7113
+	ld a,(e04fh_speed)	;7113
 	sub (hl)		;7116
 	jr nc,$+4		;7117 if (nc) jump to 0x711B
 	neg			;7119
@@ -15586,7 +15920,7 @@
 	inc hl			;715a
 	ld d,(hl)		;715b
 	ld h,b			;715c
-	ld a,(e04fh_speed)		;715d
+	ld a,(e04fh_speed)	;715d
 	ld l,a			;7160
 	and a			;7161
 	sbc hl,de		;7162
@@ -15625,12 +15959,23 @@
 	ld (hl),a		;7196
 	inc hl			;7197
 	ld (hl),020h		;7198
-	ld a,005h		;719a
+	ld a,005h		;719a A = 0x05
+
+; We can get here from:
+;   0x719A (fall) A == 0x05
+;   0x71C4 (jump)
+;   0x7207 (jump)
+;   0x72A7 (call)
 	ld hl,(0e0bfh)		;719c
 	inc hl			;719f
 	ld (hl),a		;71a0
 	ret			;71a1
-	ld c,006h		;71a2
+
+
+
+; We can get here from:
+;   0x70C6 (jump) jump table, index 0x02
+	ld c,006h		;71a2 C = 0x06
 	call 072f6h		;71a4
 	call 06dc1h		;71a7
 	jr c,$+24		;71aa if (c) jump to 0x71C2
@@ -15644,9 +15989,20 @@
 	call 07145h		;71b9
 	ld de,0ff00h		;71bc
 	jp 07168h		;71bf
-	ld a,001h		;71c2
+
+; We can get here from:
+;   0x71AA (jump)
+;   0x71B2 (jump)
+	ld a,001h		;71c2 A = 1
 	jr $-40			;71c4 jump to 0x719C
-	ld c,009h		;71c6
+
+
+
+; We can get here from:
+;   0x70C6 (jump) jump table, index 0x03
+;   0x70DC (call)
+71c6_:
+	ld c,009h		;71c6 C = 0x09
 	call 072f6h		;71c8
 	ex de,hl		;71cb
 	ld a,(de)		;71cc
@@ -15690,6 +16046,12 @@
 	ld (hl),018h		;7203
 	ld a,007h		;7205
 	jr $-107		;7207 jump to 0x719C
+
+
+
+; We can get here from:
+;   0x70C6 (jump) jump table, index 0x05
+;   0x70C6 (jump) jump table, index 0x07
 	ld hl,(0e0bfh)		;7209
 	inc hl			;720c
 	ld d,(hl)		;720d
@@ -15726,6 +16088,9 @@
 	add hl,bc		;7247
 	ld (hl),001h		;7248
 	ret			;724a
+
+
+
 	ld hl,(0e0bfh)		;724b
 	ex af,af'		;724e
 	ld a,(hl)		;724f
@@ -15747,13 +16112,13 @@
 	inc hl			;7269
 	ld c,(hl)		;726a
 	ld a,(0e0e4h)		;726b
-	call 0736bh		;726e
+	call 0736bh		;726e 736b_set_HL_to_0xE11A_plus_8_times_A
 	ld a,b			;7271
 	cp 0d0h			;7272
 	ret z			;7274
 	ld a,e			;7275
 	ld de,072afh		;7276
-	call 04040h		;7279 DE += a
+	call 04040h		;7279 DE += A
 	ld a,(de)		;727c
 	call 07282h		;727d
 	add a,004h		;7280
@@ -15764,23 +16129,34 @@
 	ld (hl),a		;7286
 	inc hl			;7287
 	inc hl			;7288
+; We can get here from:
+;   0x70C6 (jump) jump table, index 0x00
+;   0x7110 (jump)
+;   0x7288 (fall)
 	ret			;7289
 
 
 
+; We can get here from:
+;   0x70C6 (jump) jump table, index 0x06
 	call 07229h		;728a
-	ld c,006h		;728d
+	ld c,006h		;728d C = 0x06
 	call 072f6h		;728f
-	sub 0c3h		;7292
-	cp 00ch		;7294
-	jr c,$+14		;7296 if (c) jump to 0x72A4
-	ld hl,0e0e4h		;7298
-	inc (hl)			;729b
+	sub 0c3h		;7292 A -= 0xC3
+	cp 00ch			;7294
+	jr c,$+14		;7296 if (A < 0x0C) jump to 0x72A4
+	
+	ld hl,0e0e4h		;7298 HL = 0xE0E4
+	inc (hl)		;729b
 	ld a,(hl)		;729c
 	dec hl			;729d
 	cp 002h			;729e
-	jp nz,070ach		;72a0
+	jp nz,070ach		;72a0 if (A != 2) jump to 0x70AC
 	ret			;72a3
+
+
+; We can get here from:
+;   0x7296 (jump)
 	ld (hl),0dfh		;72a4
 	xor a			;72a6
 	call 0719ch		;72a7
@@ -15809,7 +16185,7 @@
 	dec a			;72ca
 	ret nz			;72cb
 	ld a,006h		;72cc
-	call 0403bh		;72ce HL += a
+	call 0403bh		;72ce HL += A
 	ld a,(0e04ch)		;72d1
 	sub 034h		;72d4
 	sub (hl)		;72d6
@@ -15918,26 +16294,38 @@
 	ld (hl),00ch		;7367
 	inc a			;7369
 	ret			;736a
+
+
+; We can get here from:
+;   0x6E71 (call)
+;   0x726E (call)
+736b_set_HL_to_0xE11A_plus_8_times_A:
 	add a,a			;736b
 	add a,a			;736c
 	add a,a			;736d
 	ld hl,0e11ah		;736e
-	jp 0403bh		;7371 HL += a
+	jp 0403bh		;7371 HL += A
 
 
-; ??Decrement fuel ticker based of level (A/B).
-7374_:
+; Increment fuel used/ticker based on fuel consumption level (A/B).
+7374_increment_fuel_used:
 	ld a,(e049_car_state)	;7374 Load car state
 	dec a			;7377
 	ret z			;7378 if (car crashed) return
+
+	; Post: car state is not 0x01, i.e. not in crash state.
 	ld bc,001ffh		;7379 B = 0x01, C = 0xFF
 	ld a,(0e03bh_levelAB)	;737c A = levelAB
 	or a			;737f
 	jr nz,$+4		;7380 if (level B) jump to 0x7384
-	ld c,080h		;7382 C = 0x80 (level A)
+	ld c,080h		;7382 C = 0x80 (fuel consumption rate at level A)
+	
+	; We can get here from:
+	;   0x7380 (jump) C == 0xFF (level B, high fuel consumption rate)
+	;   0x7382 (fall) C == 0x80 (level A, low  fuel consumption rate)
 	ld hl,(0e056h)		;7384 
 	add hl,bc		;7387
-	ld (0e056h),hl		;7388 Writes fuel ticker (0xE057) as well.
+	ld (0e056h),hl		;7388 Writes fuel used/ticker (0xE057) as well.
 	ret			;738b
 
 
@@ -15963,16 +16351,24 @@
 	
 	73ad_:
 	ld a,(e04fh_speed)	;73ad Load car speed
-	ld l,0d8h		;73b0 L = 0xD8
+	ld l,0d8h		;73b0 L = 0xD8, bottom left of speed gauge (VRAM, low byte)
 
 ; We can get here from:
-;   0x73B0 (fall) L = 0xD8, A = car speed
-;   0x7449 (jump) L = 0xDB, A = fuel left
+;   0x73B0 (fall) A == car speed, L == 0xD8
+;   0x7449 (jump) A == fuel left, L == 0xDB
 73b2_:
+	; Set VRAM address of speed/fuel gauge.
 	ld h,03ah		;73b2 H = 0x3A
+	; Post:
+	;   HL == 0x3AD8, VRAM address of bottom left of speed gauge
+        ;   or
+        ;   HL == 0x3ADB, VRAM address of bottom left of fuel gauge
+
 	or a			;73b4
-	jr z,$+60		;73b5 if (A == 0) jump to 0x73F1
+	jr z,$+60		;73b5 if (speed/fuel == 0) jump to 0x73F1
 	push af			;73b7
+	; The maximum of both fuel and speed is 0xE0 for the gauge (7 
+	; characters, each representing 0x20 fuel), so cap value.
 	and 0e0h		;73b8 A &= 0xE0
 	
 	; We can get here from:
@@ -16143,30 +16539,59 @@
 	jp 07444h		;740e
 
 
+; Fuel decrementer.
+; 
+; We can get here from:
+;   0x5245 (call)
+7411_decrement_fuel:
+	; D = *(E057_fuel_ticker) & 0x20
+	ld a,(E057_fuel_ticker)	;7411 A = *(E057_fuel_ticker)
+	ld b,020h		;7414 B = 0x20
+	and b			;7416 A &= 0x20
+	ld d,a			;7417 D = *(E057_fuel_ticker) & 0x20
+	; Register D can be only 0x00 or 0x20.
 
-	ld a,(0e057h)		;7411
-	ld b,020h		;7414 b = 0x20
-	and b			;7416 a &= 0x20
-	ld d,a			;7417 d = *(0xe057) & 0x20
-	ld hl,0e084h		;7418 hl = 0xE084
-	ld a,(hl)		;741b a = *(0xE084)
-	and b			;741c a &= 0x20 and set flags
-	xor d			;741d d = 0
-	ret z			;741e if (a == 0) return
-	ld a,(hl)		;741f
-	xor b			;7420 b = 0
-	ld (hl),a		;7421
-	dec hl			;7422 hl = 0xE083
-	ld a,(hl)		;7423 a = fuel_left
-	and a			;7424 Test a for being zero.
-	jr z,$+7		;7425 if (a == 0) jump to 0x742C
-	dec (hl)		;7427 Decrement fuel_left
-	ld a,(hl)		;7428
-	or a			;7429
-	jr nz,$+7		;742a if (fuel_left) jump to 0x7431
+	; A = (*(0xE084) & 0x20)
+	ld hl,0e084h		;7418 HL = 0xE084
+	ld a,(hl)		;741b A = *(0xE084)
+	and b			;741c A &= 0x20
+	; Register A can be only 0x00 or 0x20.
+
+	; Both register A and D can have only two values here: 0x00 or 
+	; 0x20. So xorring them yields:
+	;
+	;                  | Register  D |
+	;             XOR  | 0x00 | 0x20 |
+	; -----------------+------+------+
+	; Register A: 0x00 | 0x00 | 0x20 |
+	; -----------------+------+------+
+	; Register B: 0x20 | 0x20 | 0x00 |
+	; -----------------+------+------+
+	xor d			;741d A ^= D
+	
+
+	ret z			;741e if (A == 0) return
+	; Post: A == B (0x20)
+
+	ld a,(hl)		;741f A = *(0xE084)
+	xor b			;7420 A ^= 0x20
+	ld (hl),a		;7421 *(0xE084) = A
+
+	dec hl			;7422 HL = 0xE083 (E083_fuel)
+	ld a,(hl)		;7423 A = fuel
+	and a			;7424 Test A for being zero.
+	jr z,$+7		;7425 if (A == 0) jump to 0x742C (742c_no_fuel_left)
+	dec (hl)		;7427 Decrement fuel.
+	ld a,(hl)		;7428 A = fuel
+	or a			;7429 Test A for being zero
+	jr nz,$+7		;742a if (fuel) jump to 0x7431
+
+; Set car state to 2 (out of fuel).
 742c_no_fuel_left:
+	; *(E049_car_state) = 2
 	ld hl,e049_car_state	;742c
 	ld (hl),002h		;742f
+
 7431_still_fuel_left:
 	call 07444h		;7431
 	ld a,(E083_fuel)	;7434
@@ -16177,7 +16602,7 @@
 	or a			;743d
 	ret nz			;743e return if already emitting a sound/tune/bleep.
 	ld a,002h		;743f 0x02 means "sound of low fuel warning"
-	jp 04b6eh		;7441
+	jp 04b6eh		;7441 4b6e_sound_something (returns)
 
 
 
@@ -17405,8 +17830,10 @@
 
 
 
-77c8_:
-	; 0xE186 upto and including 0xE3AB are initialized as 0xA0
+77c8_copy_start_of_coarse_stage01_to_coarse_memory:
+	; Initialise stage 01.
+	; 
+	; 0xE186 upto and including 0xE3AB are initialized as 0xA0.
 	ld hl,0e3abh		;77c8
 	ld de,0e3aah		;77cb
 	ld (hl),0a0h		;77ce
@@ -17415,82 +17842,108 @@
 	; Post:
 	;   HL == 0xE186, DE == 0xE185
 	
-	ld hl,07875h		;77d5
-	ld e,08eh		;77d8
-	ld a,006h		;77da
-	call 0783fh		;77dc
+	; [stage 01] Draw starting track (6 times 4 rows).
+	ld hl,07875h		;77d5 HL = 7875_start_track_4_rows
+	ld e,08eh		;77d8 DE = 0xE18E
+	ld a,006h		;77da Copy count downwards.
+	call 0783fh		;77dc 783f_copy_to_course_memory(source=HL, destination=DE, count=A)
 	
-	ld hl,078b2h		;77df
+	; [stage 01] Draw 3 white flags on the right side.
+	ld hl,078b2h		;77df HL = 78b2_scenery_3_white_flags
 	ld de,0e198h		;77e2
-	call 0783fh		;77e5
+	call 0783fh		;77e5 783f_copy_to_course_memory(source=HL, destination=DE, count=A)
 	
-	dec d			;77e8
-	ld e,0b3h		;77e9
-	call 0783fh		;77eb
-	ld hl,078a5h		;77ee
-	ld e,036h		;77f1
-	ld a,00fh		;77f3
-	call 0783fh		;77f5
+	; [stage 01] Draw 3 white flags on the left side.
+	;
+	; DE = 0xE1B3
+	dec d			;77e8 D = 0xE1
+	ld e,0b3h		;77e9 E = 0xB3
+	call 0783fh		;77eb 783f_copy_to_course_memory(source=HL, destination=DE, count=A)
 	
+	; [stage 01] [red building on left side] Draw red roof.
+	ld hl,078a5h		;77ee HL = 78a5_stage01_red_building_left___row
+	ld e,036h		;77f1 DE = 0xE236
+	ld a,00fh		;77f3 Copy count downwards.
+	call 0783fh		;77f5 783f_copy_to_course_memory(source=HL, destination=DE, count=A)
+	
+	; [stage 01] [red building on left side] Draw shadow on the 
+	; bottom side.
 	ld l,e			;77f8
 	ld h,d			;77f9
-	inc de			;77fa
-	ld (hl),04eh		;77fb
-	ld c,004h		;77fd
-	ldir			;77ff
+	inc de			;77fa DE = 0xE381
+	ld (hl),04eh		;77fb 0x4E is character for shadow at top of character.
+	ld c,004h		;77fd LDIR: copy count (since B == 0)
+	ldir			;77ff Copy to the right.
+	
+	; [stage 01] [red building on left side] Draw (all) green tile 
+	; south east of at the bottom right corner.
 	ld a,056h		;7801
 	ld (de),a		;7803
-	ld hl,078beh		;7804
+	
+	; [stage 01] [red building on left side] Draw shadow on the 
+	; right side.
 	ld de,0e251h		;7807
 	ld a,00eh		;780a
-	call 0783fh		;780c
+	call 0783fh		;780c 783f_copy_to_course_memory(source=HL, destination=DE, count=A)
 	
-	ld hl,0785bh		;780f
-	ld de,0e18ah		;7812
-	call 0783fh		;7815
+	; [stage 01] Draw christmas tree, 4 black/unlit lightbulbs.
+	ld hl,0785bh		;780f HL = 785b_christmas_tree_unlit
+	ld de,0e18ah		;7812 DE = 0xE18A
+	call 0783fh		;7815 783f_copy_to_course_memory(source=HL, destination=DE, count=A)
 	
-	ld hl,0789fh		;7818
-	ld e,006h		;781b
-	ld a,00dh		;781d
-	call 0783fh		;781f
+	; [stage 01] Draw red building on the right side.
+	ld hl,0789fh		;7818 HL = 789f_stage01_red_building_right___row
+	ld e,006h		;781b DE = 0xE206
+	ld a,00dh		;781d A = 0x0D (copy count downwards)
+	call 0783fh		;781f 783f_copy_to_course_memory(source=HL, destination=DE, count=A)
 	
-	inc de			;7822
+	; [stage 01] Draw shadow on bottom side of red building on the 
+	; right side.
+	inc de			;7822 DE = 0xE325
 	ld l,e			;7823
 	ld h,d			;7824
-	inc de			;7825
-	ld (hl),04eh		;7826
-	ld c,002h		;7828
-	ldir			;782a
-	ld hl,07893h		;782c
-	ld e,031h		;782f
-	call 0783fh		;7831
+	inc de			;7825 DE = 0xE326
+	ld (hl),04eh		;7826 0x4E is character for shadow at top of character.
+	ld c,002h		;7828 LDIR: copy count (since B == 0)
+	ldir			;782a Copy to the right.
 	
-	ld hl,078ach		;7834
-	ld e,067h		;7837
-	call 0783fh		;7839
+	; [stage 01] Draw "START" on the track.
+	ld hl,07893h		;782c HL = 7893_START
+	ld e,031h		;782f DE = 0xE331
+	call 0783fh		;7831 783f_copy_to_course_memory(source=HL, destination=DE, count=A)
 	
-	ld de,0e338h		;783c
+	; [stage 01] Draw parasol #01.
+	ld hl,078ach		;7834 HL = 78ac_parasol
+	ld e,067h		;7837 DE = 0xE367 (lower right)
+	call 0783fh		;7839 783f_copy_to_course_memory(source=HL, destination=DE, count=A)
 	
-	; We can get here from:
-	;   0x77DC (call) HL == 0x7875 (B == 0x04, C == 0x07), DE == 0xE18E, A == 0x06
-	;   0x77E5 (call) HL == 0x78B2 (B == 0x05, C == 0x02), DE == 0xE198, A == 0x01
-	;   0x77EB (call) HL == 0x???? (B == 0x??, C == 0x??), DE == 0xE0B3, A == 0x01
-	;   0x77F5 (call) HL == 0x78A5 (B == 0x01, C == 0x05), ED == 0xE036, A == 0x0F
-	;   0x780C (call)
-	;   0x7815 (call)
-	;   0x781F (call)
-	;   0x7831 (call)
-	;   0x7839 (call)
-	;   0x783C (fall) DE = 0xE338
-	;   0x7857 (jump)
-	push hl			;783f
+	; [stage 01] Draw parasol #02.
+	ld de,0e338h		;783c DE = 0xE338 (lower right)
+	; Fall to
+
+
+
+; We can get here from:
+;   0x77DC (call) HL == 0x7875 (B == 0x04, C == 0x07), DE == 0xE18E, A == 0x06
+;   0x77E5 (call) HL == 0x78B2 (B == 0x05, C == 0x02), DE == 0xE198, A == 0x01
+;   0x77EB (call) HL == 0x???? (B == 0x??, C == 0x??), DE == 0xE0B3, A == 0x01
+;   0x77F5 (call) HL == 0x78A5 (B == 0x01, C == 0x05), DE == 0xE036, A == 0x0F
+;   0x780C (call)
+;   0x7815 (call)
+;   0x781F (call)
+;   0x7831 (call) HL == 0x7893
+;   0x7839 (call) HL == 0x78AC
+;   0x783C (fall) DE = 0xE338
+;   0x7857 (jump)
+783f_copy_to_course_memory:
+	push hl			;783f Store HL, restore at 0x7855.
 	ld b,(hl)		;7840 DJNZ: loop count
 	inc hl			;7841
 	ld c,(hl)		;7842 LDIR: loop count
 	inc hl			;7843
 	
 	7844_start_of_djnz_loop:
-	push bc			;7844
+	push bc			;7844 Store BC, restore at 0x7852.
 	ex af,af'		;7845
 	ld a,016h		;7846 A = 0x16 (22)
 	sub c			;7848 A -= C
@@ -17498,13 +17951,16 @@
 	ldir			;784b *DE++ = *HL++, C times (since B is 0)
 	ld c,a			;784d C = A
 	ex af,af'		;784e
+	
+	; DE += C (since B was zeroed at 0x7849).
 	ex de,hl		;784f
 	add hl,bc		;7850 HL += BC
 	ex de,hl		;7851
-	pop bc			;7852
+	
+	pop bc			;7852 Restore BC, was stored at 0x7844.
 	djnz $-15		;7853 if (--B != 0) jump to 0x7844
 	
-	pop hl			;7855
+	pop hl			;7855 Restore HL, stored at 0x783F.
 	dec a			;7856 --A
 	jr nz,$-24		;7857 if (A != 0) jump to 0x783F
 	; Post: A == 0
@@ -17513,36 +17969,99 @@
 
 
 
-; data? See 0x780F
-	ld b,004h		;785b
-	and b			;785d
-	ld b,d			;785e
-	ld b,d			;785f
-	and b			;7860
-	ld b,b			;7861
-	ld b,(hl)		;7862
-	ld b,a			;7863
-	ld b,c			;7864
+; Road/track/scenery/surroundings, see 0x780F.
+785b_christmas_tree_unlit:
+	defb 0x06		;785b B = 6
+	defb 0x04		;785c C = 4
+	
+	; [00] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [01] . . . . . x . .|. . . . . . . .|. . . . . . . .|. . . . . x . .
+	; [02] . . x . . . . .|. . . . . . . .|. . . . . . . .|. . x . . . . .
+	; [03] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [04] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [05] . x . . . . . .|. . . . . . . .|. . . . . . . .|. x . . . . . .
+	; [06] . . . . . . x .|w w w w w w w w|w w w w w w w w|. . . . . . x .
+	; [07] . . . . . . . .|= = = = = = = =|= = = = = = = =|. . . . . . . .
+	;      ---------------+---------------+---------------+---------------
+	; [00] . . . . . . . w|o o o o o o o o|o o o o o o o o|w . . . . . . .
+	; [01] . . . . . . . w|o o o o o o = =|= = o o o o o o|w . . . . . . .
+	; [02] . . . . . . . w|o o o o o = = =|= = = o o o o o|w . . . . . . .
+	; [03] . . . . . . . w|o o o o = = = =|= = = = o o o o|w . . . . . . .
+	; [04] . . . . . . . w|o o o o = = = =|= = = = o o o o|w . . . . . . .
+	; [05] . . . . . . . w|o o o o o = = =|= = = o o o o o|w . . . . . . .
+	; [06] . . . . . . . w|o o o o o o = =|= = o o o o o o|w . . . . . . .
+	; [07] . . . . . . . w|o o o o o o o o|o o o o o o o o|w . . . . . . .
+	;      ---------------+---------------+---------------+---------------
+	; [00] . . . . . . . w|o o o o o o o o|o o o o o o o o|w . . . . . . .
+	; [01] . . . . . . . w|o o o o o o = =|= = o o o o o o|w . . . . . . .
+	; [02] . . . . . . . w|o o o o o = = =|= = = o o o o o|w . . . . . . .
+	; [03] . . . . . . . w|o o o o = = = =|= = = = o o o o|w . . . . . . .
+	; [04] . . . . . . . w|o o o o = = = =|= = = = o o o o|w . . . . . . .
+	; [05] . . . . . . . w|o o o o o = = =|= = = o o o o o|w . . . . . . .
+	; [06] . . . . . . . w|o o o o o o = =|= = o o o o o o|w . . . . . . .
+	; [07] . . . . . . . w|o o o o o o o o|o o o o o o o o|w . . . . . . .
+	;      ---------------+---------------+---------------+---------------
+	; [00] . . . . . . . w|o o o o o o o o|o o o o o o o o|w . . . . . . .
+	; [01] . . . . . . . w|o o o o o o = =|= = o o o o o o|w . . . . . . .
+	; [02] . . . . . . . w|o o o o o = = =|= = = o o o o o|w . . . . . . .
+	; [03] . . . . . . . w|o o o o = = = =|= = = = o o o o|w . . . . . . .
+	; [04] . . . . . . . w|o o o o = = = =|= = = = o o o o|w . . . . . . .
+	; [05] . . . . . . . w|o o o o o = = =|= = = o o o o o|w . . . . . . .
+	; [06] . . . . . . . w|o o o o o o = =|= = o o o o o o|w . . . . . . .
+	; [07] . . . . . . . w|o o o o o o o o|o o o o o o o o|w . . . . . . .
+	;      ---------------+---------------+---------------+---------------
+	; [00] . . . . . . . w|o o o o o o o o|o o o o o o o o|w . . . . . . .
+	; [01] . . . . . . . w|o o o o o o = =|= = o o o o o o|w . . . . . . .
+	; [02] . . . . . . . w|o o o o o = = =|= = = o o o o o|w . . . . . . .
+	; [03] . . . . . . . w|o o o o = = = =|= = = = o o o o|w . . . . . . .
+	; [04] . . . . . . . w|o o o o = = = =|= = = = o o o o|w . . . . . . .
+	; [05] . . . . . . . w|o o o o o = = =|= = = o o o o o|w . . . . . . .
+	; [06] . . . . . . . w|o o o o o o = =|= = o o o o o o|w . . . . . . .
+	; [07] . . . . . . . w|o o o o o o o o|o o o o o o o o|w . . . . . . .
+	;      ---------------+---------------+---------------+---------------
+	; [00] . . . . . . . .|o o o o o o o o|o o o o o o o o|. . . . . . . .
+	; [01] . . . . . x . .|w w w w w w w w|w w w w w w w w|. . . . . x . .
+	; [02] . . x . . . . .|. . . . . . . .|. . . . . . . .|. . x . . . . .
+	; [03] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [04] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [05] . x . . . . . .|. . . . . . . .|. . . . . . . .|. x . . . . . .
+	; [06] . . . . . . x .|. . . . . . . .|. . . . . . . .|. . . . . . x .
+	; [07] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
 
-	ld b,b			;7865
-	ld b,(hl)			;7866
-	ld b,a			;7867
-	ld b,c			;7868
-	ld b,b			;7869
-	ld b,(hl)			;786a
-	ld b,a			;786b
-	ld b,c			;786c
-	ld b,b			;786d
-	ld b,(hl)			;786e
-	ld b,a			;786f
-	ld b,c			;7870
-	and b			;7871
-	ld b,e			;7872
-	ld b,e			;7873
-	and b			;7874
+	defb 0xA0		;785d B == 6
+	defb 0x42		;785e
+	defb 0x42		;785f
+	defb 0xA0		;7860
+	
+	defb 0x40		;7861 B == 5
+	defb 0x46		;7862
+	defb 0x47		;7863
+	defb 0x41		;7864
+	
+	defb 0x40		;7865 B == 4
+	defb 0x46		;7866
+	defb 0x47		;7867
+	defb 0x41		;7868
+	
+	defb 0x40		;7869 B == 3
+	defb 0x46		;786a
+	defb 0x47		;786b
+	defb 0x41		;786c
+	
+	defb 0x40		;786d B == 2
+	defb 0x46		;786e
+	defb 0x47		;786f
+	defb 0x41		;7870
+	
+	defb 0xA0		;7871 B == 1
+	defb 0x43		;7872
+	defb 0x43		;7873
+	defb 0xA0		;7874
 
 
-; Road/track data, see 0x77D5. Not scenery/surroundings.
+
+; Road/track/scenery/surroundings, see 0x77D5.
+7875_start_track_4_rows:
 	defb 0x04		;7875 B = 4
 	defb 0x07		;7876 C = 7
 	
@@ -17550,6 +18069,44 @@
 	; 0x59: Right side of the road, purple (during start of the stage)
 	; 0xD0: Road, without white line
 	; 0xD1: Road, with white line
+	;
+	;      Character 0x58  Character 0xD0  Character 0xD0  Character 0xD1  Character 0xD0  Character 0xD0  Character 0x59
+	; [00] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [01] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [02] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [03] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [04] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [05] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [06] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [07] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	;      ---------------+---------------+---------------+---------------+---------------+---------------+---------------
+	; [00] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [01] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [02] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [03] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [04] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [05] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [06] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [07] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . w w . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	;      ---------------+---------------+---------------+---------------+---------------+---------------+---------------
+	; [00] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [01] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [02] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [03] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [04] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [05] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [06] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [07] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	;      ---------------+---------------+---------------+---------------+---------------+---------------+---------------
+	; [00] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [01] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [02] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [03] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [04] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [05] w w w w w w . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . w w w w w w
+	; [06] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; [07] = = = = = = . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . = = = = = =
+	; 
 	; B == 4
 	defb 0x58		;7877 #01, to 0xE18E, 0xE1E6, 0xE23E, 0xE296, 0xE2EE, 0xE346
 	defb 0xD0		;7878 #02, to 0xE18F, 0xE1E7, 0xE23F, 0xE297, 0xE2EF, 0xE347
@@ -17585,37 +18142,196 @@
 	defb 0xD0		;7890 #05, to 0xE1D4, 0xE22C, 0xE284, 0xE2DC, 0xE334, 0xE38C
 	defb 0xD0		;7891 #06, to 0xE1D5, 0xE22D, 0xE285, 0xE2DD, 0xE335, 0xE38D
 	defb 0x59		;7892 #07, to 0xE1D6, 0xE22E, 0xE286, 0xE2DE, 0xE336, 0xE38E
-	
-	ld (bc),a		;7893
-	dec b			;7894
-	inc sp			;7895
-	inc (hl)		;7896
-	ld hl,03432h		;7897
-	ld c,a			;789a
-	ld c,a			;789b
-	ld c,a			;789c
-	ld c,a			;789d
-	ld c,a			;789e
-	ld bc,04c04h		;789f
-	ld c,h			;78a2
-	ld c,h			;78a3
-	ld c,l			;78a4
-	ld bc,04c05h		;78a5
-	ld c,h			;78a8
-	ld c,l			;78a9
-	ld c,l			;78aa
-	ld c,l			;78ab
-	ld (bc),a		;78ac
-	ld (bc),a		;78ad
-	ld d,b			;78ae
-	ld d,c			;78af
-	ld d,d			;78b0
-	ld d,e			;78b1
 
-78b2_:
+
+
+; Road/track/scenery/surroundings, see 0x782C.
+7893_START:
+	defb 0x02		;7893 B = 2
+	defb 0x05		;7894 C = 5
+	
+	; 0x33+0x34+0x21+0x32+0x34 make up the letters 'START':
+	; 
+	;      Character 0x33  Character 0x34  Character 0x21  Character 0x32  Character 0x34  
+	; [00] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [01] . . x x x x x .|. x x x x x x .|. . . x x x . .|. x x x x x x .|. x x x x x x .
+	; [02] . x x . . . x x|. . . x x . . .|. . x x . x x .|. x x . . . x x|. . . x x . . .
+	; [03] . x x . . . . .|. . . x x . . .|. x x . . . x x|. x x . . . x x|. . . x x . . .
+	; [04] . . x x x x x .|. . . x x . . .|. x x . . . x x|. x x . . . x .|. . . x x . . .
+	; [05] . . . . . . x x|. . . x x . . .|. x x x x x x x|. x x x x x . .|. . . x x . . .
+	; [06] . x x . . . x x|. . . x x . . .|. x x . . . x x|. x x . . x x .|. . . x x . . .
+	; [07] . . x x x x x .|. . . x x . . .|. x x . . . x x|. x x . . . x x|. . . x x . . .
+	; 
+	; B == 2
+	defb 0x33		;7895 #01
+	defb 0x34		;7896 #02
+	defb 0x21		;7897 #03
+	defb 0x32		;7898 #04
+	defb 0x34		;7899 #05
+	
+	; Character 0x4F 5 times (grey):
+	;
+	;      Character 0x33  Character 0x34  Character 0x21  Character 0x32  Character 0x34  
+	; [00] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [01] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [02] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [03] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [04] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [05] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [06] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [07] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	;
+	; B == 1
+	defb 0x4F		;789a #01
+	defb 0x4F		;789b #02
+	defb 0x4F		;789c #03
+	defb 0x4F		;789d #04
+	defb 0x4F		;789e #05
+
+
+
+; Road/track/scenery/surroundings, see 0x7818.
+789f_stage01_red_building_right___row:
+	defb 0x01		;789f B = 1
+	defb 0x04		;78a0 C = 4
+	
+	; This is one row (of 13 rows) of the large red building on the 
+	; right side of the track at the start of stage 1.
+	; 
+	; Character 0x4D is the shadow variant of character 0x4C.
+	;
+	;      Character 0x4C  Character 0x4C  Character 0x4C  Character 0x4D
+	; [00] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [01] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [02] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [03] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [04] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [05] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [06] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [07] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	;      med+light red   med+light red   med+light red   dark+med red
+	; 
+	; B == 1
+	defb 0x4C		;78a1 #01
+	defb 0x4C		;78a2 #02
+	defb 0x4C		;78a3 #03
+	defb 0x4D		;78a4 #04
+
+
+
+; Road/track/scenery/surroundings, see 0x77EE.
+78a5_stage01_red_building_left___row:
+	defb 0x01		;78a5 B = 1
+	defb 0x05		;78a6 C = 5
+	
+	; This is one row (of 15 rows) of the large red building on the 
+	; left side of the track at the start of stage 1.
+	; 
+	; Character 0x4D is the shadow variant of character 0x4C.
+	;      Character 0x4C  Character 0x4C  Character 0x4D  Character 0x4D  Character 0x4D
+	; [00] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [01] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [02] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [03] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [04] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	; [05] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [06] x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x|x x x x x x x x
+	; [07] . . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .|. . . . . . . .
+	;      med+light red   med+light red   dark+med red    dark+med red
+	; 
+	; B == 1
+	defb 0x4C		;78a7 #01
+	defb 0x4C		;78a8 #02
+	defb 0x4D		;78a9 #03
+	defb 0x4D		;78aa #04
+	defb 0x4D		;78ab #05
+
+
+
+; Road/track/scenery/surroundings, see 0x7834.
+78ac_parasol:
+	defb 0x02		;78ac B = 2
+	defb 0x02		;78ad C = 2
+	
+	;      Character 0x50  Character 0x51
+	; [00] x x x x x x x x|x x x x x x x x
+	; [01] x x x x x x . .|. . x x x x x x
+	; [02] x x x x . . . .|. . . . x x x x
+	; [03] x x x . . . . .|. . . . . x x x
+	; [04] x x . . . . . .|. . . . . . x x
+	; [05] x x . . . . . .|. . . . . . = =
+	; [06] x . . . . . . .|. . . . . . . =
+	; [07] x . . . . . . .|. . . . . . . =
+	;      ---------------+---------------
+	; [00] x . . . . . . .|. . . . . . . =
+	; [01] x . . . . . . .|. . . . . . . =
+	; [02] x x . . . . . .|. . . . . . = =
+	; [03] x x . . . . . .|. . . . . . = =
+	; [04] x x x . . . . .|. . . . . x x x
+	; [05] x x x x . . . .|. . . . x x x x
+	; [06] x x x x x x . .|. . x x x x x x
+	; [07] x x x x x x x x|x x x x x x x x
+	;      Character 0x52  Character 0x53
+
+	; B == 2
+	defb 0x50		;78ae
+	defb 0x51		;78af
+	
+	; B == 1
+	defb 0x52		;78b0
+	defb 0x53		;78b1
+
+
+
+78b2_scenery_3_white_flags:
 	defb 0x05		;78b2 B = 5
 	defb 0x02		;78b3 C = 2
 	
+	; [00] . . . . . . . .|. . . W . . . .
+	; [01] . . . . . x . .|. . . W W W . .
+	; [02] . . x . . . . .|. . W W W W W W
+	; [03] . . . . . . . .|. . W W W W . .
+	; [04] . . . . . . . .|. W . . . . . .
+	; [05] . x . . . . . .|. W . . . . . .
+	; [06] . . . . . . x .|W . . . . . . .
+	; [07] . . . . . . . .|W = = = = = = =
+	;      ---------------+---------------
+	; [00] . . . . . . . .|. . . . . . . .
+	; [01] . . . . . x . .|. . . . . x . .
+	; [02] . . x . . . . .|. . x . . . . .
+	; [03] . . . . . . . .|. . . . . . . .
+	; [04] . . . . . . . .|. . . . . . . .
+	; [05] . x . . . . . .|. x . . . . . .
+	; [06] . . . . . . x .|. . . . . . x .
+	; [07] . . . . . . . .|. . . . . . . .
+	;      ---------------+---------------
+	; [00] . . . W . . . .|. . . . . . . .
+	; [01] . . . W W W . .|. . . . . x . .
+	; [02] . . W W W W W W|. . x . . . . .
+	; [03] . . W W W W . .|. . . . . . . .
+	; [04] . W . . . . . .|. . . . . . . .
+	; [05] . W . . . . . .|. x . . . . . .
+	; [06] W . . . . . . .|. x . . . . . .
+	; [07] W = = = = = = =|. . . . . . . .
+	;      ---------------+---------------
+	; [00] . . . . . . . .|. . . . . . . .
+	; [01] . . . . . x . .|. . . . . x . .
+	; [02] . . x . . . . .|. . x . . . . .
+	; [03] . . . . . . . .|. . . . . . . .
+	; [04] . . . . . . . .|. . . . . . . .
+	; [05] . x . . . . . .|. x . . . . . .
+	; [06] . . . . . . x .|. . . . . . x .
+	; [07] . . . . . . . .|. . . . . . . .
+	;      ---------------+---------------
+	; [00] . . . . . . . .|. . . W . . . .
+	; [01] . . . . . x . .|. . . W W W . .
+	; [02] . . x . . . . .|. . W W W W W W
+	; [03] . . . . . . . .|. . W W W W . .
+	; [04] . . . . . . . .|. W . . . . . .
+	; [05] . x . . . . . .|. W . . . . . .
+	; [06] . . . . . . x .|W . . . . . . .
+	; [07] . . . . . . . .|W = = = = = = =
+	; 
 	; B == 5
 	defb 0xA0		;78b4 #01, to 0xE198
 	defb 0x4B		;78b5 #02, to 0xE199
@@ -17628,143 +18344,217 @@
 	defb 0x4B		;78b8 #01, to 0xE1C4
 	defb 0xA0		;78b9 #02, to 0xE1C5
 
-	and b			;78ba
-	and b			;78bb
-	and b			;78bc
-	ld c,e			;78bd
-	ld bc,05501h		;78be
-	ld bc,04e01h		;78c1
-	djnz $+27		;78c4 if (--B != 0) jump to 0x78DF
-	ld de,01321h		;78c6
-	jr $+34			;78c9 jump to 0x78EB
-	ld d,c			;78cb
-	ld (02031h),hl		;78cc
-	add a,c			;78cf
-	ld hl,02031h		;78d0
-	xor c			;78d3
-	ld (02029h),hl		;78d4
-	ld hl,03921h		;78d7
-	jr nz,$+91		;78da if (nz) jump to 0x7935
-	ld (02031h),hl		;78dc
-	ld h,c			;78df
-	inc h			;78e0
-	jr $+18			;78e1 jump to 0x78F3
+	; B == 2
+	defb 0xA0		;78ba
+	defb 0xA0		;78bb
+	
+	; B == 1
+	defb 0xA0		;78bc
+	defb 0x4B		;78bd
 
-	add hl,de		;78e3
-	cp 094h			;78e4
-	dec d			;78e6
-	sub h			;78e7
-	nop			;78e8
-	sub a			;78e9
-	sub a			;78ea
 
-	ld (hl),d		;78eb
-	halt			;78ec
-	sub h			;78ed
-	inc b			;78ee
-	add a,(hl)		;78ef
-	add a,a			;78f0
-	rst 38h			;78f1
-	add a,c			;78f2
-	add a,c			;78f3
 
-	inc b			;78f4
-	add a,c			;78f5
-	add a,l			;78f6
-	sub a			;78f7
-	add a,(hl)		;78f8
-	inc b			;78f9
-	and h			;78fa
-	dec b			;78fb
-	nop			;78fc
-	rst 38h			;78fd
-	nop			;78fe
-	djnz $+38		;78ff if (--B != 0) jump to 0x7925
-	dec b			;7901
-	daa			;7902
-	ld de,01411h		;7903
-	ld hl,01734h		;7906
-	rlca			;7909
-	rst 38h			;790a
-	djnz $+2		;790b if (--B != 0) jump to 0x790D
-	inc d			;790d
-	djnz $+2		;790e if (--B != 0) jump to 0x7910
-	dec b			;7910
-	inc d			;7911
-	inc h			;7912
-	and h			;7913
-	and h			;7914
-	sub h			;7915
-	add a,l			;7916
-	add a,(hl)		;7917
-	inc b			;7918
-	add a,(hl)		;7919
-	add a,(hl)		;791a
-	inc b			;791b
-	sub a			;791c
-	add a,a			;791d
-	and h			;791e
-	inc b			;791f
-	and h			;7920
-	sub h			;7921
-	inc b			;7922
-	and h			;7923
-	rst 38h			;7924
-	add a,c			;7925
-	add a,c			;7926
-	add a,c			;7927
-	inc b			;7928
-	add a,c			;7929
-	sub a			;792a
-	inc d			;792b
-	rla			;792c
-	rlca			;792d
-	rst 38h			;792e
-	nop			;792f
-	djnz $+38		;7930 if (--B != 0) jump to 0x7956
-	djnz $+2		;7932 if (--B != 0) jump to 0x7934
-	dec b			;7934
-	inc d			;7935
-	sub h			;7936
-	and h			;7937
-	sub a			;7938
-	rst 38h			;7939
-	ld (hl),d		;793a
-	ld (hl),d		;793b
-	add a,(hl)		;793c
-	ld (hl),d		;793d
-	and h			;793e
-	halt			;793f
-	add a,l			;7940
-	halt			;7941
-	add a,l			;7942
-	add a,c			;7943
-	add a,c			;7944
-	sub h			;7945
-	add a,a			;7946
-	sub a			;7947
-	inc d			;7948
-	dec b			;7949
-	and h			;794a
-	nop			;794b
-	nop			;794c
-	nop			;794d
-	rst 38h			;794e
-	ld bc,0a401h		;794f
-	inc d			;7952
-	rla			;7953
-	dec b			;7954
-	and h			;7955
-	rlca			;7956
-	rst 38h			;7957
-	nop			;7958
-	nop			;7959
-	dec b			;795a
-	and h			;795b
-	inc d			;795c
-	rst 38h			;795d
-	rst 38h			;795e
-	rst 38h			;795f
+; Road/track/scenery/surroundings data, see 0x7804.
+78be_green_with_shade_on_the_left:
+	defb 0x01		;78be B = 1
+	defb 0x01		;78bf C = 1
+	
+	; Green, with shade (i.e. black) on the left.
+	; [00] x x x x . . . .
+	; [01] x x x x . . . .
+	; [02] x x x x . . . .
+	; [03] x x x x . . . .
+	; [04] x x x x . . . .
+	; [05] x x x x . . . .
+	; [06] x x x x . . . .
+	; [07] x x x x . . . .
+	defb 0x55		;78c0
+
+
+
+; Road/track/scenery/surroundings, see ???.
+	defb 0x01		;78c1 B = 1
+	defb 0x01		;78c2 C = 1
+	
+	; Green, with shade (i.e. black) at the top.
+	; [00] . . . . . . . .
+	; [01] . . . . . . . .
+	; [02] . . . . . . . .
+	; [03] . . . . . . . .
+	; [04] x x x x x x x x
+	; [05] x x x x x x x x
+	; [06] x x x x x x x x
+	; [07] x x x x x x x x
+	defb 0x4E		;78c3
+
+
+
+; ??? See 0x5161.
+	defb 0x10		;78c4 Stage 1
+	defb 0x19		;78c5
+	defb 0x11		;78c6
+	defb 0x21		;78c7
+	defb 0x13		;78c8
+	defb 0x18		;78c9
+
+	defb 0x20		;78ca Stage 2
+	defb 0x51		;78cb
+	defb 0x22		;78cc
+	defb 0x31		;78cd
+	defb 0x20		;78ce
+	defb 0x81		;78cf
+
+	defb 0x21		;78d0 Stage 3
+	defb 0x31		;78d1
+	defb 0x20		;78d2
+	defb 0xA9		;78d3
+	defb 0x22		;78d4
+	defb 0x29		;78d5
+
+	defb 0x20		;78d6 Stage 4
+	defb 0x21		;78d7
+	defb 0x21		;78d8
+	defb 0x39		;78d9
+	defb 0x20		;78da
+	defb 0x59		;78db
+
+	defb 0x22		;78dc Stage 5
+	defb 0x31		;78dd
+	defb 0x20		;78de
+	defb 0x61		;78df
+	defb 0x24		;78e0
+	defb 0x18		;78e1
+
+	defb 0x10		;78e2 Stage 6
+	defb 0x19		;78e3
+	defb 0xFE		;78e4 Checked for at 0x56FA.
+
+; ??? See 0x5163
+	defb 0x94		;78e5
+	defb 0x15		;78e6
+	defb 0x94		;78e7
+	defb 0x00		;78e8
+	defb 0x97		;78e9
+	defb 0x97		;78ea
+	defb 0x72		;78eb
+	defb 0x76		;78ec
+	defb 0x94		;78ed
+	defb 0x04		;78ee
+	defb 0x86		;78ef
+	defb 0x87		;78f0
+	defb 0xFF		;78f1
+	defb 0x81		;78f2
+	defb 0x81		;78f3
+	defb 0x04		;78f4
+	defb 0x81		;78f5
+	defb 0x85		;78f6
+	defb 0x97		;78f7
+	defb 0x86		;78f8
+	defb 0x04		;78f9
+	defb 0xA4		;78fa
+	defb 0x05		;78fb
+	defb 0x00		;78fc
+	defb 0xFF		;78fd
+	defb 0x00		;78fe
+	defb 0x10		;78ff
+	defb 0x24		;7900
+	defb 0x05		;7901
+	defb 0x27		;7902
+	defb 0x11		;7903
+	defb 0x11		;7904
+	defb 0x14		;7905
+	defb 0x21		;7906
+	defb 0x34		;7907
+	defb 0x17		;7908
+	defb 0x07		;7909
+	defb 0xFF		;790a
+	defb 0x10		;790b
+	defb 0x00		;790c
+	defb 0x14		;790d
+	defb 0x10		;790e
+	defb 0x00		;790f
+	defb 0x05		;7910
+	defb 0x14		;7911
+	defb 0x24		;7912
+	defb 0xA4		;7913
+	defb 0xA4		;7914
+	defb 0x94		;7915
+	defb 0x85		;7916
+	defb 0x86		;7917
+	defb 0x04		;7918
+	defb 0x86		;7919
+	defb 0x86		;791a
+	defb 0x04		;791b
+	defb 0x97		;791c
+	defb 0x87		;791d
+	defb 0xA4		;791e
+	defb 0x04		;791f
+	defb 0xA4		;7920
+	defb 0x94		;7921
+	defb 0x04		;7922
+	defb 0xA4		;7923
+	defb 0xFF		;7924
+	defb 0x81		;7925
+	defb 0x81		;7926
+	defb 0x81		;7927
+	defb 0x04		;7928
+	defb 0x81		;7929
+	defb 0x97		;792a
+	defb 0x14		;792b
+	defb 0x17		;792c
+	defb 0x07		;792d
+	defb 0xFF		;792e
+	defb 0x00		;792f
+	defb 0x10		;7930
+	defb 0x24		;7931
+	defb 0x10		;7932
+	defb 0x00		;7933
+	defb 0x05		;7934
+	defb 0x14		;7935
+	defb 0x94		;7936
+	defb 0xA4		;7937
+	defb 0x97		;7938
+	defb 0xFF		;7939
+	defb 0x72		;793a
+	defb 0x72		;793b
+	defb 0x86		;793c
+	defb 0x72		;793d
+	defb 0xA4		;793e
+	defb 0x76		;793f
+	defb 0x85		;7940
+	defb 0x76		;7941
+	defb 0x85		;7942
+	defb 0x81		;7943
+	defb 0x81		;7944
+	defb 0x94		;7945
+	defb 0x87		;7946
+	defb 0x97		;7947
+	defb 0x14		;7948
+	defb 0x05		;7949
+	defb 0xA4		;794a
+	defb 0x00		;794b
+	defb 0x00		;794c
+	defb 0x00		;794d
+	defb 0xFF		;794e
+	defb 0x01		;794f
+	defb 0x01		;7950
+	defb 0xA4		;7951
+	defb 0x14		;7952
+	defb 0x17		;7953
+	defb 0x05		;7954
+	defb 0xA4		;7955
+	defb 0x07		;7956
+	defb 0xFF		;7957
+	defb 0x00		;7958
+	defb 0x00		;7959
+	defb 0x05		;795a
+	defb 0xA4		;795b
+	defb 0x14		;795c
+	defb 0xFF		;795d
+	defb 0xFF		;795e
+	defb 0xFF		;795f
+
+; ??? See 0x5165
 	ld (hl),b		;7960
 	ld a,c			;7961
 	and e			;7962
@@ -18465,475 +19255,570 @@
 	add a,h			;7c51
 	sbc a,l			;7c52
 	rst 38h			;7c53
-	inc b			;7c54
-	inc b			;7c55
-	inc b			;7c56
-	add a,b			;7c57
-	sbc a,b			;7c58
-	sbc a,d			;7c59
-	sbc a,e			;7c5a
-	inc b			;7c5b
-	inc b			;7c5c
-	sbc a,e			;7c5d
-	inc b			;7c5e
-	add a,c			;7c5f
-	sbc a,c			;7c60
-	ld bc,00404h		;7c61
-	inc b			;7c64
-	inc b			;7c65
-	inc b			;7c66
-	add a,b			;7c67
-	sbc a,b			;7c68
-	sbc a,d			;7c69
-	inc b			;7c6a
-	inc b			;7c6b
-	inc b			;7c6c
-	sbc a,e			;7c6d
-	inc b			;7c6e
-	add a,c			;7c6f
-	sbc a,c			;7c70
-	ld bc,0049bh		;7c71
-	sbc a,e			;7c74
-	inc b			;7c75
-	inc b			;7c76
-	add a,b			;7c77
-	sbc a,b			;7c78
-	sbc a,d			;7c79
-	inc b			;7c7a
-	sbc a,e			;7c7b
-	inc b			;7c7c
-	inc b			;7c7d
-	sbc a,e			;7c7e
-	add a,c			;7c7f
-	sbc a,c			;7c80
-	ld bc,00404h		;7c81
-	rst 38h			;7c84
-	sub d			;7c85
-	ld b,b			;7c86
-	ld c,c			;7c87
-	jr nz,$+2		;7c88 if (nz) jump to 0x7C8A
-	nop			;7c8a
-	inc h			;7c8b
-	sub b			;7c8c
-	nop			;7c8d
-	nop			;7c8e
-	nop			;7c8f
-	nop			;7c90
-	rst 38h			;7c91
-	ld (bc),a		;7c92
-	and d			;7c93
-	and e			;7c94
-	and h			;7c95
-	and l			;7c96
-	and (hl)		;7c97
-	add hl,bc		;7c98
-	add hl,bc		;7c99
-	and c			;7c9a
-	and e			;7c9b
-	and h			;7c9c
-	and l			;7c9d
-	and a			;7c9e
-	add hl,bc		;7c9f
-	add hl,bc		;7ca0
-	ld (bc),a		;7ca1
-	xor e			;7ca2
-	xor h			;7ca3
-	xor l			;7ca4
-	xor (hl)		;7ca5
-	xor a			;7ca6
-	add hl,bc		;7ca7
-	add hl,bc		;7ca8
-	xor c			;7ca9
-	and e			;7caa
-	and h			;7cab
-	and l			;7cac
-	xor d			;7cad
-	add hl,bc		;7cae
-	add hl,bc		;7caf
-	dec e			;7cb0
-	add a,h			;7cb1
-	add a,l			;7cb2
-	add a,b			;7cb3
-	add a,d			;7cb4
-	add a,c			;7cb5
-	adc a,d			;7cb6
-	adc a,e			;7cb7
-	add a,d			;7cb8
-	add a,e			;7cb9
-	add a,h			;7cba
-	add a,l			;7cbb
-	add a,c			;7cbc
-	adc a,c			;7cbd
-	adc a,e			;7cbe
-	add a,l			;7cbf
-	add a,b			;7cc0
-	add a,d			;7cc1
-	add a,e			;7cc2
-	add a,c			;7cc3
-	adc a,h			;7cc4
-	add a,(hl)		;7cc5
-	add a,e			;7cc6
-	add a,d			;7cc7
-	add a,h			;7cc8
-	add a,l			;7cc9
-	add a,c			;7cca
-	adc a,h			;7ccb
-	adc a,d			;7ccc
-	add a,b			;7ccd
-	add a,e			;7cce
-	add a,d			;7ccf
-	add a,e			;7cd0
-	add a,c			;7cd1
-	adc a,h			;7cd2
-	adc a,c			;7cd3
-	add a,h			;7cd4
-	add a,l			;7cd5
-	add a,b			;7cd6
-	add a,h			;7cd7
-	add a,l			;7cd8
-	add a,c			;7cd9
-	adc a,b			;7cda
-	add a,d			;7cdb
-	add a,e			;7cdc
-	add a,d			;7cdd
-	add a,d			;7cde
-	add a,e			;7cdf
-	add a,c			;7ce0
-	add a,a			;7ce1
-	add a,h			;7ce2
-	add a,l			;7ce3
-	add a,h			;7ce4
-	add a,l			;7ce5
-	add a,c			;7ce6
-	adc a,b			;7ce7
-	adc a,e			;7ce8
-	add a,d			;7ce9
-	add a,e			;7cea
-	add a,d			;7ceb
-	add a,e			;7cec
-	add a,c			;7ced
-	add a,a			;7cee
-	adc a,e			;7cef
-	add a,b			;7cf0
-	add a,h			;7cf1
-	add a,l			;7cf2
-	add a,c			;7cf3
-	adc a,b			;7cf4
-	adc a,e			;7cf5
-	adc a,e			;7cf6
-	add a,l			;7cf7
-	add a,d			;7cf8
-	add a,e			;7cf9
-	add a,c			;7cfa
-	add a,a			;7cfb
-	adc a,e			;7cfc
-	adc a,e			;7cfd
-	add a,e			;7cfe
-	add a,b			;7cff
-	add a,c			;7d00
-	adc a,h			;7d01
-	adc a,d			;7d02
-	adc a,e			;7d03
-	adc a,e			;7d04
-	add a,e			;7d05
-	add a,h			;7d06
-	add a,l			;7d07
-	add a,c			;7d08
-	adc a,c			;7d09
-	adc a,e			;7d0a
-	adc a,e			;7d0b
-	add a,l			;7d0c
-	add a,d			;7d0d
-	add a,e			;7d0e
-	add a,l			;7d0f
-	add a,c			;7d10
-	adc a,d			;7d11
-	adc a,e			;7d12
-	add a,e			;7d13
-	add a,e			;7d14
-	add a,h			;7d15
-	add a,l			;7d16
-	add a,c			;7d17
-	adc a,c			;7d18
-	adc a,e			;7d19
-	add a,h			;7d1a
-	add a,l			;7d1b
-	add a,d			;7d1c
-	add a,e			;7d1d
-	add a,c			;7d1e
-	adc a,b			;7d1f
-	adc a,e			;7d20
-	add a,d			;7d21
-	add a,e			;7d22
-	add a,l			;7d23
-	add a,l			;7d24
-	add a,c			;7d25
-	add a,a			;7d26
-	adc a,e			;7d27
-	add a,l			;7d28
-	add a,e			;7d29
-	add a,h			;7d2a
-	add a,l			;7d2b
-	add a,c			;7d2c
-	adc a,d			;7d2d
-	adc a,e			;7d2e
-	add a,e			;7d2f
-	add a,l			;7d30
-	add a,d			;7d31
-	add a,e			;7d32
-	add a,c			;7d33
-	adc a,c			;7d34
-	adc a,e			;7d35
-	add a,e			;7d36
-	add a,h			;7d37
-	add a,l			;7d38
-	add a,h			;7d39
-	add a,l			;7d3a
-	add a,c			;7d3b
-	adc a,d			;7d3c
-	add a,l			;7d3d
-	add a,d			;7d3e
-	add a,e			;7d3f
-	add a,d			;7d40
-	add a,e			;7d41
-	add a,c			;7d42
-	adc a,c			;7d43
-	add a,h			;7d44
-	add a,l			;7d45
-	add a,b			;7d46
-	add a,c			;7d47
-	adc a,h			;7d48
-	adc a,h			;7d49
-	adc a,b			;7d4a
-	add a,d			;7d4b
-	add a,e			;7d4c
-	add a,b			;7d4d
-	add a,h			;7d4e
-	add a,l			;7d4f
-	add a,c			;7d50
-	add a,a			;7d51
-	add a,l			;7d52
-	add a,b			;7d53
-	add a,d			;7d54
-	add a,d			;7d55
-	add a,e			;7d56
-	add a,c			;7d57
-	adc a,d			;7d58
-	add a,e			;7d59
-	add a,b			;7d5a
-	add a,h			;7d5b
-	add a,l			;7d5c
-	add a,c			;7d5d
-	adc a,h			;7d5e
-	adc a,c			;7d5f
-	add a,h			;7d60
-	add a,l			;7d61
-	add a,d			;7d62
-	add a,e			;7d63
-	add a,c			;7d64
-	adc a,h			;7d65
-	adc a,b			;7d66
-	add a,d			;7d67
-	add a,e			;7d68
-	add a,e			;7d69
-	add a,b			;7d6a
-	add a,c			;7d6b
-	adc a,h			;7d6c
-	add a,a			;7d6d
-	add a,l			;7d6e
-	add a,b			;7d6f
-	add a,h			;7d70
-	add a,l			;7d71
-	add a,c			;7d72
-	adc a,b			;7d73
-	adc a,e			;7d74
-	add a,d			;7d75
-	add a,b			;7d76
-	add a,d			;7d77
-	add a,e			;7d78
-	add a,c			;7d79
-	add a,a			;7d7a
-	adc a,e			;7d7b
-	ld (bc),a		;7d7c
-	sbc a,d			;7d7d
-	and e			;7d7e
-	and h			;7d7f
-	and l			;7d80
-	and b			;7d81
-	add hl,bc		;7d82
-	add hl,bc		;7d83
-	sbc a,e			;7d84
-	sbc a,h			;7d85
-	sbc a,l			;7d86
-	sbc a,(hl)		;7d87
-	sbc a,a			;7d88
-	add hl,bc		;7d89
-	add hl,bc		;7d8a
-	ld a,005h		;7d8b
-	ld e,b			;7d8d
-	rlca			;7d8e
-	ld d,005h		;7d8f
-	ld c,h			;7d91
-	rlca			;7d92
-	ld hl,(0c5c5h)		;7d93
-	push bc			;7d96
-	push bc			;7d97
-	push bc			;7d98
-	push bc			;7d99
-	push bc			;7d9a
-	push bc			;7d9b
-	or l			;7d9c
-	push bc			;7d9d
-	push bc			;7d9e
-	push bc			;7d9f
-	or h			;7da0
-	push bc			;7da1
-	push bc			;7da2
-	push bc			;7da3
-	or e			;7da4
-	push bc			;7da5
-	push bc			;7da6
-	push bc			;7da7
-	rst 0			;7da8
-	or l			;7da9
-	push bc			;7daa
-	push bc			;7dab
-	cp l			;7dac
-	or h			;7dad
-	push bc			;7dae
-	push bc			;7daf
-	cp e			;7db0
-	rst 0			;7db1
-	or l			;7db2
-	push bc			;7db3
-	add a,0bch		;7db4
-	or h			;7db6
-	push bc			;7db7
-	jp nz,0b3bbh		;7db8
-	push bc			;7dbb
-	add a,0c6h		;7dbc
-	cp h			;7dbe
-	or l			;7dbf
-	add a,0c4h		;7dc0
-	cp d			;7dc2
-	or h			;7dc3
-	rst 38h			;7dc4
-	add a,0c6h		;7dc5
-	cp c			;7dc7
-	or c			;7dc8
-	add a,0c6h		;7dc9
-	cp a			;7dcb
-	or (hl)			;7dcc
-	add a,0bbh		;7dcd
-	or d			;7dcf
-	push bc			;7dd0
-	jp nz,0b6bfh		;7dd1
-	push bc			;7dd4
-	add a,0bdh		;7dd5
-	or l			;7dd7
-	push bc			;7dd8
-	call nz,0b4bbh		;7dd9
-	push bc			;7ddc
-	add a,0c6h		;7ddd
-	cp h			;7ddf
-	push bc			;7de0
-	add a,0c2h		;7de1
-	cp d			;7de3
-	or l			;7de4
-	jp nz,0bbc6h		;7de5
-	or h			;7de8
-	add a,0c3h		;7de9
-	cp b			;7deb
-	or e			;7dec
-	add a,0c4h		;7ded
-	or a			;7def
-	or d			;7df0
-	add a,0c6h		;7df1
-	cp c			;7df3
-	or c			;7df4
-	add a,0c1h		;7df5
-	cp a			;7df7
-	or (hl)			;7df8
-	add a,0bfh		;7df9
-	or d			;7dfb
-	push bc			;7dfc
-	pop bc			;7dfd
-	rst 0			;7dfe
-	or c			;7dff
-	push bc			;7e00
-	add a,0bch		;7e01
-	or h			;7e03
-	push bc			;7e04
-	call nz,0b3b9h		;7e05
-	push bc			;7e08
-	pop bc			;7e09
-	cp a			;7e0a
-	or d			;7e0b
-	push bc			;7e0c
-	add a,0beh		;7e0d
-	or c			;7e0f
-	push bc			;7e10
-	add a,0bdh		;7e11
-	or h			;7e13
-	push bc			;7e14
-	add a,0c2h		;7e15
-	cp h			;7e17
-	push bc			;7e18
-	add a,0c6h		;7e19
-	cp c			;7e1b
-	or l			;7e1c
-	add a,0c3h		;7e1d
-	cp b			;7e1f
-	or h			;7e20
-	add a,0c1h		;7e21
-	cp c			;7e23
-	or e			;7e24
-	rst 38h			;7e25
-	add a,0c6h		;7e26
-	or a			;7e28
-	or d			;7e29
-	add a,0c3h		;7e2a
-	cp a			;7e2c
-	or c			;7e2d
-	pop bc			;7e2e
-	cp a			;7e2f
-	rst 0			;7e30
-	or (hl)			;7e31
-	add a,0bdh		;7e32
-	or d			;7e34
-	push bc			;7e35
-	add a,0bfh		;7e36
-	or c			;7e38
-	push bc			;7e39
-	cp a			;7e3a
-	rst 0			;7e3b
-	or (hl)			;7e3c
-	push bc			;7e3d
-	rst 0			;7e3e
-	or d			;7e3f
-	push bc			;7e40
-	push bc			;7e41
-	rst 0			;7e42
-	or c			;7e43
-	push bc			;7e44
-	push bc			;7e45
-	rst 0			;7e46
-	or (hl)			;7e47
-	push bc			;7e48
-	push bc			;7e49
-	or d			;7e4a
-	push bc			;7e4b
-	push bc			;7e4c
-	push bc			;7e4d
-	cp a			;7e4e
-	push bc			;7e4f
-	push bc			;7e50
-	push bc			;7e51
-	or (hl)			;7e52
-	push bc			;7e53
-	push bc			;7e54
-	push bc			;7e55
-	rst 38h			;7e56
+
+; Data. See 0x50F5, 0x55A6.
+	defb 0x04		;7c54
+	defb 0x04		;7c55
+	defb 0x04		;7c56
+	defb 0x80		;7c57
+	defb 0x98		;7c58
+	defb 0x9A		;7c59
+	defb 0x9B		;7c5a
+	defb 0x04		;7c5b
+	defb 0x04		;7c5c
+	defb 0x9B		;7c5d
+	defb 0x04		;7c5e
+	defb 0x81		;7c5f
+	defb 0x99		;7c60
+	defb 0x01		;7c61
+	defb 0x04		;7c62
+	defb 0x04		;7c63
+	defb 0x04		;7c64
+	defb 0x04		;7c65
+	defb 0x04		;7c66
+	defb 0x80		;7c67
+	defb 0x98		;7c68
+	defb 0x9A		;7c69
+	defb 0x04		;7c6a
+	defb 0x04		;7c6b
+	defb 0x04		;7c6c
+	defb 0x9B		;7c6d
+	defb 0x04		;7c6e
+	defb 0x81		;7c6f
+	defb 0x99		;7c70
+	defb 0x01		;7c71
+	defb 0x9B		;7c72
+	defb 0x04		;7c73
+	defb 0x9B		;7c74
+	defb 0x04		;7c75
+	defb 0x04		;7c76
+	defb 0x80		;7c77
+	defb 0x98		;7c78
+	defb 0x9A		;7c79
+	defb 0x04		;7c7a
+	defb 0x9B		;7c7b
+	defb 0x04		;7c7c
+	defb 0x04		;7c7d
+	defb 0x9B		;7c7e
+	defb 0x81		;7c7f
+	defb 0x99		;7c80
+	defb 0x01		;7c81
+	defb 0x04		;7c82
+	defb 0x04		;7c83
+	defb 0xFF		;7c84
+
+; Data. See 0x50EF, 0x557A.
+	defb 0x92		;7c85
+	defb 0x40		;7c86
+	defb 0x49		;7c87
+	defb 0x20		;7c88
+	defb 0x00		;7c89
+	defb 0x00		;7c8a
+	defb 0x24		;7c8b
+	defb 0x90		;7c8c
+	defb 0x00		;7c8d
+	defb 0x00		;7c8e
+	defb 0x00		;7c8f
+	defb 0x00		;7c90
+	defb 0xFF		;7c91
+
+; Data, see 0x569C.
+	defb 0x02		;7c92
+	defb 0xA2		;7c93
+	defb 0xA3		;7c94
+	defb 0xA4		;7c95
+	defb 0xA5		;7c96
+	defb 0xA6		;7c97
+	defb 0x09		;7c98
+	defb 0x09		;7c99
+	defb 0xA1		;7c9a
+	defb 0xA3		;7c9b
+	defb 0xA4		;7c9c
+	defb 0xA5		;7c9d
+	defb 0xA7		;7c9e
+	defb 0x09		;7c9f
+	defb 0x09		;7ca0
+
+; Data, see 0x569E.
+	defb 0x02		;7ca1
+	defb 0xAB		;7ca2
+	defb 0xAC		;7ca3
+	defb 0xAD		;7ca4
+	defb 0xAE		;7ca5
+	defb 0xAF		;7ca6
+	defb 0x09		;7ca7
+	defb 0x09		;7ca8
+	defb 0xA9		;7ca9
+	defb 0xA3		;7caa
+	defb 0xA4		;7cab
+	defb 0xA5		;7cac
+	defb 0xAA		;7cad
+	defb 0x09		;7cae
+	defb 0x09		;7caf
+
+
+
+; Data, see 0x56A0.
+	defb 0x1D		;7cb0 Length???
+
+	defb 0x84		;7cb1 [stage 4+5] Start of row 0x00.
+	defb 0x85		;7cb2
+	defb 0x80		;7cb3
+	defb 0x82		;7cb4
+	defb 0x81		;7cb5
+	defb 0x8A		;7cb6
+	defb 0x8B		;7cb7
+	
+	defb 0x82		;7cb8 [stage 4+5] Start of row 0x01.
+	defb 0x83		;7cb9
+	defb 0x84		;7cba
+	defb 0x85		;7cbb
+	defb 0x81		;7cbc
+	defb 0x89		;7cbd
+	defb 0x8B		;7cbe
+	
+	defb 0x85		;7cbf [stage 4+5] Start of row 0x02.
+	defb 0x80		;7cc0
+	defb 0x82		;7cc1
+	defb 0x83		;7cc2
+	defb 0x81		;7cc3
+	defb 0x8C		;7cc4
+	defb 0x86		;7cc5
+	
+	defb 0x83		;7cc6 [stage 4+5] Start of row 0x03.
+	defb 0x82		;7cc7
+	defb 0x84		;7cc8
+	defb 0x85		;7cc9
+	defb 0x81		;7cca
+	defb 0x8C		;7ccb
+	defb 0x8A		;7ccc
+	
+	defb 0x80		;7ccd [stage 4+5] Start of row 0x04.
+	defb 0x83		;7cce
+	defb 0x82		;7ccf
+	defb 0x83		;7cd0
+	defb 0x81		;7cd1
+	defb 0x8C		;7cd2
+	defb 0x89		;7cd3
+	
+	defb 0x84		;7cd4 [stage 4+5] Start of row 0x05.
+	defb 0x85		;7cd5
+	defb 0x80		;7cd6
+	defb 0x84		;7cd7
+	defb 0x85		;7cd8
+	defb 0x81		;7cd9
+	defb 0x88		;7cda
+	
+	defb 0x82		;7cdb [stage 4+5] Start of row 0x06.
+	defb 0x83		;7cdc
+	defb 0x82		;7cdd
+	defb 0x82		;7cde
+	defb 0x83		;7cdf
+	defb 0x81		;7ce0
+	defb 0x87		;7ce1
+	
+	defb 0x84		;7ce2 [stage 4+5] Start of row 0x07.
+	defb 0x85		;7ce3
+	defb 0x84		;7ce4
+	defb 0x85		;7ce5
+	defb 0x81		;7ce6
+	defb 0x88		;7ce7
+	defb 0x8B		;7ce8
+	
+	defb 0x82		;7ce9 [stage 4+5] Start of row 0x08.
+	defb 0x83		;7cea
+	defb 0x82		;7ceb
+	defb 0x83		;7cec
+	defb 0x81		;7ced
+	defb 0x87		;7cee
+	defb 0x8B		;7cef
+	
+	defb 0x80		;7cf0 [stage 4+5] Start of row 0x09.
+	defb 0x84		;7cf1
+	defb 0x85		;7cf2
+	defb 0x81		;7cf3
+	defb 0x88		;7cf4
+	defb 0x8B		;7cf5
+	defb 0x8B		;7cf6
+
+	defb 0x85		;7cf7 [stage 4+5] Start of row 0x0A.
+	defb 0x82		;7cf8
+	defb 0x83		;7cf9
+	defb 0x81		;7cfa
+	defb 0x87		;7cfb
+	defb 0x8B		;7cfc
+	defb 0x8B		;7cfd
+	
+	defb 0x83		;7cfe [stage 4+5] Start of row 0x0B.
+	defb 0x80		;7cff
+	defb 0x81		;7d00
+	defb 0x8C		;7d01
+	defb 0x8A		;7d02
+	defb 0x8B		;7d03
+	defb 0x8B		;7d04
+	
+	defb 0x83		;7d05 [stage 4+5] Start of row 0x0C.
+	defb 0x84		;7d06
+	defb 0x85		;7d07
+	defb 0x81		;7d08
+	defb 0x89		;7d09
+	defb 0x8B		;7d0a
+	defb 0x8B		;7d0b
+	
+	defb 0x85		;7d0c [stage 4+5] Start of row 0x0D.
+	defb 0x82		;7d0d
+	defb 0x83		;7d0e
+	defb 0x85		;7d0f
+	defb 0x81		;7d10
+	defb 0x8A		;7d11
+	defb 0x8B		;7d12
+	
+	defb 0x83		;7d13 [stage 4+5] Start of row 0x0E.
+	defb 0x83		;7d14
+	defb 0x84		;7d15
+	defb 0x85		;7d16
+	defb 0x81		;7d17
+	defb 0x89		;7d18
+	defb 0x8B		;7d19
+
+	defb 0x84		;7d1a [stage 4+5] Start of row 0x0F.
+	defb 0x85		;7d1b
+	defb 0x82		;7d1c
+	defb 0x83		;7d1d
+	defb 0x81		;7d1e
+	defb 0x88		;7d1f
+	defb 0x8B		;7d20
+	
+	defb 0x82		;7d21 [stage 4+5] Start of row 0x10.
+	defb 0x83		;7d22
+	defb 0x85		;7d23
+	defb 0x85		;7d24
+	defb 0x81		;7d25
+	defb 0x87		;7d26
+	defb 0x8B		;7d27
+	
+	defb 0x85		;7d28 [stage 4+5] Start of row 0x11.
+	defb 0x83		;7d29
+	defb 0x84		;7d2a
+	defb 0x85		;7d2b
+	defb 0x81		;7d2c
+	defb 0x8A		;7d2d
+	defb 0x8B		;7d2e
+	
+	defb 0x83		;7d2f [stage 4+5] Start of row 0x12.
+	defb 0x85		;7d30
+	defb 0x82		;7d31
+	defb 0x83		;7d32
+	defb 0x81		;7d33
+	defb 0x89		;7d34
+	defb 0x8B		;7d35
+	
+	defb 0x83		;7d36 [stage 4+5] Start of row 0x13.
+	defb 0x84		;7d37
+	defb 0x85		;7d38
+	defb 0x84		;7d39
+	defb 0x85		;7d3a
+	defb 0x81		;7d3b
+	defb 0x8A		;7d3c
+	
+	defb 0x85		;7d3d [stage 4+5] Start of row 0x14.
+	defb 0x82		;7d3e
+	defb 0x83		;7d3f
+	defb 0x82		;7d40
+	defb 0x83		;7d41
+	defb 0x81		;7d42
+	defb 0x89		;7d43
+	
+	defb 0x84		;7d44 [stage 4+5] Start of row 0x15.
+	defb 0x85		;7d45
+	defb 0x80		;7d46
+	defb 0x81		;7d47
+	defb 0x8C		;7d48
+	defb 0x8C		;7d49
+	defb 0x88		;7d4a
+	
+	defb 0x82		;7d4b [stage 4+5] Start of row 0x16.
+	defb 0x83		;7d4c
+	defb 0x80		;7d4d
+	defb 0x84		;7d4e
+	defb 0x85		;7d4f
+	defb 0x81		;7d50
+	defb 0x87		;7d51
+	
+	defb 0x85		;7d52 [stage 4+5] Start of row 0x16.
+	defb 0x80		;7d53
+	defb 0x82		;7d54
+	defb 0x82		;7d55
+	defb 0x83		;7d56
+	defb 0x81		;7d57
+	defb 0x8A		;7d58
+	
+	defb 0x83		;7d59 [stage 4+5] Start of row 0x17.
+	defb 0x80		;7d5a
+	defb 0x84		;7d5b
+	defb 0x85		;7d5c
+	defb 0x81		;7d5d
+	defb 0x8C		;7d5e
+	defb 0x89		;7d5f
+
+; Stage 04, left side scenery, 7 bytes per row.
+; Data. See 0x50E8, 0x511F, 0x554F.
+	defb 0x84		;7d60 [stage 4+5] Start of row 0x18.
+	defb 0x85		;7d61
+	defb 0x82		;7d62
+	defb 0x83		;7d63
+	defb 0x81		;7d64
+	defb 0x8C		;7d65
+	defb 0x88		;7d66
+	defb 0x82		;7d67
+	defb 0x83		;7d68
+	defb 0x83		;7d69
+	defb 0x80		;7d6a
+	defb 0x81		;7d6b
+	defb 0x8C		;7d6c
+	defb 0x87		;7d6d
+	defb 0x85		;7d6e
+	defb 0x80		;7d6f
+	defb 0x84		;7d70
+	defb 0x85		;7d71
+	defb 0x81		;7d72
+	defb 0x88		;7d73
+	defb 0x8B		;7d74
+	defb 0x82		;7d75
+	defb 0x80		;7d76
+	defb 0x82		;7d77
+	defb 0x83		;7d78
+	defb 0x81		;7d79
+	defb 0x87		;7d7a
+	defb 0x8B		;7d7b
+
+; Data, see 0x56A2.
+	defb 0x02		;7d7c
+	defb 0x9A		;7d7d
+	defb 0xA3		;7d7e
+	defb 0xA4		;7d7f
+	defb 0xA5		;7d80
+	defb 0xA0		;7d81
+	defb 0x09		;7d82
+	defb 0x09		;7d83
+	defb 0x9B		;7d84
+	defb 0x9C		;7d85
+	defb 0x9D		;7d86
+	defb 0x9E		;7d87
+	defb 0x9F		;7d88
+	defb 0x09		;7d89
+	defb 0x09		;7d8a
+	defb 0x3E		;7d8b
+	defb 0x05		;7d8c
+	defb 0x58		;7d8d
+	defb 0x07		;7d8e
+	defb 0x16		;7d8f
+	defb 0x05		;7d90
+	defb 0x4C		;7d91
+	defb 0x07		;7d92
+	defb 0x2A		;7d93
+
+; Data, see 0x56A4, 0x56AA.
+	defb 0xC5		;7d94
+	defb 0xC5		;7d95
+	defb 0xC5		;7d96
+	defb 0xC5		;7d97
+	defb 0xC5		;7d98
+	defb 0xC5		;7d99
+	defb 0xC5		;7d9a
+	defb 0xC5		;7d9b
+	defb 0xB5		;7d9c
+	defb 0xC5		;7d9d
+	defb 0xC5		;7d9e
+	defb 0xC5		;7d9f
+	defb 0xB4		;7da0
+	defb 0xC5		;7da1
+	defb 0xC5		;7da2
+	defb 0xC5		;7da3
+	defb 0xB3		;7da4
+	defb 0xC5		;7da5
+	defb 0xC5		;7da6
+	defb 0xC5		;7da7
+	defb 0xC7		;7da8
+	defb 0xB5		;7da9
+	defb 0xC5		;7daa
+	defb 0xC5		;7dab
+	defb 0xBD		;7dac
+	defb 0xB4		;7dad
+	defb 0xC5		;7dae
+	defb 0xC5		;7daf
+	defb 0xBB		;7db0
+	defb 0xC7		;7db1
+	defb 0xB5		;7db2
+	defb 0xC5		;7db3
+	defb 0xC6		;7db4
+	defb 0xBC		;7db5
+	defb 0xB4		;7db6
+	defb 0xC5		;7db7
+	defb 0xC2		;7db8
+	defb 0xBB		;7db9
+	defb 0xB3		;7dba
+	defb 0xC5		;7dbb
+	defb 0xC6		;7dbc
+	defb 0xC6		;7dbd
+	defb 0xBC		;7dbe
+	defb 0xB5		;7dbf
+	defb 0xC6		;7dc0
+	defb 0xC4		;7dc1
+	defb 0xBA		;7dc2
+	defb 0xB4		;7dc3
+	defb 0xFF		;7dc4
+
+; Data, see 0x56A6.
+	defb 0xC6		;7dc5
+	defb 0xC6		;7dc6
+	defb 0xB9		;7dc7
+	defb 0xB1		;7dc8
+	defb 0xC6		;7dc9
+	defb 0xC6		;7dca
+	defb 0xBF		;7dcb
+	defb 0xB6		;7dcc
+	defb 0xC6		;7dcd
+	defb 0xBB		;7dce
+	defb 0xB2		;7dcf
+	defb 0xC5		;7dd0
+	defb 0xC2		;7dd1
+	defb 0xBF		;7dd2
+	defb 0xB6		;7dd3
+	defb 0xC5		;7dd4
+	defb 0xC6		;7dd5
+	defb 0xBD		;7dd6
+	defb 0xB5		;7dd7
+	defb 0xC5		;7dd8
+	defb 0xC4		;7dd9
+	defb 0xBB		;7dda
+	defb 0xB4		;7ddb
+	defb 0xC5		;7ddc
+	defb 0xC6		;7ddd
+	defb 0xC6		;7dde
+	defb 0xBC		;7ddf
+	defb 0xC5		;7de0
+	defb 0xC6		;7de1
+	defb 0xC2		;7de2
+	defb 0xBA		;7de3
+	defb 0xB5		;7de4
+	defb 0xC2		;7de5
+	defb 0xC6		;7de6
+	defb 0xBB		;7de7
+	defb 0xB4		;7de8
+	defb 0xC6		;7de9
+	defb 0xC3		;7dea
+	defb 0xB8		;7deb
+	defb 0xB3		;7dec
+	defb 0xC6		;7ded
+	defb 0xC4		;7dee
+	defb 0xB7		;7def
+	defb 0xB2		;7df0
+	defb 0xC6		;7df1
+	defb 0xC6		;7df2
+	defb 0xB9		;7df3
+	defb 0xB1		;7df4
+	defb 0xC6		;7df5
+	defb 0xC1		;7df6
+	defb 0xBF		;7df7
+	defb 0xB6		;7df8
+	defb 0xC6		;7df9
+	defb 0xBF		;7dfa
+	defb 0xB2		;7dfb
+	defb 0xC5		;7dfc
+	defb 0xC1		;7dfd
+	defb 0xC7		;7dfe
+	defb 0xB1		;7dff
+	defb 0xC5		;7e00
+	defb 0xC6		;7e01
+	defb 0xBC		;7e02
+	defb 0xB4		;7e03
+	defb 0xC5		;7e04
+	defb 0xC4		;7e05
+	defb 0xB9		;7e06
+	defb 0xB3		;7e07
+	defb 0xC5		;7e08
+	defb 0xC1		;7e09
+	defb 0xBF		;7e0a
+	defb 0xB2		;7e0b
+	defb 0xC5		;7e0c
+	defb 0xC6		;7e0d
+	defb 0xBE		;7e0e
+	defb 0xB1		;7e0f
+	defb 0xC5		;7e10
+	defb 0xC6		;7e11
+	defb 0xBD		;7e12
+	defb 0xB4		;7e13
+	defb 0xC5		;7e14
+	defb 0xC6		;7e15
+	defb 0xC2		;7e16
+	defb 0xBC		;7e17
+	defb 0xC5		;7e18
+	defb 0xC6		;7e19
+	defb 0xC6		;7e1a
+	defb 0xB9		;7e1b
+	defb 0xB5		;7e1c
+	defb 0xC6		;7e1d
+	defb 0xC3		;7e1e
+	defb 0xB8		;7e1f
+	defb 0xB4		;7e20
+	defb 0xC6		;7e21
+	defb 0xC1		;7e22
+	defb 0xB9		;7e23
+	defb 0xB3		;7e24
+	defb 0xFF		;7e25
+
+; Data, see 0x56A8.
+	defb 0xC6		;7e26
+	defb 0xC6		;7e27
+	defb 0xB7		;7e28
+	defb 0xB2		;7e29
+	defb 0xC6		;7e2a
+	defb 0xC3		;7e2b
+	defb 0xBF		;7e2c
+	defb 0xB1		;7e2d
+	defb 0xC1		;7e2e
+	defb 0xBF		;7e2f
+	defb 0xC7		;7e30
+	defb 0xB6		;7e31
+	defb 0xC6		;7e32
+	defb 0xBD		;7e33
+	defb 0xB2		;7e34
+	defb 0xC5		;7e35
+	defb 0xC6		;7e36
+	defb 0xBF		;7e37
+	defb 0xB1		;7e38
+	defb 0xC5		;7e39
+	defb 0xBF		;7e3a
+	defb 0xC7		;7e3b
+	defb 0xB6		;7e3c
+	defb 0xC5		;7e3d
+	defb 0xC7		;7e3e
+	defb 0xB2		;7e3f
+	defb 0xC5		;7e40
+	defb 0xC5		;7e41
+	defb 0xC7		;7e42
+	defb 0xB1		;7e43
+	defb 0xC5		;7e44
+	defb 0xC5		;7e45
+	defb 0xC7		;7e46
+	defb 0xB6		;7e47
+	defb 0xC5		;7e48
+	defb 0xC5		;7e49
+	defb 0xB2		;7e4a
+	defb 0xC5		;7e4b
+	defb 0xC5		;7e4c
+	defb 0xC5		;7e4d
+	defb 0xBF		;7e4e
+	defb 0xC5		;7e4f
+	defb 0xC5		;7e50
+	defb 0xC5		;7e51
+	defb 0xB6		;7e52
+	defb 0xC5		;7e53
+	defb 0xC5		;7e54
+	defb 0xC5		;7e55
+	defb 0xFF		;7e56
+
 	add hl,sp		;7e57
 	ld b,033h		;7e58
 	inc b			;7e5a
@@ -18956,10 +19841,17 @@
 	inc h			;7e78
 	jr $+18			;7e79 jump to 0x7E8B
 	ld h,c			;7e7b
-	cp 0feh			;7e7c
-	cp 0feh			;7e7e
-	cp 0feh			;7e80
-	cp 010h			;7e82
+
+	defb 0xFE		;7e7c 0xFE & 0x03 == 0x02
+	defb 0xFE		;7e7d
+	defb 0xFE		;7e7e
+	defb 0xFE		;7e7f
+	defb 0xFE		;7e80
+	defb 0xFE		;7e81
+	defb 0xFE		;7e82
+	defb 0x10		;7e83
+
+; more data?
 	add hl,hl		;7e84
 	ld de,01309h		;7e85
 	jr $+34			;7e88 jump to 0x7EAA
@@ -19255,11 +20147,12 @@
 	djnz $+3		;7fdf if (--B != 0) jump to 0x7FE2
 	sub d			;7fe1
 	sub d			;7fe2
-	rst 38h			;7fe3
-	nop			;7fe4
-	nop			;7fe5
-	nop			;7fe6
-	nop			;7fe7
+	defb 0xFF		;7fe3
+
+	defb 0x00		;7fe4
+	defb 0x00		;7fe5
+	defb 0x00		;7fe6
+	defb 0x00		;7fe7
 	ld (00020h),hl		;7fe8
 	nop			;7feb
 	nop			;7fec

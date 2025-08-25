@@ -43,6 +43,37 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 ---------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+---------
 Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F  10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F  | Row
 
+Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F | Base
+-----+-------------------------------------------------------------------------------------------------+-----
+3800 | 00             __ __                                                  H  I  S  C  O  R  E       | 3800
+3820 | 00           | =( )= |                                                               0  0       | 3820
+3840 | 00           | =( )= |                                                                          | 3840
+3860 | 00           | =( )= |                                                S  C  O  R  E             | 3860
+3880 | 00           | =( )= |                                                               0  0       | 3880
+38A0 | 00             -- --                                                       __ __ __ __          | 38A0
+38C0 | 00                                                                         |     |>  |          | 38C0
+38E0 | 00                                                                         |   |     |          | 38E0
+-----+-------------------------------------------------------------------------------------------------+-----
+3900 | 00                                                                         |   |     |          | 3900
+3920 | 00                                                                         |   |     |          | 3920
+3940 | 00                                                                         |   |     |          | 3940
+3960 | 00                                                                         |   |     |          | 3960
+3980 | 00                                                                         |   |     |          | 3980
+39A0 | 00                                                                         |   |     |          | 39A0
+39C0 | 00                                                                         |   |     |          | 39C0
+39E0 | 00                                                                         -- -- -- --          | 39E0
+-----+-------------------------------------------------------------------------------------------------+-----
+3A00 | 00                                                                       = == =   = == =        | 3A00
+3A20 | 00                                                                       = == =   = == =        | 3A20
+3A40 | 00                                                                       = == =   = == =        | 3A40
+3A60 | 00                                                                       = == =   = == =        | 3A60
+3A80 | 00                                                                       = == =   = == =        | 3A80
+3AA0 | 00                                                                       = == =   = == =        | 3AA0
+3AC0 | 00                                                                       = == =   = == =        | 3AC0
+3AE0 | 00                                                                      SP EE D   F UE L  .. .. | 3AE0
+-----+-------------------------------------------------------------------------------------------------+-----
+Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F | Base
+
 
 
 == RAM ==
@@ -74,7 +105,7 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 		0x03	0x03	0x416D inc	Clear screen (all black).
 		0x03	0x04	0x416D inc	Draw "STAGE XX" and right side of the screen.
 		0x03	0x05	0x416D inc	?
-		0x03	0x06	0x416D inc	?
+		0x03	0x06	0x416D inc	Copy visible course to main memory (not VRAM).
 		0x03	0x07	0x416D inc	?
 		0x03	0x08	0x416D inc	Show the whole screen, but without the cars.
 		0x03	0x09	0x416D inc	Show alls the cars and "traffic light".
@@ -224,7 +255,7 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 		0x09  0x09 (2 channels) Weird intermittent sound during a level
 		0x0A  0x0A (2 channels) ?Seen 0x4CA4?
 		0x0B  0x0B (2 channels) ?
-		0x0D  0x0D (2 channels) Player bounced a car, but car is still controllable.
+		0x0D  0x0D (2 channels) Skidding. Player bounced a car, but car is still controllable.
 		
 		0x4F  0x0F (3 channels) Player crashes
 		0x92  0x12 (3 channels) Victorious tune when player reaches check point
@@ -276,16 +307,21 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 0xE043		Stage
 0xE044		Seen at 0x44A8
 0xE045		Seen at 0x6C36, 0x425E
-0xE046		Current pattern names (22 per line, not 24)
+0xE046-0xE047	Pointer to coarse pattern names (22 per line, not 32)
+
+
+
+0xE049-0xE053	Car data. Initial values are at 0x5219.
 0xE049		Car state?
 			0x00 All okay
 			0x01 Crashed
-			0x02 ?Out of fuel?
-			0x03 ?Reached checkpoint? 0x5265
+			0x02 Low on fuel 
+			0x03 Reached checkpoint, see 0x5265
 			0x04 Skidding (player can escape this by steering in correct direction)
 			0x05 Bounced against side of the road. (Not crashed since speed is too low.)
 			0x06 ?Respawn after crash? ?Game over
 			0x07 Spinning out of control
+0xE04A		?
 0xE04B-0xE04C	Car: vertical position
 0xE04B		Car: vertical position: "decimals"
 			The word at 0xE04B is increased, and the high 
@@ -295,20 +331,57 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 			0x80: during start (on start grid)
 			0x9A: when driving at maximum speed
 			0xB0: maximum, lowest on screen
+0xE04D		0x6BFF
 0xE04E		Car: horizontal position on screen
 			Pokeable!
-0xE04F		Speed
+0xE04F		Car: speed
 			0x00-0x17	Seen at 0x6C96
 			0x18-0x4F	Seen at 0x6C9A
 			0xD7		Maximum speed
-
+0xE050		?
 0xE051		?Shadow car speed?
 		Seen at 0x73AA
-0xE053		Seen at 0x6E20. Sprite pattern? Car orientation?
-0xE054		Seen at 0x6BCA
-0xE056		?
-0xE057		Fuel used
-		Increases even when stationary (engine is running).
+0xE052		?
+0xE053		Seen at 0x6E20. Sprite pattern. Car orientation:
+			0x00 North
+			0x01 North/east?
+			0x02
+			0x03
+			0x04
+			0x05
+			0x06
+			0x07
+			0x08 Crashed (stage 1)
+			0x09 Crashed (stage 2)
+
+
+
+0xE054		Car state #04: Skid turning direction.
+			0x00 Counter clockwise, must steer right to stop skidding.
+			0x01 Clockwise, must steer left to stop skidding.
+		Car state #07: Orientation of car:
+			0x00, 0xF8, 0xF0: North (i.e. straight ahead)
+			0x01, 0xF9, 0xF1: North-east
+			0x02, 0xFA, 0xF2: East
+			0x03, 0xFB, 0xF3: South-east
+			0x04, 0xFC, 0xF4: South
+			0x05, 0xFD, 0xF5: South-west
+			0x06, 0xFE, 0xF6: West
+			0x07, 0xFF, 0xF7: North-west
+0xE055
+0xE056-0xE057	Fuel used/consumed. Wraps around.
+0xE056		Low byte, necessary because level A and B have different fuel consumption rates.
+0xE057		Fuel ticker (or fuel used/consumed)
+
+		Increases even when stationary (engine is running). 
+		Doesn't increase if car has crashed (see 0x7378).
+
+		Increases with this rate:
+			Level A: once per 2 frames. (0x80 is added to word 0xE056 every frame)
+			Level B: "once" per frame. (0xFF is added to word 0xE056 every frame)
+			
+			0x80: see 0x7382
+			0xFF: see 0x7379
 		Fuel decreases when this ticker reaches:
 			0x00
 			0x20
@@ -319,17 +392,23 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 			0xC0
 			0xE0
 		I.e. fuel (0xE083) decreases for every 0x20 consumed here.
-0xE058-0xE06D	Pattern names
+		Stored at 0x7388 as part of a write of a word.
+0xE058-0xE06D	Pattern names ?of next coarse line?
+0xE06F		Seen at 0x515D. Set to 0x5998
 0xE071		Seen at 0x514D, 0x5157
+0xE073 (word)	Seen at 0x58C1, pointer
+0xE075 (word)	Seen at 0x58D0, pointer
 0xE077-0xE079 (3 bytes!)
 		Distance travelled
 		0xE077 low byte
 		0xE078 middle byte
 		0xE079 high byte
+		Finished Stage 1: 0x0F1255 (high=0x0F, mid=0x12, low=0x55)
 
 		0x738C: update distance travelled
+0xE07A		Seen at 0x5150, stage related
 0xE07D		Side of left road?
-0xE07F		Seen at 0x514A
+0xE07F		Seen at 0x514A, 0x58AF
 0xE083		Fuel left:
 		0xD7 means really full of fuel (see 0x7765)
 		0xD0 At start of stage ("full fuel")
@@ -349,12 +428,24 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 			Seems to go from 0x00 to 0x20 and back
 			0x00 ?
 			0x20 ?
+0xE089		Default coarse pattern name, see 0x592A.
+			Stage 04: pattern 0x06 (completely dark red)
+0xE08D		Number of rows of 0xE08E
+0xE08E (word)	Pointer to some coarse data, probably scenery on the left. See 0x5639.
+0xE090 (word)	Seen at 0x56CE
+		0x50D8: set value to 0x7FE4 (0x0000)
+		0x50F2: set value to 0x7C85 (0x4092 or 0x9240)
+		0x557D: set value to 0x7C85 (0x4092 or 0x9240)
+		0x56C6: set value to 0x7FE4 (0x0000)
+0xE098		Seen at 0x6DD1.
 0xE0AD		Side of the road?
+0xE0B1		Skid ticks left.
 0xE0B8		Play sound after grabbed fuel heart?
 			0x00
-			0x01 Grabbed a fuel heart (very very briefly, moves almost instantly to 0x01)
+			0x01 Grabbed a fuel heart (very very briefly, moves almost instantly to 0x02)
 			0x02 Grabbed a fuel heart
 0xE0B9		Streak count of number of grabbed fuel hearts
+0xE0BF		Seen at 0x719C
 0xE0C1		Seen at 0x51E5 (init)
 0xE105		Truck related
 			Stored at 0x5421
@@ -363,8 +454,9 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 0xE106		Truck related
 0xE107		Truck related
 0xE10E		Minicar vertical position
+			0x2F after leaving screen after finishing
 			0x30 for at finish flag
-			0x6C for at starting line
+			0x6C for at starting line (because of 0x5986)
 0xE10F		Minicar horizontal position
 			0xD0 always
 0xE10E-?	Sprite attributes
@@ -374,7 +466,7 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 		0xE110,0xE114,0xE118,0xE11C,0xE120	Sprite pattern
 		0xE111,0xE115,0xE119,0xE11D,0xE121	Sprite color
 
-0xE186-		Track pattern name table.
+0xE186-E395	Coarse pattern name table.
 		
 		The first line of characters looks like this:
 		INDEX    00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F   10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F
@@ -411,4 +503,7 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 		row 0x16 | ---- E36A E36B E36C E36D E36E E36F E370 E371 E372 E373 E374 E375 E376 E377 E378 E379 E37A E37B E37C E37D E37E E37F ---- ---- ---- ---- ---- ---- ---- ---- ----
 		row 0x17 | ---- E380 E381 E382 E383 E384 E385 E386 E387 E388 E389 E38A E38B E38C E38D E38E E38F E390 E391 E392 E393 E394 E395 ---- ---- ---- ---- ---- ---- ---- ---- ----
 		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+		row 0x18 | ---- E396 E397 E398 E399 E39A E39B E39C E39D E39E E39F E3A0 E3A1 E3A2 E3A3 E3A4 E3A5 E3A6 E3A7 E3A8 E3A9 E3AA E3AB ---- ---- ---- ---- ---- ---- ---- ---- ----
+		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
 		column   |  00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F   10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F
+
