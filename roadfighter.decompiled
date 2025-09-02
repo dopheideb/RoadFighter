@@ -416,10 +416,10 @@
 
 
 415a_game_state_02_substate_02:
-	call 052b8h		;415a
-	call 0504ch		;415d 504c_init()
+	call 052b8h		;415a 52b8_fixme
+	call 0504ch		;415d 504c_init
 	ld a,004h		;4160 A = 0x04 (demo state)
-	jp 414f_store_game_state_and_reset_timer	;4162
+	jp 0414f		;4162 414f_store_game_state_and_reset_timer
 
 
 
@@ -572,7 +572,8 @@
 	jp nz,04266h		;41e3 if (substate >= 10) jump to 0x4266
 
 41e6_state03_substate09:
-	call 05270h		;41e6 Copy cars+minicar to sprite attributes and show cars on screen.
+	; Copy cars+minicar to sprite attributes and show cars on screen.
+	call 05270h		;41e6 5270_copy_30_sprites_from_RAM_to_VRAM
 	
 	ld a,(0e003h)		;41e9
 	bit 4,a			;41ec
@@ -700,9 +701,7 @@
 
 
 ; See jump table 0x4099.
-; 
-; ?Demo?
-4270_state04:
+4270_game_state_04_demo:
 	djnz $+15		;4270 if (--B != 0) jump to 0x427F
 	call 0440ch		;4272 440c_decrement_timer_and_do_return_magic
 	; Post: timer ran out.
@@ -721,7 +720,7 @@
 	ret			;4291
 	djnz $+13		;4292 if (--B != 0) jump to 0x429F
 	call 06e1dh		;4294 6e1d_store_car_sprite_attributes
-	call 0526bh		;4297
+	call 0526bh		;4297 526b_copy_13_sprites_from_RAM_to_VRAM
 	ld a,028h		;429a
 	jp 04167h		;429c
 	djnz $+34		;429f if (--B != 0) jump to 0x42C1
@@ -751,12 +750,14 @@
 
 
 
+	; We can get here from:
+	;   0x42B5 (jump)
 	call 04429h		;42d5
 	ret p			;42d8
 	call 068aah		;42d9
 	call 044d0h		;42dc
 	call 042edh		;42df
-	call 0526bh		;42e2
+	call 0526bh		;42e2 526b_copy_13_sprites_from_RAM_to_VRAM
 	ld a,078h		;42e5
 	ld (0e004h),a		;42e7
 	jp 0416ah		;42ea
@@ -772,7 +773,7 @@
 ; We can get here from:
 ;   0x4134 (jump) [from=412d_state01] Ran out of time to choose level A/B.
 ;   0x4263 (jump) [from=424a_state03_substate09_subsubstate01] Just switched from state 03,substate 09,subsubstate 01 to state 04.
-;   0x42CB (jump) [from=4270_state04] (*0xE002 & 0x40) == 0x40
+;   0x42CB (jump) [from=4270_game_state_04_demo] (*0xE002 & 0x40) == 0x40
 ;   0x4317 (jump) Race started
 ;   0x4346 (jump) No fuel left
 	ld a,018h		;42f8 A = 0x18
@@ -797,6 +798,8 @@
 ; See jump table 0x4099. Race has started.
 4306_game_state_05:
 	djnz $+28		;4306 if (--B != 0) jump to 0x4322
+
+4306_game_state_05_substate_01:
 	call 05224h		;4308
 	ld a,(0e00dh)		;430b
 	and a			;430e
@@ -813,9 +816,10 @@
 	ld (0e004h),a		;431e Store timer
 	ret			;4321
 	
-	; We can get here from:
-	;   0x4306 (djnz)
-	jp 0527dh		;4322
+; We can get here from:
+;   0x4306 (djnz)
+4306_game_state_05_substate_02:
+	jp 0527dh		;4322 527d_fixme
 
 
 
@@ -845,9 +849,9 @@
 
 
 ; See jump table 0x4099. Out of fuel.
-4348_game_state_07:
+4348_game_state_07_out_of_fuel:
 	push bc			;4348
-	call 0526bh		;4349
+	call 0526bh		;4349 526b_copy_13_sprites_from_RAM_to_VRAM
 	ld a,006h		;434c
 	ld hl,03b03h		;434e
 	call 004D_WRTVRM	;4351
@@ -872,15 +876,20 @@
 ; See jump table 0x4099. (After) checkpoint reached.
 4373_game_state_08:
 	push bc			;4373
-	call 0526bh		;4374
+	call 0526bh		;4374 526b_copy_13_sprites_from_RAM_to_VRAM
 	call 0597dh		;4377 597d_update_minicar_vpos_and_color
 	pop bc			;437a
 	djnz $+13		;437b if (--B != 0) jump to 0x4388
+
+	; Post: B == 0
 	call 04429h		;437d
 	ret p			;4380
-	call 0744ch		;4381
+	call 0744ch		;4381 744c_draw_overview_of_stages
 	xor a			;4384 A = 0
 	jp 04167h		;4385
+	
+	; We can get here from:
+	;   0x437B (djnz)
 	djnz $+5		;4388 if (--B != 0) jump to 0x438D
 	jp 0747dh		;438a
 	djnz $+5		;438d if (--B != 0) jump to 0x4392
@@ -1198,17 +1207,38 @@
 	jr $+67			;44f2 jump to 0x4535
 
 
+	; 0x38B9  . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+	;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+        ;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+	;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+	;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+	;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+	;         x x x x x x x x   x x x x x x x x   x x x x x x x x   x x x x x x x x 
+	;         x x x x x x x x   x x x x x x x x   x x x x x x x x   x x x x x x x x 
 
-	ld hl,038b9h		;44f4
-	ld a,06fh		;44f7
-	ld bc,00004h		;44f9
-	call 0056_FILVRM	;44fc
-	ld l,0d9h		;44ff
+	; 0x38D9  x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
+	;         x x . . . . . .   . . . . . . . .   . x x x x x . .   . . . . . . x x
+	;         x x . . . . . .   . . . . . . . .   . x x x x x x x   . . . . . . x x
+	;         x x . . . . . .   . . . . . . . .   . x x x x x . .   . . . . . . x x
+	;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
+	;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
+	;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
+	;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
+
+	44f4_draw_minimap_row_00:
+	ld hl,038b9h		;44f4 HL = 0x38B9
+	ld a,06fh		;44f7 A = 0x6F
+	ld bc,00004h		;44f9 Copy count = 4
+	call 0056_FILVRM	;44fc Copy character 0x6F 4 times.
+
+	44ff_draw_minimap_row_01:
+	ld l,0d9h		;44ff HL = 0x38D9
 	ld de,0452dh		;4501
-	ld bc,00004h		;4504
-	call 45a7_copy2vram	;4507
+	ld bc,00004h		;4504 Copy count = 4
+	call 45a7_copy2vram	;4507 Copy 4 character IDs from 0x452D to name table at 0x38D9.
 	
-	ld l,0f9h		;450a
+	450a_draw_minimap_8_lines:
+	ld l,0f9h		;450a HL = 0x38F9
 	ld b,008h		;450c
 	push bc			;450e
 	ld de,04531h		;450f
@@ -1235,12 +1265,29 @@
 
 
 
-; Seen at 0x4501, calls 45a7_copy2vram
-	ld (hl),b		;452d
-	ld bc,07160h		;452e
-	ld (hl),b		;4531
-	ld (hl),e		;4532
-	ld bc,00e71h		;4533
+; Row 0x01 (0 based) of the minimap.
+;
+; Used at 0x4501.
+	defb 0x70		;452d #00 Left border
+	defb 0x01		;452e #01 All ?black?/?transparent?
+	defb 0x60		;452f #02 Purple flag
+	defb 0x71		;4530 #03 Right border
+
+; Row 0x02 (0 based) of the minimap.
+; Row 0x03 (0 based) of the minimap.
+; Row 0x04 (0 based) of the minimap.
+; Row 0x05 (0 based) of the minimap.
+; Row 0x06 (0 based) of the minimap.
+; Row 0x07 (0 based) of the minimap.
+; Row 0x08 (0 based) of the minimap.
+; Row 0x09 (0 based) of the minimap.
+;
+; Used at 0x450F.
+	defb 0x70		;4531 #00 Left border
+	defb 0x73		;4532 #01 Road
+	defb 0x01		;4533 #02 All ?black?/?transparent?
+	defb 0x71		;4534 #03 Right border
+
 	nop			;4536
 	ld a,(de)		;4537
 	rra			;4538
@@ -1301,16 +1348,28 @@
 
 
 
-4575_unknown:
+; Input:
+;   B: Repeat count
+;   C: Number of bytes to copy
+;   DE: RAM address
+;   HL: VRAM address
+;
+; We can get here from:
+;   0x4515 (call) B==0x01, C==0x04, DE==0x4531, HL==0x38F9 (draw 8 lines of minimap)
+;   0x7467 (call) B==0x15, C==0x05, DE==0x76EC, HL==0x382B (???)
+
+4575_copy2nametable_multiple_partial_rows:
 	4575_start_of_djnz_loop:
 	
-	push bc			;4575
+	push bc			;4575 Store BC, restore at 0x457B.
 	ld b,000h		;4576 B = 0
-	call 45a7_copy2vram	;4578
-	pop bc			;457b
+	call 45a7_copy2vram	;4578 45a7_copy2vram(from_ram_addr=DE, to_vram_addr=HL, num_bytes=BC)
+	pop bc			;457b Restore BC, stored at 0x4575.
 	
+	; Go to next VRAM row.
 	ld a,020h		;457c A = 0x20
 	call 0403bh		;457e HL += A
+
 	djnz $-12		;4581 if (--B != 0) jump to 0x4575
 	
 	ret			;4583
@@ -1393,18 +1452,18 @@
 ;   0x73F7 (call)
 45a7_copy2vram:
 	call 0053_SETWRT	;45a7 [BIOS]: Set VDP for writing, HL=VRAM address
-	ld a,(00006h)		;45aa a = 0x98, i.e. get VDP's writing port #0.
+	ld a,(00006h)		;45aa A = 0x98, i.e. get VDP's writing port #0.
 	
 	
 	; All registers are used, so use a shadow register (c to be 
 	; precise) to store the VDP writing port #0.
 	exx			;45ad
-	ld c,a			;45ae c = 0x98
+	ld c,a			;45ae C = 0x98
 	exx			;45af
 	
-	ld a,(de)		;45b0 a = *(de)
+	ld a,(de)		;45b0 A = *(DE)
 	exx			;45b1
-	out (c),a		;45b2 Write *(de) to VDP's writing port.
+	out (c),a		;45b2 Write *(DE) to VDP's writing port.
 	exx			;45b4
 	inc de			;45b5 Increase source RAM address.
 	; Note: destination VRAM address is auto incremented by the VDP.
@@ -1417,7 +1476,7 @@
 
 
 	exx			;45bc
-	ld b,003h		;45bd B = 3
+	ld b,003h		;45bd B = 3 (copy to all 3 bands, top+middle+bottom)
 
 	45bf_start_of_djnz:
 	exx			;45bf
@@ -1425,7 +1484,7 @@
 	push de			;45c1
 	call 45a7_copy2vram	;45c2
 	ld de,00800h		;45c5 DE = 0x0800
-	add hl,de		;45c8 HL += DE
+	add hl,de		;45c8 HL += DE, advance to next band
 	pop de			;45c9
 	pop bc			;45ca
 	exx			;45cb
@@ -5142,12 +5201,16 @@
 	ld a,(hl)		;506b
 	or a			;506c
 	jr nz,$+11		;506d if (nz) jump to 0x5078
-	inc hl			;506f
-	ld a,(hl)		;5070
-	ld hl,050beh		;5071
+	inc hl			;506f HL = 0xE043 (&stage)
+	ld a,(hl)		;5070 A = stage
+	ld hl,050beh		;5071 HL = 0x50BE
 	cp 006h			;5074
 	jr nz,$+5		;5076 if (nz) jump to 0x507B
-	ld hl,050dch		;5078
+	
+	; We can get here from:
+	;   0x506D (jump)
+	;   0x5076 (fall)
+	ld hl,050dch		;5078 HL = 0x50DC
 	ld (0e0b2h),hl		;507b
 	call 050bfh		;507e
 	ld a,008h		;5081 A = 8
@@ -5155,7 +5218,7 @@
 	call 051ffh		;5086 51ff_initialize_variables
 	
 	; Initialize fuel to 0xD0 (almost full fuel tank)
-	ld a,0d0h		;5089 a = 0xD0
+	ld a,0d0h		;5089 A = 0xD0
 	ld (E083_fuel),a	;508b Set fuel to 0xD0, i.e. (almost) full fuel!
 	
 	ld a,(e043_stage)	;508e
@@ -5249,15 +5312,18 @@
 	ld (0e092h),hl		;512e
 	ret			;5131
 
+
+
 ; We can get here from:
 ;   0x50BF (call)
+;   0x56FE (call)
 	ld a,(e043_stage)	;5132 A = stage
 	dec a			;5135 Make stage 0 based
-	add a,a			;5136
+	add a,a			;5136 A = 2 * stage_0based
 	ld b,a			;5137 B = 2 * stage_0based
 	add a,a			;5138 A = 4 * stage_0based
 	add a,b			;5139 A = 6 * stage_0based
-	ld hl,05161h		;513a
+	ld hl,05161h		;513a HL = 0x5161
 	call 0403bh		;513d HL = 0x5161 + 6 * stage_0based
 	
 	ld bc,00006h		;5140 LDIR: count
@@ -5267,8 +5333,8 @@
 	ld a,001h		;5148 A = 1
 	ld (0e07fh),a		;514a *(0xE07F) = 1
 	ld hl,(0e071h)		;514d HL = stage_something_pointer[0]
-	ld de,0e07ah		;5150 LDIR: destination
-	ld c,002h		;5153 LDIR: count (B is still 0)
+	ld de,0e07ah		;5150 LDIR: destination = 0xE07A
+	ld c,002h		;5153 LDIR: count = 2 (B is still 0)
 	ldir			;5155
 	
 	ld (0e071h),hl		;5157 Store HL
@@ -5439,9 +5505,10 @@
 
 
 ; We can get here from:
-;   0x413C (call)
-;   0x4308 (call)
-	call 0526bh		;5224
+;   0x413C (call) [from=4139_game_state_02_substate_01]
+;   0x4308 (call) [from=4306_game_state_05_substate_01]
+5224_fixme:
+	call 0526bh		;5224 526b_copy_13_sprites_from_RAM_to_VRAM
 	call 0597dh		;5227 597d_update_minicar_vpos_and_color
 	call 070a8h		;522a
 	call 05434h		;522d
@@ -5481,79 +5548,110 @@
 
 
 ; We can get here from:
-;   0x4297 (call)
-;   0x42E2 (call)
-;   0x4349 (call)
-;   0x4374 (call)
-;   0x5224 (call)
-526b_unknown:
-	ld bc,00034h		;526b bc = 0x0034, number of bytes to copy to VRAM.
+;   0x4297 (call) [from=4270_game_state_04_demo]
+;   0x42E2 (call) [from=4270_game_state_04_demo]
+;   0x4349 (call) [from=4348_game_state_07_out_of_fuel]
+;   0x4374 (call) [from=4373_game_state_08]
+;   0x5224 (call) [from=5224_fixme]
+526b_copy_13_sprites_from_RAM_to_VRAM:
+	ld bc,00034h		;526b BC = 0x0034, number of bytes to copy to VRAM.
 	jr $+5			;526e jump to 0x5273
 
 ; We can get here from:
 ;   0x41E6 (call)
+5270_copy_30_sprites_from_RAM_to_VRAM:
+	ld bc,00078h		;5270 BC = 0x0078, number of bytes to copy to VRAM.
+
+; Copy sprites attributes array from RAM to VRAM.
+; 
+; Input
+;   BC: number of bytes to copy (not the number of sprites)
 ;
-; ?Copy cars to sprite attributes and show cars on screen?
-5270_unknown:
-	ld bc,00078h		;5270 bc = 0x0078, number of bytes to copy to VRAM.
-	
-	; We can get here from:
-	;   0x526E (jump) bc == 0x0034
-	;   0x5270 (fall) bc == 0x0078
-	ld de,e10e_mcar_vpos	;5273 de = 0xE10E, minicar vertical position
+; We can get here from:
+;   0x526E (jump) BC == 0x0034 (copy 13 sprites)
+;   0x5270 (fall) BC == 0x0078 (copy 26 sprites)
+5273_copy_sprites_from_RAM_to_VRAM:
+	ld de,e10e_mcar_vpos	;5273 DE = 0xE10E, minicar vertical position
 	ld hl,03b00h		;5276 0x3B00 == sprite attribute table
 	call 45a7_copy2vram	;5279
 	ret			;527c
 
 
 
+; We can get here from:
+;   0x4322 (jump) [from=4306_game_state_05_substate_02]
+527d_fixme:
 	call 05270h		;527d
 	call 06a70h		;5280
 	call 06ca1h		;5283
 	call 0738ch		;5286
 	call 05501h		;5289
-	jp 0528fh		;528c
-	ld b,00bh		;528f
-	ld hl,0e116h		;5291
-	inc hl			;5294
+	jp 0528fh		;528c ?WHY?
+
+; We can get here from:
+;   0x528c (jump) [from=527d_fixme] Basically an expensive fall.
+	ld b,00bh		;528f B = 0x0B
+	ld hl,0e116h		;5291 HL = 0xE116 sprite attributes of ?opponent cars?
+
+	5294_start_of_djnz_loop:
+	inc hl			;5294 
 	inc hl			;5295
 	inc hl			;5296
 	inc hl			;5297
 	ld a,(hl)		;5298
-	sub 0c0h		;5299
+	sub 0c0h		;5299 A -= 0xC0
 	cp 020h			;529b
 	jr c,$+14		;529d if (c) jump to 0x52AB
 	ld a,(hl)		;529f
-	sub 006h		;52a0
+	sub 006h		;52a0 A -= 0x06
 	ld (hl),a		;52a2
 	inc hl			;52a3
 	inc hl			;52a4
 	inc hl			;52a5
 	inc hl			;52a6
 	ld (hl),a		;52a7
+	; We can get here from:
+	;   0x52A7 (fall)
+	;   0x52A8 (jump)
 	djnz $-20		;52a8 if (--B != 0) jump to 0x5294
 	ret			;52aa
-	ld a,b			;52ab
-	cp 001h			;52ac
-	jp z,0416ah		;52ae
-	ld a,004h		;52b1
-	call 0403bh		;52b3 HL += A
+
+	; We can get here from:
+	;   0x529D (jump)
+	ld a,b			;52ab A = B
+	cp 001h			;52ac Compute A - 1 and set flags.
+	jp z,0416ah		;52ae if (A == 1) jump to 416a_increase_game_substate
+	ld a,004h		;52b1 A = 4
+	call 0403bh		;52b3 HL += 4
 	jr $-14			;52b6 jump to 0x52A8
-	xor a			;52b8
-	ld hl,0e042h		;52b9
+
+
+
+; We can get here from:
+;   0x415A (call)
+52b8_fixme:
+	xor a			;52b8 A = 0
+	ld hl,0e042h		;52b9 HL = 0xE042
 	ld (hl),a		;52bc
-	ld a,r			;52bd
-	add a,h			;52bf
-	ld c,a			;52c0
-	ld a,(0e003h)		;52c1
-	add a,c			;52c4
-	and 003h		;52c5
-	inc a			;52c7
+	ld a,r			;52bd ?Add pseudo randomness?
+	add a,h			;52bf A += 0xE0 ?why?!
+	ld c,a			;52c0 C = A
+	ld a,(0e003h)		;52c1 A = game state ticker
+	add a,c			;52c4 A += C
+	and 003h		;52c5 A &= 0x03
+	inc a			;52c7 ++A
+	; Post: A in [1,2,3,4]
 	cp 004h			;52c8
-	jr nz,$+4		;52ca if (nz) jump to 0x52CE
-	ld a,001h		;52cc
-	inc hl			;52ce
-	ld (hl),a		;52cf
+	jr nz,$+4		;52ca if (A != 4) jump to 0x52CE
+
+	; Post: A == 4
+	ld a,001h		;52cc A = 1
+	
+	; We can get here from:
+	;   0x52CA (jump) A == 4
+	;   0x52CC (fall) A == 1
+	inc hl			;52ce HL = 0xE043 (stage)
+	ld (hl),a		;52cf Set stage.
 	ret			;52d0
 
 
@@ -6600,12 +6698,19 @@
 	ld l,a			;5803
 	ld (0e06fh),hl		;5804
 	ret			;5807
-	rst 20h			;5808
-	rst 20h			;5809
-	and 0e7h		;580a
-	rst 20h			;580c
-	rst 20h			;580d
-	and 0e7h		;580e
+
+5808_fixme:
+	defb 0xE7		;5808 #00
+	defb 0xE7		;5809 #01
+	defb 0xE6		;580a #02
+	defb 0xE7		;580b #03
+	defb 0xE7		;580c #04
+	defb 0xE7		;580d #05
+	defb 0xE6		;580e #06
+	defb 0xE7		;580f #07
+
+; See 0x570E
+5810_fixme:
 	ld hl,0e07bh		;5810
 	dec (hl)		;5813
 	jr z,$+62		;5814 if (z) jump to 0x5852
@@ -6640,17 +6745,22 @@
 	call 05784h		;584b
 	ld (0e06fh),hl		;584e
 	ret			;5851
+	
+	; We can get here from:
+	;   0x5814 (jump)
 	ld a,(0e07ah)		;5852
-	and 00fh		;5855
-	ld hl,0e07dh		;5857
+	and 00fh		;5855 A &= 0x0F
+	ld hl,0e07dh		;5857 HL = 0xE07D
 	cp 001h			;585a
 	jr z,$+3		;585c if (z) jump to 0x585F
 	inc (hl)		;585e
+
 	ld hl,(0e071h)		;585f
-	ld de,0e07ah		;5862
-	ld bc,00002h		;5865
+	ld de,0e07ah		;5862 DE = 0xE07A
+	ld bc,00002h		;5865 BC = 0x0002
 	ldir			;5868
 	ld (0e071h),hl		;586a
+
 	ld a,(0e07ah)		;586d
 	ld b,a			;5870
 	and 00fh		;5871
@@ -16783,23 +16893,25 @@
 	dec hl			;7422 HL = 0xE083 (E083_fuel)
 	ld a,(hl)		;7423 A = fuel
 	and a			;7424 Test A for being zero.
-	jr z,$+7		;7425 if (A == 0) jump to 0x742C (742c_no_fuel_left)
+	jr z,$+7		;7425 if (fuel == 0) jump to 0x742C (742c_no_fuel_left)
+	; Post: fuel > 0, i.e. at least 1, so fuel can be decremented.
 	dec (hl)		;7427 Decrement fuel.
-	ld a,(hl)		;7428 A = fuel
-	or a			;7429 Test A for being zero
-	jr nz,$+7		;742a if (fuel) jump to 0x7431
+	ld a,(hl)		;7428 A = decremented_fuel
+	or a			;7429 Test A for being zero.
+	jr nz,$+7		;742a if (decremented_fuel != 0) jump to 7431_either_with_or_without_fuel_left
+				;     else fall to 742c_no_fuel_left
 
 ; Set car state to 2 (out of fuel).
 742c_no_fuel_left:
 	; *(E049_car_state) = 2
 	ld hl,e049_car_state	;742c
 	ld (hl),002h		;742f
-
-7431_still_fuel_left:
-	call 07444h		;7431
-	ld a,(E083_fuel)	;7434
-	cp 010h			;7437 Check for low fuel
-	ret nc			;7439
+7431_either_with_or_without_fuel_left:
+	call 07444h		;7431 call 7444_draw_fuel_gauge (since fuel was decremented)
+	ld a,(E083_fuel)	;7434 A = fuel
+	cp 010h			;7437 Check for low fuel (< 10).
+	ret nc			;7439 if (fuel >= 10) return
+				;     else fall to 743a_emit_low_fuel_warning
 743a_emit_low_fuel_warning:
 	ld a,(E028_soundID_B)	;743a
 	or a			;743d
@@ -16819,37 +16931,44 @@
 
 
 
-744c:
-	ld hl,02400h		;744c HL = 0x2400, VRAM destination
-	ld de,074bch		;744f DE = 0x74BC, pattern source
+; We can get here from:
+;   0x4381 (call) [from=4373_game_state_08]
+744c_draw_overview_of_stages:
+	; Copy patterns 0x80..0xB2 (inclusive) to VRAM (all three bands).
+	ld hl,02400h		;744c HL = 0x2400, VRAM destination (pattern table)
+	ld de,074bch		;744f DE = 0x74BC, pattern source. Ends at 0x7637.
 	call 45e0_copy2VRAM_3x	;7452
 	
+	; Copy color for patterns 0x80..0xB2 (inclusive) to VRAM (all three bands).
 	ld hl,00400h		;7455 HL = 0x0400, VRAM destination
 	ld de,07638h		;7458 DE = 0x7638, color source
 	call 45e0_copy2VRAM_3x	;745b
 	
-	ld hl,0382bh		;745e
-	ld de,076ech		;7461
-	ld bc,01505h		;7464
-	call 04575h		;7467
+	; Draw overview of all stages (update pattern name table).
+	ld hl,0382bh		;745e Destination: 0x382B. Part of VRAM pattern name table: Upper left corner of overview map of all stages.
+	ld de,076ech		;7461 Source: 0x76EC.
+	ld bc,01505h		;7464 B == 0x15 (21 rows), C == 0x05 (5 columns)
+	call 04575h		;7467 45a7_copy2vram
 	
-	ld hl,07475h		;746a
-	ld de,0e04ch		;746d
-	ld c,008h		;7470
-	ldir			;7472
+	; Update/reinit car substate by copying static data.
+	ld hl,07475h		;746a HL = 0x7475
+	ld de,0e04ch		;746d DE = 0xE04C
+	ld c,008h		;7470 C = 0x08 (BC == 0x0008)
+	ldir			;7472 do { *(DE++) = *(HL++) } while (--BC)
+
 	ret			;7474
 
 
 
 ; Data, see 0x746A
-	defb 0xA8		;7475
-	defb 0x00		;7476
-	defb 0x63		;7477
-	defb 0x00		;7478
-	defb 0x00		;7479
-	defb 0x00		;747a
-	defb 0x00		;747b
-	defb 0x0A		;747c
+	defb 0xA8		;7475 Copied to 0xE04C: Car: vertical position on screen
+	defb 0x00		;7476 Copied to 0xE04D: Car: ?
+	defb 0x63		;7477 Copied to 0xE04E: Car: horizontal position on screen
+	defb 0x00		;7478 Copied to 0xE04F: Car: ?
+	defb 0x00		;7479 Copied to 0xE050: Car: ?
+	defb 0x00		;747a Copied to 0xE051: Car: ?
+	defb 0x00		;747b Copied to 0xE052: Car: ?
+	defb 0x0A		;747c Copied to 0xE053: Car: ?
 
 
 
@@ -16951,12 +17070,22 @@
 	defb 0x80		;74e7 x . . . . . . .   02
 	defb 0x08		;74e8 . . . . x . . .   03
 
-	defb 0x04		;74e9 . . . . . x . .   04 Character 0x86.
+	defb 0x04		;74e9 . . . . . x . .   04 Character 0x86 (actual).
 	defb 0x05, 0x7F		;74ea . x x x x x x x   01
 				;74eb . x x x x x x x   02
 				;74eb . x x x x x x x   03
 				;74eb . x x x x x x x   04
 				;74eb . x x x x x x x   05
+	defb 0x9A, 0x08		;74ec . . . . x . . .   01
+	defb 0x00		;74ee . . . . . . . .   02
+
+	; Character 0x86 is the shadow of the red building in the stages map.
+	defb 0x04		;74e9 . . . . . x . .   04 Character 0x86 (alternative).
+	defb 0x05, 0x7F		;74ea x . . . . . . .   01
+				;74eb x . . . . . . .   02
+				;74eb x . . . . . . .   03
+				;74eb x . . . . . . .   04
+				;74eb x . . . . . . .   05
 	defb 0x9A, 0x08		;74ec . . . . x . . .   01
 	defb 0x00		;74ee . . . . . . . .   02
 
@@ -17824,121 +17953,156 @@
 
 
 
-	add a,b			;76ec
-	add a,c			;76ed
-	add a,d			;76ee
-	add a,e			;76ef
-	add a,b			;76f0
-	add a,b			;76f1
-	add a,c			;76f2
-	add a,h			;76f3
-	add a,b			;76f4
-	add a,e			;76f5
-	add a,l			;76f6
-	add a,(hl)			;76f7
-	add a,a			;76f8
-	add a,l			;76f9
-	add a,(hl)			;76fa
-	adc a,b			;76fb
-	adc a,c			;76fc
-	adc a,d			;76fd
-	adc a,e			;76fe
-	adc a,h			;76ff
-	adc a,l			;7700
-	add hl,bc			;7701
-	sub d			;7702
-	sub e			;7703
-	sub h			;7704
-	or d			;7705
-	add hl,bc			;7706
-	sub a			;7707
-	adc a,a			;7708
-	sub b			;7709
-	sub c			;770a
-	add hl,bc			;770b
-	sbc a,c			;770c
-	sub e			;770d
-	sub h			;770e
-	sub l			;770f
-	sbc a,b			;7710
-	sub d			;7711
-	sbc a,d			;7712
-	sub l			;7713
-	sub l			;7714
-	sub (hl)			;7715
-	sub a			;7716
-	sbc a,d			;7717
-	sub l			;7718
-	sub l			;7719
-	sub (hl)			;771a
-	sbc a,c			;771b
-	sbc a,d			;771c
-	sub l			;771d
-	sbc a,e			;771e
-	sbc a,e			;771f
-	sbc a,h			;7720
-	sbc a,e			;7721
-	sbc a,e			;7722
-	inc b			;7723
-	inc b			;7724
-	sbc a,l			;7725
-	inc b			;7726
-	inc b			;7727
-	inc b			;7728
-	inc b			;7729
-	sbc a,l			;772a
-	inc b			;772b
-	inc b			;772c
-	inc b			;772d
-	inc b			;772e
-	sbc a,l			;772f
-	inc b			;7730
-	inc b			;7731
-	xor l			;7732
-	and c			;7733
-	and b			;7734
-	and c			;7735
-	dec bc			;7736
-	sbc a,(hl)			;7737
-	sbc a,a			;7738
-	and h			;7739
-	and c			;773a
-	and c			;773b
-	and d			;773c
-	and e			;773d
-	xor b			;773e
-	and l			;773f
-	and c			;7740
-	and (hl)			;7741
-	and a			;7742
-	xor (hl)			;7743
-	xor c			;7744
-	xor c			;7745
-	xor e			;7746
-	xor e			;7747
-	xor h			;7748
-	xor d			;7749
-	or c			;774a
-	xor d			;774b
-	xor d			;774c
-	xor a			;774d
-	or c			;774e
-	xor e			;774f
-	or c			;7750
-	xor e			;7751
-	or b			;7752
-	xor e			;7753
-	xor d			;7754
+; Overview of all stages, after reaching a checkpoint.
+;
+; Used at 0x7461.
+	; Stage 6, snow, row 0x00.
+	defb 0x80		;76ec . . x . x . . .   . . . . . . . .   . x x . . . . .   . . . . . . . .   . . x . x . . .
+	defb 0x81		;76ed . x x x . x . .   . . . . . . . .   x x x . . . . .   x . . . . . . .   . x x x . x . .
+	defb 0x82		;76ee . . x x x . . .   . x . . . . . .   x x . . . . . .   . . . . x x . .   . . x x x . . .
+	defb 0x83		;76ef . x . x . x . .   . . . . . x . .   x x . . . . . .   . x . . x . . .   . x . x . x . .
+	defb 0x80		;76f0 . . x . x . . .   . . . . . . . .   x x . . . . . .   . . x x x . . .   . . x . x . . .
+				;     . . . . . . . .   . . . . . . . .   x x . . . . . .   . . x . . x . .   . . . . . . . .
+				;     . . . . . . . .   . . x . . . . .   x x . . . . . .   . . . . . . . x   . . . . . . . .
+				;     . . . . . . . .   . . . . . . . .   x x x . . . . .   . . . . . . . .   . . . . . . . .
+	; Stage 6, snow, row 0x01.
+	defb 0x80		;76f1 . . x . x . . .   . . . . . . . .   . x x . . . . .   . . x . x . . .   . . . . . . . .
+	defb 0x81		;76f2 . x x x . x . .   . . . . . . . .   . x x . . . . .   . x x x . x . .   x . . . . . . .
+	defb 0x84		;76f3 . . x x x . . .   . x . . . . . .   . x x x . . . .   . . x x x . . .   . . . . x x . .
+	defb 0x80		;76f4 . x . x . x . .   . . . . . x . .   . . x x . . . .   . x . x . x . .   . x . . x . . .
+	defb 0x83		;76f5 . . x . x . . .   . . . . . . . .   . . x x . . . .   . . x . x . . .   . . x x x . . .
+				;     . . . . . . . .   . . . . . . . .   . . x x x . . .   . . . . . . . .   . . x . . x . .
+				;     . . . . . . . .   . . x . . . . .   . . . x x . . .   . . . . . . . .   . . . . . . . x
+				;     . . . . . . . .   . . . . . . . .   . . . x x . . .   . . . . . . . .   . . . . . . . .
+	; Stage 6, snow, row 0x02.
+	defb 0x85		;76f6 . . . . x x x x   . . . . . x . .   . . . x x x . .   . . . . x x x x   . . . . . x . .
+	defb 0x86		;76f7 . . . . x x . x   x . . . . . . .   . . . . x x . .   . . . . x x . x   x . . . . . . .
+	defb 0x87		;76f8 . . . . x x x x   x . . . . . . .   . . . . x x . .   . . . . x x x x   x . . . . . . .
+	defb 0x85		;76f9 . . . . x x x x   x . . . . . . .   . . . . x x x .   . . . . x x x x   x . . . . . . .
+	defb 0x86		;76fa . . . . x x x x   x . . . . . . .   . . . . . x x .   . . . . x x x x   x . . . . . . .
+				;     . . . . . x x x   x . . . . . . .   . . . . . x x x   . . . . . x x x   x . . . . . . .
+				;     x . . . . . . .   . . . . x . . .   . . . . . . x x   x . . . . . . .   . . . . x . . .
+				;     . . . . x . . .   . . . . . . . .   . . . . . . x x   . . . . x . . .   . . . . . . . .
+	; Stage 6, snow, row 0x03, stage 5, rail, row 0x00.
+	defb 0x88		;76fb . . . . . . . .   . . . . . . . .   . . . . . . x x   . . . . . . . .   . . . . . . . .
+	defb 0x89		;76fc . x . . . . . .   . . . . . . . .   . . . . . . x x   . . . . . . . .   . . . . . . . .
+	defb 0x8A		;76fd . . . . . . . .   . . . . . . x .   . . . . . . x x   . . . . . . x .   . . . . . . x .
+	defb 0x8B		;76fe . . . . . . . .   . . . . . . . .   . . . . . . x x   . . . . . . . .   . . . . . . . .
+	defb 0x8C		;76ff x . x x x x . x   x x x x . . . .   . . . . . x x x   . . . . . . . .   . . . . x x x x
+				;     . . x . x . . x   x x x . . . . .   . . . . . x x .   . . . . . . . .   . . . . x x x x
+				;     x x . x x x x x   x x x . . . . .   . . . . x x x .   . . . . . . . .   . . . x x x x x
+				;     x . x x . . x .   x x . . . . . .   . . . . x x x .   . . . . . . . .   . . . x x x x x
+	defb 0x8D		;7700
+	defb 0x09		;7701
+	defb 0x92		;7702
+	defb 0x93		;7703
+	defb 0x94		;7704
+
+	defb 0xB2		;7705
+	defb 0x09		;7706
+	defb 0x97		;7707
+	defb 0x8F		;7708
+	defb 0x90		;7709
+
+	defb 0x91		;770a
+	defb 0x09		;770b
+	defb 0x99		;770c
+	defb 0x93		;770d
+	defb 0x94		;770e
+
+	defb 0x95		;770f
+	defb 0x98		;7710
+	defb 0x92		;7711
+	defb 0x9A		;7712
+	defb 0x95		;7713
+
+	defb 0x95		;7714
+	defb 0x96		;7715
+	defb 0x97		;7716
+	defb 0x9A		;7717
+	defb 0x95		;7718
+
+	defb 0x95		;7719
+	defb 0x96		;771a
+	defb 0x99		;771b
+	defb 0x9A		;771c
+	defb 0x95		;771d
+
+	defb 0x9B		;771e
+	defb 0x9B		;771f
+	defb 0x9C		;7720
+	defb 0x9B		;7721
+	defb 0x9B		;7722
+
+	defb 0x04		;7723
+	defb 0x04		;7724
+	defb 0x9D		;7725
+	defb 0x04		;7726
+	defb 0x04		;7727
+
+	defb 0x04		;7728
+	defb 0x04		;7729
+	defb 0x9D		;772a
+	defb 0x04		;772b
+	defb 0x04		;772c
+
+	defb 0x04		;772d
+	defb 0x04		;772e
+	defb 0x9D		;772f
+	defb 0x04		;7730
+	defb 0x04		;7731
+
+	defb 0xAD		;7732
+	defb 0xA1		;7733
+	defb 0xA0		;7734
+	defb 0xA1		;7735
+	defb 0x0B		;7736
+
+	defb 0x9E		;7737
+	defb 0x9F		;7738
+	defb 0xA4		;7739
+	defb 0xA1		;773a
+	defb 0xA1		;773b
+
+	defb 0xA2		;773c
+	defb 0xA3		;773d
+	defb 0xA8		;773e
+	defb 0xA5		;773f
+	defb 0xA1		;7740
+
+	defb 0xA6		;7741
+	defb 0xA7		;7742
+	defb 0xAE		;7743
+	defb 0xA9		;7744
+	defb 0xA9		;7745
+
+	defb 0xAB		;7746
+	defb 0xAB		;7747
+	defb 0xAC		;7748
+	defb 0xAA		;7749
+	defb 0xB1		;774a
+
+	defb 0xAA		;774b
+	defb 0xAA		;774c
+	defb 0xAF		;774d
+	defb 0xB1		;774e
+	defb 0xAB		;774f
+
+	defb 0xB1		;7750
+	defb 0xAB		;7751
+	defb 0xB0		;7752
+	defb 0xAB		;7753
+	defb 0xAA		;7754
 
 
 
 ; We can get here from:
 ;   0x5230 (call)
-	ld a,(0e0b8h)		;7755 a = *(0xE0B8)
-	dec a			;7758 --a
-	jr z,$+6		;7759 if (a == 0) jump to 775f_grabbed_fuel_heart
-	dec a			;775b --a
-	jr z,$+58		;775c if (a == 0) jump to 0x7796
+	ld a,(0e0b8h)		;7755 A = *(0xE0B8)
+	dec a			;7758 --A
+	jr z,$+6		;7759 if (A == 0) jump to 775f_grabbed_fuel_heart
+	dec a			;775b --A
+	jr z,$+58		;775c if (A == 0) jump to 0x7796
 	ret			;775e
 
 

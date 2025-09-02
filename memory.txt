@@ -118,6 +118,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 		0x04	0x04	0x416D inc	Let the player's (computer's) red car appear.
 		0x04	0x05	0x416D inc	Show the "START" letters.
 						0x42CE After the start, jumps to state 0x02, 0x01.
+
 		?
 		0x04	0x09	0x425D inc	?
 						0x4300: jump to state 0x05, substate 0x00.
@@ -156,6 +157,13 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 		0x18 During game
 		0x80 After seeing "EMPTY" on screen.
 		
+		Game state 0:
+			Substate 4:
+				0x01: return to substate 00
+				0x02, 0x06, 0x0A, ...: Blink logo in red
+				0x03, 0x07, 0x0B, ...: Blink logo in yellow
+				0x04, 0x08, 0x0C, ...: Blink logo in red
+				0x05, 0x09, 0x0D, ...: Blink logo in blue
 		Game state 1:
 			Timer. Starts at 256 (0 actually). Decrements each frame. If zero: start demo
 		Game state 3:
@@ -173,7 +181,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 
 		bit 0 (0x01)
 		bit 1 (0x02)
-		bit 2 (0x04) Tested ad 0x4184
+		bit 2 (0x04) Tested at 0x4184
 		bit 3 (0x08) Tested at 0x502B
 
 
@@ -210,7 +218,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 		
 			0x0E Seen at 0x48BB
 0xE00D		?from 0x00 to 0x01 after reaching checkpoint and driven out of screen?
-			0x01 Seen at 0x6B8C
+			0x01 Seen at 0x6B8C, car reached checkpoint and has driven out of the screen.
 0xE00E-0xE00F	Possible different meanings for different game states.
 		
 		Game state 0:
@@ -306,7 +314,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 0xE042		?Num stage wraparounds?
 0xE043		Stage
 0xE044		Seen at 0x44A8
-0xE045		Seen at 0x6C36, 0x425E
+0xE045		Seen at 0x6C36, 0x425E, 0x413D.
 0xE046-0xE047	Pointer to coarse pattern names (22 per line, not 32)
 
 
@@ -320,8 +328,8 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			0x04 Skidding (player can escape this by steering in correct direction)
 			0x05 Bounced against side of the road. (Not crashed since speed is too low.)
 			0x06 ?Respawn after crash? ?Game over
-			0x07 Spinning out of control
-0xE04A		?
+			0x07 Spinning out of control (speed below threshold stops the spinning)
+0xE04A		Car substate? Seen at 0x6F1B (as part of a word)
 0xE04B-0xE04C	Car: vertical position
 0xE04B		Car: vertical position: "decimals"
 			The word at 0xE04B is increased, and the high 
@@ -353,6 +361,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			0x07
 			0x08 Crashed (stage 1)
 			0x09 Crashed (stage 2)
+			0x0A Seen at 0x747C
 
 
 
@@ -438,8 +447,10 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 		0x557D: set value to 0x7C85 (0x4092 or 0x9240)
 		0x56C6: set value to 0x7FE4 (0x0000)
 0xE098		Seen at 0x6DD1.
+0xE0AA		Seen at 0x52E4.
 0xE0AD		Side of the road?
-0xE0B1		Skid ticks left.
+0xE0B0		Seen at 0x7004.
+0xE0B1		Skid ticks remaining.
 0xE0B8		Play sound after grabbed fuel heart?
 			0x00
 			0x01 Grabbed a fuel heart (very very briefly, moves almost instantly to 0x02)
@@ -447,24 +458,112 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 0xE0B9		Streak count of number of grabbed fuel hearts
 0xE0BF		Seen at 0x719C
 0xE0C1		Seen at 0x51E5 (init)
+0xE0E6		Seen at 0x6B80, rival car #01 is screen?
+
+0xE0F6		Opponent #02, 0x00: not in screen, 0x01 in screen. Seen at 0x6B85 (ldir).
+0xE0FA		Opponent #02, vertical position on screen, "decimals"
+0xE0FB		Opponent #02, vertical position on screen
+
 0xE105		Truck related
 			Stored at 0x5421
 			Seen at 0x5434
 			Stored at 0x54A3
 0xE106		Truck related
 0xE107		Truck related
-0xE10E		Minicar vertical position
-			0x2F after leaving screen after finishing
-			0x30 for at finish flag
-			0x6C for at starting line (because of 0x5986)
-0xE10F		Minicar horizontal position
-			0xD0 always
 0xE10E-?	Sprite attributes
-		0xE10E-0xE11B	Minicar
-		0xE10E,0xE112,0xE116,0xE11A,0xE11E	Sprite vpos
-		0xE10F,0xE113,0xE117,0xE11B,0xE11F	Sprite hpos
-		0xE110,0xE114,0xE118,0xE11C,0xE120	Sprite pattern
-		0xE111,0xE115,0xE119,0xE11D,0xE121	Sprite color
+		Sprite #00	0xE10E-0xE111	Minicar
+			0xE10E	vpos	Variable:
+						0x2F after leaving screen after finishing
+						0x30 at finish flag
+						0x6C at starting line (because of 0x5986)
+			0xE10F	hpos	fixed to 0xD0 (208)
+			0xE110	pat	Fixed to 0x6C (108)
+			0xE111	color	Fixed to 0x06 (dark red)
+		
+		Every car consists of 2 sprites:
+			1. Black shadow
+			2. Everything of the car except black shadow.
+
+		Sprite #01	0xE112-0xE115	Shadow of player car
+			0xE112	vpos	See "Player car".
+			0xE113	hpos	See "Player car".
+			0xE114	pat	See "Player car".
+			0xE115	color	See "Player car".
+		Sprite #02	0xE116-0xE119	Player car
+			0xE116	vpos	Variable
+			0xE117	hpos	Variable
+			0xE118	pat	Fixed to 0x00
+			0xE119	color	Fixed to 0x01 (black)
+
+		Patterns:
+			0x00	Either:
+					Shadow of player car
+					Shadow of blue opponent car
+			0x04	Either:
+					Player car
+					Blue opponent car
+			0x08	Player car (spinning S, shadow)
+			0x0C	Player car (spinning S, regular)
+			0x10	Player car (spinning NE, shadow)
+			0x14	Player car (spinning NE, regular)
+			0x18	Player car (spinning E, shadow)
+			0x1C	Player car (spinning E, regular)
+			0x20	Player car (spinning SE, shadow)
+			0x24	Player car (spinning SE, regular)
+			0x28	Player car (spinning NW, shadow)
+			0x2C	Player car (spinning NW, regular)
+			0x30	Player car (spinning W, shadow)
+			0x34	Player car (spinning W, regular)
+			0x38	Player car (spinning SW, shadow)
+			0x3C	Player car (spinning SW, regular)
+			0x40	Explosion
+			0x44	Explosion
+			0x48	Explosion
+			0x4C	Explosion
+			0x50	Truck, upper part (shadow)
+			0x54	Truck, upper part (regular)
+			0x58	Truck, lower part (shadow)
+			0x5C	Truck, lower part (regular)
+			0x60	B (always in fuel heart)
+			0x64	Fuel heart
+			0x68	?
+			0x6C	Either:
+					Car on minimap
+					Thingie from truck
+			0x70	Thingie from truck NE/SW
+			0x74	Thingie from truck E/W
+			0x78	Thingie from truck NW/SE
+			0x7C	Green car (shadow)
+			0x80	Green car (regular)
+			0x84	Purple car (shadow)
+			0x88	Purple car (regular)
+			0x8C	Special opponent (shadow)
+			0x90	Special opponent (regular)
+			0x94	300
+			0x98	500
+			0x9C	800
+			0xA0	1000
+		Sprite #03	0xE11A-0xE11D	Shadow of opponent car #01
+			0xE11A	vpos
+			0xE11B	hpos
+			0xE11C	pat
+			0xE11D	color
+		Sprite #04	0xE11E-0xE121	Opponent car #01
+			0xE11E	vpos
+			0xE11F	hpos
+			0xE120	pat
+			0xE121	color
+
+		Sprite #05	0xE122-0xE125	Shadow of opponent car #02
+			0xE122	vpos
+			0xE123	hpos
+			0xE124	pat
+			0xE125	color
+		Sprite #06	0xE126-0xE129	Opponent car #02
+			0xE126	vpos
+			0xE127	hpos
+			0xE128	pat
+			0xE129	color
 
 0xE186-E395	Coarse pattern name table.
 		
