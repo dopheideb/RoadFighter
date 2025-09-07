@@ -402,20 +402,34 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			0xE0
 		I.e. fuel (0xE083) decreases for every 0x20 consumed here.
 		Stored at 0x7388 as part of a write of a word.
-0xE058-0xE06D	Pattern names ?of next coarse line?
-0xE06F		Seen at 0x515D. Set to 0x5998
-0xE071		Seen at 0x514D, 0x5157
-0xE073 (word)	Seen at 0x58C1, pointer
-0xE075 (word)	Seen at 0x58D0, pointer
+0xE058-0xE06D	22 bytes. Pattern names ?of next coarse line?
+0xE06F		Track pointer. ?Track data starts at 0x5998?
+0xE071-0xE076	3 data pointers, see 0x5146. Data source: 0x5161
+		0xE071 (word)	Data pointer. Seen at 0x514D, 0x5157.
+		0xE073 (word)	Data pointer. Seen at 0x58C1.
+		0xE075 (word)	Data pointer. Seen at 0x58D0.
 0xE077-0xE079 (3 bytes!)
 		Distance travelled
 		0xE077 low byte
 		0xE078 middle byte
 		0xE079 high byte
-		Finished Stage 1: 0x0F1255 (high=0x0F, mid=0x12, low=0x55)
+		Finished stage 1: 0x0F1255 (high=0x0F, mid=0x12, low=0x55)
 
 		0x738C: update distance travelled
 0xE07A		Seen at 0x5150, stage related
+			0xFE:
+				special value, see 0x56FA, 0x78E4.
+			Bit 0+1+2+3, see 0x5704:
+				0x00: ?
+				0x01: ?
+				0x02: ?
+				0x03: ?
+				0x04: ?
+			Bit 4+5, see 0x5786:
+				0x00: Copy 1 lane width of track
+				0x10: Copy 2 lane widths of track
+				0x20: Copy 3 lane widths of track
+0xE07B		Seen at 0x5768
 0xE07D		Side of left road?
 0xE07F		Seen at 0x514A, 0x58AF
 0xE083		Fuel left:
@@ -451,6 +465,12 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 0xE0AD		Side of the road?
 0xE0B0		Seen at 0x7004.
 0xE0B1		Skid ticks remaining.
+0xE0B2 (word)	Pointer to oil related data.
+0xE0B4		?Bool: Stage has no oil. See 0x54B4.?
+			0x00: Contains oil
+			otherwise: Does not contain oil
+0xE0B5 (word)	Pointer to correct oil tile.
+0xE0B7		?Horizonal offset of oil mark?
 0xE0B8		Play sound after grabbed fuel heart?
 			0x00
 			0x01 Grabbed a fuel heart (very very briefly, moves almost instantly to 0x02)

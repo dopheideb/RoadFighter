@@ -5252,10 +5252,18 @@
 	ret			;50bd
 
 	rst 38h			;50be
+
+
+
+; We can get here from:
+;   0x507E (call)
+;   0x56FE (call)
+50bf_fixme:
 	call 05132h		;50bf
-	ld a,(e043_stage)	;50c2
+	ld a,(e043_stage)	;50c2 A = stage
 	dec a			;50c5 Make stage 0 based.
 	call 04045h		;50c6 PC = PC[2 * A]
+
 ; Jump table, see 0x50C6.
 	defw 0x50E7		;50c9 #00: Stage 1
 	defw 0x50E8		;50cb #01: Stage 2
@@ -5263,9 +5271,10 @@
 	defw 0x510A		;50cf #03: Stage 4
 	defw 0x5122		;50d1 #04: Stage 5
 	defw 0x50D5		;50d3 #05: Stage 6
-	ld d,b			;50d4
-	ld hl,07fe4h		;50d5
-	ld (0e090h),hl		;50d8
+
+; Stage 6. See 0x50D3.
+	ld hl,07fe4h		;50d5 HL = 0x7FE4
+	ld (0e090h),hl		;50d8 *(0xE090) = 0x7FE4
 	ret			;50db
 
 	ld bc,00400h		;50dc
@@ -5316,7 +5325,7 @@
 
 ; We can get here from:
 ;   0x50BF (call)
-;   0x56FE (call)
+5132_fixme:
 	ld a,(e043_stage)	;5132 A = stage
 	dec a			;5135 Make stage 0 based
 	add a,a			;5136 A = 2 * stage_0based
@@ -5328,43 +5337,43 @@
 	
 	ld bc,00006h		;5140 LDIR: count
 	ld de,0e071h		;5143 LDIR: destination
-	ldir			;5146
+	ldir			;5146 Copy HL to DE, 0x06 times. Copy 3 data pointers.
 	
 	ld a,001h		;5148 A = 1
 	ld (0e07fh),a		;514a *(0xE07F) = 1
 	ld hl,(0e071h)		;514d HL = stage_something_pointer[0]
 	ld de,0e07ah		;5150 LDIR: destination = 0xE07A
 	ld c,002h		;5153 LDIR: count = 2 (B is still 0)
-	ldir			;5155
+	ldir			;5155 Copy HL to DE, 0x02 times. Copies 2 stage/track related bytes.
 	
 	ld (0e071h),hl		;5157 Store HL
-	ld hl,05998h		;515a HL = 0x5998 (contains 0xE7)
+	ld hl,05998h		;515a HL = 0x5998
 	ld (0e06fh),hl		;515d *(0xE06F) = 0x5998
 	ret			;5160
 
 
 ; Data, 6 bytes per element (see 0x5140)
-	defw 0x78C4		;5161 #00
+	defw 0x78C4		;5161 #00 Stage 1
 	defw 0x78E5		;5163 #00
 	defw 0x7960		;5165 #00
 	
-	defw 0x7AAA		;5167 #01
+	defw 0x7AAA		;5167 #01 Stage 2
 	defw 0x7BAA		;5169 #01
 	defw 0x7ACD		;516b #01
 	
-	defw 0x7AAA		;516d #02
+	defw 0x7AAA		;516d #02 Stage 3
 	defw 0x7BAA		;516f #02
 	defw 0x7ACD		;5171 #02
 	
-	defw 0x7E83		;5173 #03
+	defw 0x7E83		;5173 #03 Stage 4
 	defw 0x78E5		;5175 #03
 	defw 0x7960		;5177 #03
 	
-	defw 0x7E60		;5179 #04
+	defw 0x7E60		;5179 #04 Stage 5
 	defw 0x78E5		;517b #04
 	defw 0x7960		;517d #04
 	
-	defw 0x7EA8		;517f #05
+	defw 0x7EA8		;517f #05 Stage 6
 	defw 0x7F6B		;5181 #05
 	defw 0x7ED1		;5183 #05
 	
@@ -6114,39 +6123,50 @@
 
 ; We can get here from:
 ;   0x553D (call)
-54af_:
+54af_oil_something:
 	ld hl,0e0b4h		;54af HL = 0xE0B4
 	ld a,(hl)		;54b2 A = *(0xE0B4)
 	or a			;54b3 Set Z/NZ flag.
 	jr nz,$+44		;54b4 if (nz) jump to 0x54E0
+
 	ld hl,(0e0b2h)		;54b6
-	ld a,(0e079h)		;54b9
+	ld a,(0e079h)		;54b9 A = high byte of distance travelled
 	cp (hl)			;54bc
 	ret nz			;54bd
 	
+	; Oil on the road.
 	inc hl			;54be
-	ld a,(hl)		;54bf
+	ld a,(hl)		;54bf A == 0 means black oil, A == 1 means blue oil.
 	inc hl			;54c0
 	ld (0e0b2h),hl		;54c1
+	
+	; 0x54F9-0x54FC (index #00), 4 patterns forming black oil tile.
+	; 0x54FD-0x5500 (index #01), 4 patterns forming blue oil tile.
 	ld hl,054f9h		;54c4
-	add a,a			;54c7
-	add a,a			;54c8
+	add a,a			;54c7 A *= 2
+	add a,a			;54c8 A *= 2
 	call 0403bh		;54c9 HL += A
 	ld (0e0b5h),hl		;54cc
-	ld a,002h		;54cf
+
+	ld a,002h		;54cf A = 2
 	ld (0e0b4h),a		;54d1
-	ld a,(0e098h)		;54d4
-	rra			;54d7
-	rra			;54d8
-	and 03fh		;54d9
-	add a,002h		;54db
+	ld a,(0e098h)		;54d4 A = *(0xE098)
+	rra			;54d7 A >>= 1
+	rra			;54d8 A >>= 1
+	and 03fh		;54d9 A &= 0x3F (so rotation was actually a shift right).
+	add a,002h		;54db A += 2
 	ld (0e0b7h),a		;54dd
+	
+	; We can get here from:
+	;   0x54B4 (jump)
+	;   0x54DD (fall)
 	ld hl,(0e0b5h)		;54e0
 	ld a,(0e0b7h)		;54e3
 	ld de,0e058h		;54e6
 	call 04040h		;54e9 DE += A
-	ld bc,00002h		;54ec
+	ld bc,00002h		;54ec LDIR: copy count == 0x02
 	ldir			;54ef
+
 	ld (0e0b5h),hl		;54f1
 	ld hl,0e0b4h		;54f4
 	dec (hl)		;54f7
@@ -6154,14 +6174,60 @@
 
 
 
-	halt			;54f9
-	ld (hl),a		;54fa
-	ld (hl),h		;54fb
-	ld (hl),l		;54fc
-	ld a,d			;54fd
-	ld a,e			;54fe
-	ld a,b			;54ff
-	ld a,c			;5500
+; Data, see 0x54C4. Oil tiles.
+;
+; Black oil. Visualization:
+;   . . . . . . . .   . . . . . . . .
+;   . . . . . . . .   . . . . . . . .
+;   . . . . . . . .   . . . . . . . .
+;   . . . . . . . .   x x x x . . . .
+;   . . . . . . . x   x x x x x . . .
+;   . . . . . . x x   x x . . x x . .
+;   . . . . . . x x   x x x . x x x .
+;   . . . . . x x x   x x x x . x x .
+;
+;   . . . . . x x x   x x x x . x x .
+;   . . . . . x x x   x x x . x x x .
+;   . . x x . . x x   x x x x x x . .
+;   . . x . . . x x   x x x x x x . .
+;   . . . . x . x x   x x x x x . . .
+;   . . . x x . x x   x x x x . . . .
+;   . . . x x . . x   x x . . . . . .
+;   . . . . . . . .    . . . . . . . .
+	defb 0x76		;54f9
+	defb 0x77		;54fa
+	defb 0x74		;54fb
+	defb 0x75		;54fc
+
+; Blue oil. Visualization:
+;   . . . . . . . .   . . . . . . . .
+;   . . . . . . . .   . . . . . . . .
+;   . . . . . . . .   x x x x . . . .
+;   . . . . . . x x   x x x x x . . .
+;   . . . . . x x x   x x x x x x x .
+;   . . . . . x x x   x x x . . x x x
+;   . . . . x x x x   x x x . . x x x
+;   . . . . x x x x   x x x x . x x x
+;
+;   . . . . x x x x   x x x x x x x x
+;   . x x . x x x x   x x x x . x x x
+;   . x . . . x x x   x x x . x x x .
+;   . . . . . x x x   x x x x x x x .
+;   . . . x . x x x   x x x x x x . .
+;   . . x x . x x x   x x x x x . . .
+;   . x x x . . x x   x x x . . . . .
+;   . . x . . . . x   x x . . . . . .
+	defb 0x7A		;54fd
+	defb 0x7B		;54fe
+	defb 0x78		;54ff
+	defb 0x79		;5500
+
+
+
+; We can get here from:
+;   0x5242 (call)
+;   0x5289 (call)
+5501_fixme:
 	ld a,(e049_car_state)	;5501
 	dec a			;5504
 	ret z			;5505
@@ -6208,7 +6274,7 @@
 ;   0x5699 (jump) [stage 5]
 553a_:
 	call 05944h		;553a
-	call 054afh		;553d
+	call 054afh		;553d 54af_oil_something
 	call 05716h		;5540
 	pop hl			;5543 ?Don't return to caller?
 	ret			;5544
@@ -6437,19 +6503,29 @@
 
 
 ; Stage 6
-	ld de,0e058h		;56ac
+	ld de,0e058h		;56ac DE = 0xE058
 	call 056cch		;56af
-	ld b,00ah		;56b2
+	
+	ld b,00ah		;56b2 B = 0x0A
 	call 056ceh		;56b4
+	
 	ld hl,(0e090h)		;56b7
 	inc hl			;56ba
 	inc hl			;56bb
 	ld (0e090h),hl		;56bc
 	ld a,(hl)		;56bf
+	
+	; Check for special value 0xFF.
 	inc a			;56c0
 	jr nz,$+8		;56c1 if (nz) jump to 0x56C9
-	ld hl,07fe4h		;56c3
-	ld (0e090h),hl		;56c6
+	
+	; Special value 0xFF detected.
+	ld hl,07fe4h		;56c3 HL = 0x7FE4
+	ld (0e090h),hl		;56c6 *(0xE090) = 0x7FE4
+	
+	; We can get here from:
+	;   0x56C1 (jump) not special value.
+	;   0x56C6 (fall) special value.
 	jp 05534h		;56c9
 
 
@@ -6459,6 +6535,12 @@
 ;   0x56AF (call) Stage == 6, DE == 0xE058
 56cc_:
 	ld b,00ch		;56cc B = 0x0C (12)
+
+; We can get here from:
+;   0x55CC (fall) Stage == 3, DE == 0xE058, B == 0x0C
+;   0x55CC (fall) Stage == 6, DE == 0xE058, B == 0x0C
+;   0x56B4 (call) Stage == 6, DE == ?,      B == 0x0A
+56ce_:
 	ld hl,(0e090h)		;56ce HL = *(0xE090)
 
 	; HL points to a BIG endian word (weird!). Dereference and store 
@@ -6484,10 +6566,10 @@
 
 
 	; We can get here from:
-	;   0x56E2 (jump) A == 0x80, B == 0x0C
-	;   0x56E4 (fall) A == 0x0F, B == 0x0C
-	;   0x56F1 (jump) A == 0x9B, B == 0x0C
-	;   0x56F5 (jump) A == 0x04, B == 0x0C
+	;   0x56E2 (jump)           A == 0x80, B == 0x0C
+	;   0x56E4 (fall) [stage 6] A == 0x0F, B == 0x0C or 0x0A
+	;   0x56F1 (jump)           A == 0x9B, B == 0x0C
+	;   0x56F5 (jump)           A == 0x04, B == 0x0C
 56e6_start_of_djnz_loop:
 	ld (de),a		;56e6 *(DE) = A
 	inc de			;56e7 --DE
@@ -6516,8 +6598,15 @@
 ;   0x58A8 (jump)
 56f7_:
 	ld a,(0e07ah)		;56f7 A = *(0xE07A)
-	cp 0feh			;56fa Special value 0xFE is seen as 0x78E4.
-	jr nz,$+5		;56fc if (nz) jump to 0x5701
+	; Special value 0xFE is seen at:
+	;   Stage 1: 0x78E4
+	;   Stage 2: 0x7ACC
+	;   Stage 3: 0x7ACC
+	;   Stage 4: 0x7EA7
+	;   Stage 5: 0x7E7C-0x7E82
+	;   Stage 6: 0x7ED0
+	cp 0feh			;56fa
+	jr nz,$+5		;56fc if (not special) jump to 0x5701
 	call 050bfh		;56fe
 
 	; We can get here from:
@@ -6530,7 +6619,7 @@
 	call 04045h		;5709 PC = PC[2 * A]
 
 	; Jump table for 0x5709.
-	defw 0x5768		;570c #00
+	defw 0x5768		;570c #00 5768_update_first_line_of_track_data_in_RAM
 	defw 0x5810		;570e #01
 	defw 0x5810		;5710 #02
 	defw 0x57A7		;5712 #03
@@ -6611,43 +6700,97 @@
 
 ; We can get here from:
 ;   0x5709 (jump) index #00 of jump table
-	ld hl,0e07bh		;5768
+5768_update_first_line_of_track_data_in_RAM:
+	ld hl,0e07bh		;5768 HL = 0xE07B
 	dec (hl)		;576b
 	jp z,0585fh		;576c
 	ld hl,(0e06fh)		;576f
 	ld a,(hl)		;5772
 	inc a			;5773
+	; Post: if *(HL) == 0xFF (special value) then A == 0
+
 	jr nz,$+8		;5774 if (nz) jump to 0x577C
-	ld hl,05998h		;5776
+	ld hl,05998h		;5776 HL = 0x5998
 	ld (0e06fh),hl		;5779
-	ld a,(0e07dh)		;577c
-	ld de,0e058h		;577f
+	
+	; We can get here from:
+	;   0x5774 (jump) HL == *(0xE06F)
+	;   0x5779 (fall) HL == 0x5998
+	
+	; DE = &(start_of_track_of_top_row)
+	ld a,(0e07dh)		;577c A = number of horizontal scenery characters before track start (top row)
+	ld de,0e058h		;577f DE = 0xE058 (?start of pattern names of top row?)
 	add a,e			;5782
 	ld e,a			;5783
-	ldi			;5784
-	ld a,(0e07ah)		;5786
-	rra			;5789
-	rra			;578a
-	rra			;578b
-	rra			;578c
-	and 003h		;578d
-	ld b,a			;578f
-	sub 002h		;5790
+	
+	; Copy left border of track.
+	ldi			;5784 *(DE++) = *(HL++), --BC
+	
+	; B = (*(0xE07A) >> 4) & 3, extract high nybble, then keep only bit 0 and 1.
+	; 
+	; Hence, B in [0,1,2,3] (although 3 is not used).
+	; 
+	; B == 0 means: must copy 1 lane
+	; B == 1 means: must copy 2 lanes
+	; B == 2 means: must copy 3 lanes
+	ld a,(0e07ah)		;5786 A = *(0xE07A)
+	rra			;5789 A >>= 1
+	rra			;578a A >>= 1, total: 2
+	rra			;578b A >>= 1, total: 3
+	rra			;578c A >>= 1, total: 4, low nybble now contains former high nybble.
+	and 003h		;578d Keep only new bits 0 and 1 (former bits 4 and 5).
+	ld b,a			;578f B = A
+	
+	; Note: -(A - 2) == 2 - A
+	;
+	; *(0xE07A) & 0x30 == 0x00 --> B == 0 --> A == 2
+	; *(0xE07A) & 0x30 == 0x10 --> B == 1 --> A == 1
+	; *(0xE07A) & 0x30 == 0x20 --> B == 2 --> A == 0
+	sub 002h		;5790 A -= 0x02
 	neg			;5792
-	ld c,a			;5794
-	add a,a			;5795
-	add a,c			;5796
+	
+	; A *= 3
+	;
+	; *(0xE07A) & 0x30 == 0x00 --> B == 0 --> A == 6
+	; *(0xE07A) & 0x30 == 0x10 --> B == 1 --> A == 3
+	; *(0xE07A) & 0x30 == 0x20 --> B == 2 --> A == 0
+	ld c,a			;5794 C = A
+	add a,a			;5795 A *= 2
+	add a,c			;5796 A += C
+	
+	; Compute which track data to start copying.
+	;
+	; *(0xE07A) & 0x30 == 0x00 --> B == 0 --> A == 6 --> HL + 6 (skip 2 lanes)
+	; *(0xE07A) & 0x30 == 0x10 --> B == 1 --> A == 3 --> HL + 3 (skip 1 lane)
+	; *(0xE07A) & 0x30 == 0x20 --> B == 2 --> A == 0 --> HL + 0 (skip 0 lanes)
 	call 0403bh		;5797 HL += A
-	inc b			;579a
-	ld a,b			;579b
-	add a,a			;579c
-	add a,b			;579d
-	ld c,a			;579e
-	ld b,000h		;579f
-	ldir			;57a1
-	ld (0e06fh),hl		;57a3
+	
+	; Compute the LDIR loop count (BC):
+	;
+	;     C = 3 * (B + 1)
+	;     (and set B = 0 afterwards)
+	;
+	; *(0xE07A) & 0x30 == 0x00 --> B == 0 --> C == 3
+	; *(0xE07A) & 0x30 == 0x10 --> B == 1 --> C == 6
+	; *(0xE07A) & 0x30 == 0x20 --> B == 2 --> C == 9
+	inc b			;579a ++B
+	ld a,b			;579b A = B
+	add a,a			;579c A *= 2
+	add a,b			;579d A += B
+	ld c,a			;579e C = A
+	ld b,000h		;579f B = 0
+	
+	; Copy the correct amount of lane data from the correct starting point.
+	ldir			;57a1 do { *(DE++) = *(HL++) } while (--BC)
+
+	ld (0e06fh),hl		;57a3 Store track pointer.
+
 	ret			;57a6
-	ld hl,05808h		;57a7
+
+
+
+; Target of jump table entries at 0x5712 and 0x5714.
+	ld hl,05808h		;57a7 HL = 0x5808
 	ld a,(0e07bh)		;57aa
 	and 007h		;57ad
 	call 0403bh		;57af HL += A
@@ -6989,180 +7132,226 @@
 
 	defb 0xE7		;5998 Seen at 0x515A.
 ;data
-	ret nc			;5999
-	ret nc			;599a
-	pop de			;599b
-	ret nc			;599c
-	ret nc			;599d
-	pop de			;599e
-	ret nc			;599f
-	ret nc			;59a0
-	rst 18h			;59a1
-	and 0d0h		;59a2
-	ret nc			;59a4
-	ret nc			;59a5
-	ret nc			;59a6
-	ret nc			;59a7
-	ret nc			;59a8
-	ret nc			;59a9
-	ret nc			;59aa
-	sbc a,0e7h		;59ab
-	ret nc			;59ad
-	ret nc			;59ae
-	ret nc			;59af
-	ret nc			;59b0
-	ret nc			;59b1
-	ret nc			;59b2
-	ret nc			;59b3
-	ret nc			;59b4
-	rst 18h			;59b5
-	rst 20h			;59b6
-	ret nc			;59b7
-	ret nc			;59b8
-	pop de			;59b9
-	ret nc			;59ba
-	ret nc			;59bb
-	pop de			;59bc
-	ret nc			;59bd
-	ret nc			;59be
-	rst 18h			;59bf
-	rst 38h			;59c0
-	jp p,0d0e7h		;59c1
-	ret nc			;59c4
-	pop de			;59c5
-	ret nc			;59c6
-	ret nc			;59c7
-	pop de			;59c8
-	ret nc			;59c9
-	ret nc			;59ca
-	rst 18h			;59cb
-	ret m			;59cc
-	push hl			;59cd
-	ret nc			;59ce
-	ret nc			;59cf
-	ret nc			;59d0
-	ret nc			;59d1
-	ret nc			;59d2
-	ret nc			;59d3
-	ret nc			;59d4
-	ret nc			;59d5
-	ret po			;59d6
-	rst 30h			;59d7
-	call po,0d0d0h		;59d8
-	ret nc			;59db
-	ret nc			;59dc
-	ret nc			;59dd
-	ret nc			;59de
-	ret nc			;59df
-	ret nc			;59e0
-	call pe,0e3f6h		;59e1
-	ret nc			;59e4
-	ret nc			;59e5
-	ret c			;59e6
-	ret nc			;59e7
-	ret nc			;59e8
-	ret c			;59e9
-	ret nc			;59ea
-	exx			;59eb
-	defb 0edh;next byte illegal after ed		;59ec
-	push af			;59ed
-	jp po,0d3d0h		;59ee
-	rst 10h			;59f1
-	ret nc			;59f2
-	out (0d7h),a		;59f3
-	ret nc			;59f5
-	jp c,0f4eeh		;59f6
-	pop hl			;59f9
-	ret nc			;59fa
-	ret nc			;59fb
-	ret nc			;59fc
-	ret nc			;59fd
-	ret nc			;59fe
-	ret nc			;59ff
-	ret nc			;5a00
-	in a,(0efh)		;5a01
-	di			;5a03
-	ret nc			;5a04
-	ret nc			;5a05
-	ret nc			;5a06
-	ret nc			;5a07
-	ret nc			;5a08
-	ret nc			;5a09
-	ret nc			;5a0a
-	ret nc			;5a0b
-	call c,0e8f0h		;5a0c
-	ret nc			;5a0f
-	ret nc			;5a10
-	sub 0d0h		;5a11
-	ret nc			;5a13
-	sub 0d0h		;5a14
-	ret nc			;5a16
-	defb 0ddh,0f1h,0e7h	;illegal sequence		;5a17
-	ret nc			;5a1a
-	ret nc			;5a1b
-	pop de			;5a1c
-	ret nc			;5a1d
-	ret nc			;5a1e
-	pop de			;5a1f
-	ret nc			;5a20
-	ret nc			;5a21
-	rst 18h			;5a22
-	jp p,0d0e8h		;5a23
-	ret nc			;5a26
-	ret nc			;5a27
-	ret nc			;5a28
-	ret nc			;5a29
-	ret nc			;5a2a
-	ret nc			;5a2b
-	ret nc			;5a2c
-	defb 0ddh,0f1h,0f3h	;illegal sequence		;5a2d
-	ret nc			;5a30
-	ret nc			;5a31
-	ret nc			;5a32
-	ret nc			;5a33
-	ret nc			;5a34
-	ret nc			;5a35
-	ret nc			;5a36
-	ret nc			;5a37
-	call c,0f4f0h		;5a38
-	pop hl			;5a3b
-	ret nc			;5a3c
-	call nc,0d0d0h		;5a3d
-	call nc,0d0d0h		;5a40
-	in a,(0efh)		;5a43
-	push af			;5a45
-	jp po,0d3d0h		;5a46
-	rst 10h			;5a49
-	ret nc			;5a4a
-	out (0d7h),a		;5a4b
-	ret nc			;5a4d
-	jp c,0f6eeh		;5a4e
-	ex (sp),hl		;5a51
-	ret nc			;5a52
-	ret nc			;5a53
-	ret nc			;5a54
-	ret nc			;5a55
-	ret nc			;5a56
-	ret nc			;5a57
-	ret nc			;5a58
-	exx			;5a59
-	defb 0edh;next byte illegal after ed		;5a5a
-	rst 30h			;5a5b
-	call po,0d0d0h		;5a5c
-	ret nc			;5a5f
-	ret nc			;5a60
-	ret nc			;5a61
-	ret nc			;5a62
-	ret nc			;5a63
-	ret nc			;5a64
-	call pe,0e5f8h		;5a65
-	ret nc			;5a68
-	ret nc			;5a69
-	jp nc,0d0d0h		;5a6a
-	jp nc,0d0d0h		;5a6d
-	ret po			;5a70
+	defb 0xD0		;5999
+	defb 0xD0		;599a
+	defb 0xD1		;599b
+	defb 0xD0		;599c
+	defb 0xD0		;599d
+	defb 0xD1		;599e
+	defb 0xD0		;599f
+	defb 0xD0		;59a0
+	defb 0xDF		;59a1
+	defb 0xE6		;59a2
+	defb 0xD0		;59a3
+	defb 0xD0		;59a4
+	defb 0xD0		;59a5
+	defb 0xD0		;59a6
+	defb 0xD0		;59a7
+	defb 0xD0		;59a8
+	defb 0xD0		;59a9
+	defb 0xD0		;59aa
+	defb 0xDE		;59ab
+	defb 0xE7		;59ac
+	defb 0xD0		;59ad
+	defb 0xD0		;59ae
+	defb 0xD0		;59af
+	defb 0xD0		;59b0
+	defb 0xD0		;59b1
+	defb 0xD0		;59b2
+	defb 0xD0		;59b3
+	defb 0xD0		;59b4
+	defb 0xDF		;59b5
+	defb 0xE7		;59b6
+	defb 0xD0		;59b7
+	defb 0xD0		;59b8
+	defb 0xD1		;59b9
+	defb 0xD0		;59ba
+	defb 0xD0		;59bb
+	defb 0xD1		;59bc
+	defb 0xD0		;59bd
+	defb 0xD0		;59be
+	defb 0xDF		;59bf
+	defb 0xFF		;59c0
+	defb 0xF2		;59c1
+	defb 0xE7		;59c2
+	defb 0xD0		;59c3
+	defb 0xD0		;59c4
+	defb 0xD1		;59c5
+	defb 0xD0		;59c6
+	defb 0xD0		;59c7
+	defb 0xD1		;59c8
+	defb 0xD0		;59c9
+	defb 0xD0		;59ca
+	defb 0xDF		;59cb
+	defb 0xF8		;59cc
+	defb 0xE5		;59cd
+	defb 0xD0		;59ce
+	defb 0xD0		;59cf
+	defb 0xD0		;59d0
+	defb 0xD0		;59d1
+	defb 0xD0		;59d2
+	defb 0xD0		;59d3
+	defb 0xD0		;59d4
+	defb 0xD0		;59d5
+	defb 0xE0		;59d6
+	defb 0xF7		;59d7
+	defb 0xE4		;59d8
+	defb 0xD0		;59d9
+	defb 0xD0		;59da
+	defb 0xD0		;59db
+	defb 0xD0		;59dc
+	defb 0xD0		;59dd
+	defb 0xD0		;59de
+	defb 0xD0		;59df
+	defb 0xD0		;59e0
+	defb 0xEC		;59e1
+	defb 0xF6		;59e2
+	defb 0xE3		;59e3
+	defb 0xD0		;59e4
+	defb 0xD0		;59e5
+	defb 0xD8		;59e6
+	defb 0xD0		;59e7
+	defb 0xD0		;59e8
+	defb 0xD8		;59e9
+	defb 0xD0		;59ea
+	defb 0xD9		;59eb
+	defb 0xED		;59ec
+	defb 0xF5		;59ed
+	defb 0xE2		;59ee
+	defb 0xD0		;59ef
+	defb 0xD3		;59f0
+	defb 0xD7		;59f1
+	defb 0xD0		;59f2
+	defb 0xD3		;59f3
+	defb 0xD7		;59f4
+	defb 0xD0		;59f5
+	defb 0xDA		;59f6
+	defb 0xEE		;59f7
+	defb 0xF4		;59f8
+	defb 0xE1		;59f9
+	defb 0xD0		;59fa
+	defb 0xD0		;59fb
+	defb 0xD0		;59fc
+	defb 0xD0		;59fd
+	defb 0xD0		;59fe
+	defb 0xD0		;59ff
+	defb 0xD0		;5a00
+	defb 0xDB		;5a01
+	defb 0xEF		;5a02
+	defb 0xF3		;5a03
+	defb 0xD0		;5a04
+	defb 0xD0		;5a05
+	defb 0xD0		;5a06
+	defb 0xD0		;5a07
+	defb 0xD0		;5a08
+	defb 0xD0		;5a09
+	defb 0xD0		;5a0a
+	defb 0xD0		;5a0b
+	defb 0xDC		;5a0c
+	defb 0xF0		;5a0d
+	defb 0xE8		;5a0e
+	defb 0xD0		;5a0f
+	defb 0xD0		;5a10
+	defb 0xD6		;5a11
+	defb 0xD0		;5a12
+	defb 0xD0		;5a13
+	defb 0xD6		;5a14
+	defb 0xD0		;5a15
+	defb 0xD0		;5a16
+	defb 0xDD		;5a17
+	defb 0xF1		;5a18
+	defb 0xE7		;5a19
+	defb 0xD0		;5a1a
+	defb 0xD0		;5a1b
+	defb 0xD1		;5a1c
+	defb 0xD0		;5a1d
+	defb 0xD0		;5a1e
+	defb 0xD1		;5a1f
+	defb 0xD0		;5a20
+	defb 0xD0		;5a21
+	defb 0xDF		;5a22
+	defb 0xF2		;5a23
+	defb 0xE8		;5a24
+	defb 0xD0		;5a25
+	defb 0xD0		;5a26
+	defb 0xD0		;5a27
+	defb 0xD0		;5a28
+	defb 0xD0		;5a29
+	defb 0xD0		;5a2a
+	defb 0xD0		;5a2b
+	defb 0xD0		;5a2c
+	defb 0xDD		;5a2d
+	defb 0xF1		;5a2e
+	defb 0xF3		;5a2f
+	defb 0xD0		;5a30
+	defb 0xD0		;5a31
+	defb 0xD0		;5a32
+	defb 0xD0		;5a33
+	defb 0xD0		;5a34
+	defb 0xD0		;5a35
+	defb 0xD0		;5a36
+	defb 0xD0		;5a37
+	defb 0xDC		;5a38
+	defb 0xF0		;5a39
+	defb 0xF4		;5a3a
+	defb 0xE1		;5a3b
+	defb 0xD0		;5a3c
+	defb 0xD4		;5a3d
+	defb 0xD0		;5a3e
+	defb 0xD0		;5a3f
+	defb 0xD4		;5a40
+	defb 0xD0		;5a41
+	defb 0xD0		;5a42
+	defb 0xDB		;5a43
+	defb 0xEF		;5a44
+	defb 0xF5		;5a45
+	defb 0xE2		;5a46
+	defb 0xD0		;5a47
+	defb 0xD3		;5a48
+	defb 0xD7		;5a49
+	defb 0xD0		;5a4a
+	defb 0xD3		;5a4b
+	defb 0xD7		;5a4c
+	defb 0xD0		;5a4d
+	defb 0xDA		;5a4e
+	defb 0xEE		;5a4f
+	defb 0xF6		;5a50
+	defb 0xE3		;5a51
+	defb 0xD0		;5a52
+	defb 0xD0		;5a53
+	defb 0xD0		;5a54
+	defb 0xD0		;5a55
+	defb 0xD0		;5a56
+	defb 0xD0		;5a57
+	defb 0xD0		;5a58
+	defb 0xD9		;5a59
+	defb 0xED		;5a5a
+	defb 0xF7		;5a5b
+	defb 0xE4		;5a5c
+	defb 0xD0		;5a5d
+	defb 0xD0		;5a5e
+	defb 0xD0		;5a5f
+	defb 0xD0		;5a60
+	defb 0xD0		;5a61
+	defb 0xD0		;5a62
+	defb 0xD0		;5a63
+	defb 0xD0		;5a64
+	defb 0xEC		;5a65
+	defb 0xF8		;5a66
+	defb 0xE5		;5a67
+	defb 0xD0		;5a68
+	defb 0xD0		;5a69
+	defb 0xD2		;5a6a
+	defb 0xD0		;5a6b
+	defb 0xD0		;5a6c
+	defb 0xD2		;5a6d
+	defb 0xD0		;5a6e
+	defb 0xD0		;5a6f
+	defb 0xE0		;5a70
 
-	defw 0x1800		;5a71 Destination for sprite data, i.e. start at sprite 0x00.
+
+
+	defw 0x1800		;5a71 VRAM destination for sprite data, i.e. start at sprite 0x00.
 ; Compressed sprite data, seen at 0x692E.
 ; 
 ; Sprites
@@ -18756,47 +18945,42 @@
 
 
 
-; ??? See 0x5161.
-	defb 0x10		;78c4 Stage 1
+; Stage 1, data pointer 1. See 0x5161.
+	defb 0x10		;78c4
 	defb 0x19		;78c5
 	defb 0x11		;78c6
 	defb 0x21		;78c7
 	defb 0x13		;78c8
 	defb 0x18		;78c9
-
-	defb 0x20		;78ca Stage 2
+	defb 0x20		;78ca
 	defb 0x51		;78cb
 	defb 0x22		;78cc
 	defb 0x31		;78cd
 	defb 0x20		;78ce
 	defb 0x81		;78cf
-
-	defb 0x21		;78d0 Stage 3
+	defb 0x21		;78d0
 	defb 0x31		;78d1
 	defb 0x20		;78d2
 	defb 0xA9		;78d3
 	defb 0x22		;78d4
 	defb 0x29		;78d5
-
-	defb 0x20		;78d6 Stage 4
+	defb 0x20		;78d6
 	defb 0x21		;78d7
 	defb 0x21		;78d8
 	defb 0x39		;78d9
 	defb 0x20		;78da
 	defb 0x59		;78db
-
-	defb 0x22		;78dc Stage 5
+	defb 0x22		;78dc
 	defb 0x31		;78dd
 	defb 0x20		;78de
 	defb 0x61		;78df
 	defb 0x24		;78e0
 	defb 0x18		;78e1
-
-	defb 0x10		;78e2 Stage 6
+	defb 0x10		;78e2
 	defb 0x19		;78e3
-	defb 0xFE		;78e4 Checked for at 0x56FA.
+	defb 0xFE		;78e4 Special value. Checked for at 0x56FA.
 
-; ??? See 0x5163
+; Stage 1+4+5, data pointer 2. See 0x5163, 0x5175, 0x517B.
 	defb 0x94		;78e5
 	defb 0x15		;78e6
 	defb 0x94		;78e7
@@ -18921,707 +19105,771 @@
 	defb 0xFF		;795e
 	defb 0xFF		;795f
 
-; ??? See 0x5165
-	ld (hl),b		;7960
-	ld a,c			;7961
-	and e			;7962
-	ld a,c			;7963
-	rst 8			;7964
-	ld a,c			;7965
-	ld de,0117ah		;7966
-	ld a,d			;7969
-	dec hl			;796a
-	ld a,d			;796b
-	ld e,l			;796c
-	ld a,d			;796d
-	add a,e			;796e
-	ld a,d			;796f
-	rlca			;7970
-	rlca			;7971
-	add a,b			;7972
-	add a,b			;7973
-	add a,b			;7974
-	add a,b			;7975
-	add a,b			;7976
-	add a,b			;7977
-	add a,a			;7978
-	add a,b			;7979
-	add a,a			;797a
-	adc a,h			;797b
-	adc a,e			;797c
-	adc a,d			;797d
-	add a,b			;797e
-	add a,a			;797f
-	add a,b			;7980
-	add a,a			;7981
-	add a,l			;7982
-	add a,(hl)		;7983
-	adc a,c			;7984
-	and b			;7985
-	and b			;7986
-	add a,b			;7987
-	add a,a			;7988
-	add a,e			;7989
-	add a,h			;798a
-	adc a,c			;798b
-	and b			;798c
-	and b			;798d
-	add a,b			;798e
-	add a,a			;798f
-	add a,c			;7990
-	add a,d			;7991
-	adc a,b			;7992
-	add a,b			;7993
-	add a,a			;7994
-	add a,b			;7995
-	add a,a			;7996
-	and b			;7997
-	and b			;7998
-	and b			;7999
-	add a,b			;799a
-	add a,a			;799b
-	add a,b			;799c
-	add a,b			;799d
-	add a,b			;799e
-	add a,b			;799f
-	add a,b			;79a0
-	add a,b			;79a1
-	add a,a			;79a2
-	rlca			;79a3
-	ld b,008h		;79a4
-	sub (hl)		;79a6
-	sub a			;79a7
-	sbc a,b			;79a8
-	sbc a,c			;79a9
-	ex af,af'		;79aa
-	ex af,af'		;79ab
-	sub e			;79ac
-	sub h			;79ad
-	sub l			;79ae
-	sub e			;79af
-	ex af,af'		;79b0
-	ex af,af'		;79b1
-	adc a,a			;79b2
-	sub b			;79b3
-	sub c			;79b4
-	sub d			;79b5
-	ex af,af'		;79b6
-	ex af,af'		;79b7
-	sub (hl)		;79b8
-	sub a			;79b9
-	sbc a,b			;79ba
-	sbc a,c			;79bb
-	ex af,af'		;79bc
-	ex af,af'		;79bd
-	sub e			;79be
-	sub h			;79bf
-	sub l			;79c0
-	sub e			;79c1
-	ex af,af'		;79c2
-	ex af,af'		;79c3
-	adc a,a			;79c4
-	sub b			;79c5
-	sub c			;79c6
-	sub d			;79c7
-	ex af,af'		;79c8
-	cp l			;79c9
-	cp l			;79ca
-	cp l			;79cb
-	cp l			;79cc
-	cp l			;79cd
-	cp l			;79ce
-	ex af,af'		;79cf
-	ex af,af'		;79d0
-	add a,b			;79d1
-	add a,b			;79d2
-	add a,b			;79d3
-	add a,b			;79d4
-	add a,b			;79d5
-	add a,b			;79d6
-	add a,b			;79d7
-	add a,a			;79d8
-	add a,b			;79d9
-	add a,a			;79da
-	and b			;79db
-	cp e			;79dc
-	cp h			;79dd
-	and b			;79de
-	add a,b			;79df
-	add a,a			;79e0
-	add a,b			;79e1
-	add a,a			;79e2
-	and b			;79e3
-	or e			;79e4
-	or h			;79e5
-	and b			;79e6
-	add a,b			;79e7
-	add a,a			;79e8
-	and b			;79e9
-	and b			;79ea
-	and b			;79eb
-	or c			;79ec
-	or d			;79ed
-	and b			;79ee
-	add a,b			;79ef
-	add a,a			;79f0
-	and b			;79f1
-	and b			;79f2
-	adc a,h			;79f3
-	adc a,e			;79f4
-	adc a,e			;79f5
-	adc a,d			;79f6
-	add a,b			;79f7
-	add a,a			;79f8
-	and b			;79f9
-	and b			;79fa
-	sbc a,l			;79fb
-	sbc a,(hl)		;79fc
-	sbc a,a			;79fd
-	adc a,c			;79fe
-	add a,b			;79ff
-	add a,a			;7a00
-	add a,b			;7a01
-	add a,a			;7a02
-	sbc a,d			;7a03
-	sbc a,e			;7a04
-	sbc a,h			;7a05
-	adc a,b			;7a06
-	add a,b			;7a07
-	add a,a			;7a08
-	add a,b			;7a09
-	add a,b			;7a0a
-	add a,b			;7a0b
-	add a,b			;7a0c
-	add a,b			;7a0d
-	add a,b			;7a0e
-	add a,b			;7a0f
-	add a,a			;7a10
-	ex af,af'		;7a11
-	inc bc			;7a12
-	adc a,l			;7a13
-	adc a,(hl)		;7a14
-	and b			;7a15
-	and b			;7a16
-	adc a,l			;7a17
-	adc a,(hl)		;7a18
-	and b			;7a19
-	and b			;7a1a
-	and b			;7a1b
-	adc a,l			;7a1c
-	adc a,(hl)		;7a1d
-	and b			;7a1e
-	and b			;7a1f
-	adc a,l			;7a20
-	adc a,(hl)		;7a21
-	and b			;7a22
-	adc a,l			;7a23
-	adc a,(hl)		;7a24
-	adc a,l			;7a25
-	adc a,(hl)		;7a26
-	and b			;7a27
-	and b			;7a28
-	adc a,l			;7a29
-	adc a,(hl)		;7a2a
-	ex af,af'		;7a2b
-	ld b,0a0h		;7a2c
-	and b			;7a2e
-	and b			;7a2f
-	and b			;7a30
-	xor d			;7a31
-	xor e			;7a32
-	xor h			;7a33
-	xor l			;7a34
-	xor (hl)		;7a35
-	xor a			;7a36
-	or b			;7a37
-	and b			;7a38
-	and b			;7a39
-	and b			;7a3a
-	and b			;7a3b
-	and b			;7a3c
-	and b			;7a3d
-	and b			;7a3e
-	and b			;7a3f
-	and b			;7a40
-	xor d			;7a41
-	xor e			;7a42
-	and b			;7a43
-	and b			;7a44
-	and b			;7a45
-	and b			;7a46
-	xor d			;7a47
-	xor e			;7a48
-	adc a,l			;7a49
-	adc a,(hl)		;7a4a
-	or a			;7a4b
-	cp b			;7a4c
-	cp d			;7a4d
-	and b			;7a4e
-	and b			;7a4f
-	and b			;7a50
-	or l			;7a51
-	or (hl)			;7a52
-	cp c			;7a53
-	and b			;7a54
-	adc a,l			;7a55
-	adc a,(hl)		;7a56
-	and b			;7a57
-	and b			;7a58
-	and b			;7a59
-	and b			;7a5a
-	adc a,l			;7a5b
-	adc a,(hl)		;7a5c
-	ld b,006h		;7a5d
-	add a,b			;7a5f
-	add a,b			;7a60
-	add a,b			;7a61
-	add a,b			;7a62
-	add a,b			;7a63
-	add a,a			;7a64
-	add a,b			;7a65
-	adc a,h			;7a66
-	adc a,e			;7a67
-	adc a,d			;7a68
-	add a,b			;7a69
-	add a,a			;7a6a
-	and a			;7a6b
-	xor b			;7a6c
-	xor c			;7a6d
-	adc a,c			;7a6e
-	add a,b			;7a6f
-	add a,a			;7a70
-	and h			;7a71
-	and l			;7a72
-	and (hl)		;7a73
-	adc a,b			;7a74
-	add a,b			;7a75
-	add a,a			;7a76
-	add a,b			;7a77
-	add a,a			;7a78
-	and b			;7a79
-	and b			;7a7a
-	add a,b			;7a7b
-	add a,a			;7a7c
-	add a,b			;7a7d
-	add a,b			;7a7e
-	add a,b			;7a7f
-	add a,b			;7a80
-	add a,b			;7a81
-	add a,a			;7a82
-	rlca			;7a83
-	inc b			;7a84
-	and b			;7a85
-	xor d			;7a86
-	xor e			;7a87
-	and b			;7a88
-	and b			;7a89
-	and b			;7a8a
-	xor d			;7a8b
-	xor e			;7a8c
-	and c			;7a8d
-	and d			;7a8e
-	and b			;7a8f
-	and b			;7a90
-	and b			;7a91
-	and b			;7a92
-	xor d			;7a93
-	xor e			;7a94
-	and b			;7a95
-	and c			;7a96
-	and d			;7a97
-	and b			;7a98
-	and b			;7a99
-	and b			;7a9a
-	xor d			;7a9b
-	xor e			;7a9c
-	and b			;7a9d
-	xor d			;7a9e
-	xor e			;7a9f
-	and b			;7aa0
-	inc bc			;7aa1
-	ld bc,00007h		;7aa2
-	add hl,bc		;7aa5
-	ld bc,0010ah		;7aa6
-	nop			;7aa9
-	djnz $+75		;7aaa if (--B != 0) jump to 0x7AF5
-	inc de			;7aac
-	jr $+34			;7aad jump to 0x7ACF
-	ld c,c			;7aaf
-	ld (02019h),hl		;7ab0
-	ld sp,02921h		;7ab3
-	jr nz,$+59		;7ab6 if (nz) jump to 0x7AF1
-	ld (02029h),hl		;7ab8
-	ld d,c			;7abb
-	inc h			;7abc
-	jr $+18			;7abd jump to 0x7ACF
-	ld a,c			;7abf
-	inc de			;7ac0
-	jr $+34			;7ac1 jump to 0x7AE3
-	and l			;7ac3
-	jr nz,$+103		;7ac4 if (nz) jump to 0x7B2B
-	ld hl,02419h		;7ac6
-	jr $+18			;7ac9 jump to 0x7ADB
-	add hl,de		;7acb
-	cp 0dbh			;7acc
-	ld a,d			;7ace
-	defb 0fdh,07ah,022h	;illegal sequence		;7acf
-	ld a,e			;7ad2
-	ld b,b			;7ad3
-	ld a,e			;7ad4
-	ld (hl),d		;7ad5
-	ld a,e			;7ad6
-	sbc a,h			;7ad7
-	ld a,e			;7ad8
-	nop			;7ad9
-	nop			;7ada
-	ex af,af'		;7adb
-	inc b			;7adc
-	add a,h			;7add
-	add a,l			;7ade
-	add a,(hl)		;7adf
-	push bc			;7ae0
-	add a,d			;7ae1
-	add a,e			;7ae2
-	push bc			;7ae3
-	push bc			;7ae4
-	push bc			;7ae5
-	add a,h			;7ae6
-	add a,l			;7ae7
-	add a,(hl)		;7ae8
-	push bc			;7ae9
-	add a,d			;7aea
-	add a,e			;7aeb
-	push bc			;7aec
-	push bc			;7aed
-	add a,h			;7aee
-	add a,l			;7aef
-	add a,(hl)		;7af0
-	push bc			;7af1
-	add a,d			;7af2
-	add a,e			;7af3
-	push bc			;7af4
-	add a,h			;7af5
-	add a,l			;7af6
-	add a,(hl)		;7af7
-	push bc			;7af8
-	add a,d			;7af9
-	add a,e			;7afa
-	push bc			;7afb
-	push bc			;7afc
-	rlca			;7afd
-	dec b			;7afe
-	xor (hl)		;7aff
-	xor (hl)		;7b00
-	xor (hl)		;7b01
-	xor (hl)		;7b02
-	push bc			;7b03
-	push bc			;7b04
-	and b			;7b05
-	sbc a,a			;7b06
-	sbc a,(hl)		;7b07
-	or b			;7b08
-	push bc			;7b09
-	xor c			;7b0a
-	xor d			;7b0b
-	sbc a,l			;7b0c
-	or b			;7b0d
-	xor e			;7b0e
-	xor b			;7b0f
-	and a			;7b10
-	sbc a,l			;7b11
-	or b			;7b12
-	xor e			;7b13
-	and (hl)		;7b14
-	and a			;7b15
-	sbc a,l			;7b16
-	or b			;7b17
-	push bc			;7b18
-	and h			;7b19
-	and l			;7b1a
-	sbc a,h			;7b1b
-	or b			;7b1c
-	xor (hl)		;7b1d
-	xor (hl)		;7b1e
-	xor (hl)		;7b1f
-	xor (hl)		;7b20
-	push bc			;7b21
-	rlca			;7b22
-	inc b			;7b23
-	push bc			;7b24
-	push bc			;7b25
-	xor h			;7b26
-	xor l			;7b27
-	push bc			;7b28
-	push bc			;7b29
-	xor h			;7b2a
-	xor l			;7b2b
-	and b			;7b2c
-	sbc a,a			;7b2d
-	sbc a,a			;7b2e
-	sbc a,(hl)		;7b2f
-	rlca			;7b30
-	and c			;7b31
-	and e			;7b32
-	sbc a,l			;7b33
-	rlca			;7b34
-	and c			;7b35
-	and d			;7b36
-	sbc a,l			;7b37
-	rlca			;7b38
-	and c			;7b39
-	and e			;7b3a
-	sbc a,l			;7b3b
-	rlca			;7b3c
-	and c			;7b3d
-	and d			;7b3e
-	sbc a,h			;7b3f
-	ex af,af'		;7b40
-	ld b,084h		;7b41
-	add a,l			;7b43
-	add a,(hl)		;7b44
-	add a,h			;7b45
-	add a,l			;7b46
-	add a,(hl)		;7b47
-	add a,d			;7b48
-	add a,e			;7b49
-	push bc			;7b4a
-	add a,d			;7b4b
-	add a,e			;7b4c
-	push bc			;7b4d
-	add a,h			;7b4e
-	add a,l			;7b4f
-	add a,(hl)		;7b50
-	add a,h			;7b51
-	add a,l			;7b52
-	add a,(hl)		;7b53
-	add a,d			;7b54
-	add a,e			;7b55
-	push bc			;7b56
-	add a,d			;7b57
-	add a,e			;7b58
-	push bc			;7b59
-	push bc			;7b5a
-	add a,h			;7b5b
-	add a,l			;7b5c
-	add a,(hl)		;7b5d
-	push bc			;7b5e
-	push bc			;7b5f
-	push bc			;7b60
-	add a,d			;7b61
-	add a,e			;7b62
-	push bc			;7b63
-	push bc			;7b64
-	push bc			;7b65
-	add a,h			;7b66
-	add a,l			;7b67
-	add a,(hl)		;7b68
-	push bc			;7b69
-	push bc			;7b6a
-	push bc			;7b6b
-	add a,d			;7b6c
-	add a,e			;7b6d
-	push bc			;7b6e
-	push bc			;7b6f
-	push bc			;7b70
-	push bc			;7b71
-	ex af,af'		;7b72
-	dec b			;7b73
-	push bc			;7b74
-	push bc			;7b75
-	adc a,d			;7b76
-	adc a,h			;7b77
-	adc a,(hl)		;7b78
-	push bc			;7b79
-	push bc			;7b7a
-	adc a,c			;7b7b
-	adc a,e			;7b7c
-	adc a,l			;7b7d
-	add a,a			;7b7e
-	adc a,b			;7b7f
-	push bc			;7b80
-	push bc			;7b81
-	push bc			;7b82
-	push bc			;7b83
-	push bc			;7b84
-	push bc			;7b85
-	push bc			;7b86
-	push bc			;7b87
-	push bc			;7b88
-	push bc			;7b89
-	sub h			;7b8a
-	sub l			;7b8b
-	adc a,(hl)		;7b8c
-	push bc			;7b8d
-	push bc			;7b8e
-	sub d			;7b8f
-	sub e			;7b90
-	adc a,l			;7b91
-	sub h			;7b92
-	sub l			;7b93
-	adc a,(hl)		;7b94
-	push bc			;7b95
-	push bc			;7b96
-	sub d			;7b97
-	sub e			;7b98
-	adc a,l			;7b99
-	push bc			;7b9a
-	push bc			;7b9b
-	inc b			;7b9c
-	inc bc			;7b9d
-	adc a,a			;7b9e
-	sub b			;7b9f
-	sub c			;7ba0
-	push bc			;7ba1
-	push bc			;7ba2
-	push bc			;7ba3
-	push bc			;7ba4
-	add a,b			;7ba5
-	add a,c			;7ba6
-	add a,b			;7ba7
-	add a,c			;7ba8
-	push bc			;7ba9
-	sub b			;7baa
-	sub b			;7bab
-	sub b			;7bac
-	dec h			;7bad
-	add a,e			;7bae
-	add a,e			;7baf
-	jr nz,$-110		;7bb0 if (nz) jump to 0x7B42
-	add a,e			;7bb2
-	sub b			;7bb3
-	sub b			;7bb4
-	dec h			;7bb5
-	jr nz,$+1		;7bb6 if (nz) jump to 0x7BB7
-	dec h			;7bb8
-	dec h			;7bb9
-	jr nz,$+1		;7bba if (nz) jump to 0x7BBB
-	rst 38h			;7bbc
-	jr nz,$+34		;7bbd if (nz) jump to 0x7BDF
-	rst 38h			;7bbf
-	dec h			;7bc0
-	jr nz,$+39		;7bc1 if (nz) jump to 0x7BE8
-	inc (hl)		;7bc3
-	rst 38h			;7bc4
-	ld (02335h),a		;7bc5
-	jr nc,$+50		;7bc8 if (nc) jump to 0x7BFA
-	rst 38h			;7bca
-	rst 38h			;7bcb
-	rst 38h			;7bcc
-	sub h			;7bcd
-	sub d			;7bce
-	sub b			;7bcf
-	rst 38h			;7bd0
-	sub h			;7bd1
-	sub h			;7bd2
-	sub b			;7bd3
-	sub d			;7bd4
-	rst 38h			;7bd5
-	rst 38h			;7bd6
-	dec h			;7bd7
-	jr nc,$+35		;7bd8 if (nc) jump to 0x7BFB
-	rst 38h			;7bda
-	inc h			;7bdb
-	inc h			;7bdc
-	jr nc,$+37		;7bdd if (nc) jump to 0x7C02
-	rst 38h			;7bdf
-	jr nc,$+37		;7be0 if (nc) jump to 0x7C05
-	ld (hl),l		;7be2
-	rst 38h			;7be3
-	jr nc,$+50		;7be4 if (nc) jump to 0x7C16
-	inc (hl)		;7be6
-	rst 38h			;7be7
-	inc (hl)		;7be8
-	inc hl			;7be9
-	jr nc,$+37		;7bea if (nc) jump to 0x7C0F
-	rst 38h			;7bec
-	inc h			;7bed
-	jr nc,$+50		;7bee if (nc) jump to 0x7C20
-	rst 38h			;7bf0
-	jr nc,$+1		;7bf1 if (nc) jump to 0x7BF2
-	dec (hl)		;7bf3
-	inc (hl)		;7bf4
-	rst 38h			;7bf5
-	jr nc,$+1		;7bf6 if (nc) jump to 0x7BF7
-	inc hl			;7bf8
-	jr nc,$+1		;7bf9 if (nc) jump to 0x7BFA
-	rst 38h			;7bfb
-	dec (hl)		;7bfc
-	dec (hl)		;7bfd
-	rst 38h			;7bfe
-	inc (hl)		;7bff
-	jr nc,$+52		;7c00 if (nc) jump to 0x7C34
-	rst 38h			;7c02
-	jr nc,$+52		;7c03 if (nc) jump to 0x7C37
-	rst 38h			;7c05
-	inc (hl)		;7c06
-	jr nc,$+1		;7c07 if (nc) jump to 0x7C08
-	jr nc,$+1		;7c09 if (nc) jump to 0x7C0A
-	ld (0ff30h),a		;7c0b
-	jr nc,$+54		;7c0e if (nc) jump to 0x7C44
-	rst 38h			;7c10
-	jr nc,$+50		;7c11 if (nc) jump to 0x7C43
-	jr nc,$+1		;7c13 if (nc) jump to 0x7C14
-	inc hl			;7c15
-	rst 38h			;7c16
-	jr nc,$+54		;7c17 if (nc) jump to 0x7C4D
-	jr nc,$+1		;7c19 if (nc) jump to 0x7C1A
-	rst 38h			;7c1b
-	dec h			;7c1c
-	dec h			;7c1d
-	sub b			;7c1e
-	add a,e			;7c1f
-	add a,e			;7c20
-	rst 38h			;7c21
-	rst 38h			;7c22
-	sub h			;7c23
-	sub l			;7c24
-	sub (hl)		;7c25
-	sub a			;7c26
-	sbc a,b			;7c27
-	xor c			;7c28
-	sub (hl)		;7c29
-	xor d			;7c2a
-	sub b			;7c2b
-	sub c			;7c2c
-	sub d			;7c2d
-	sub e			;7c2e
-	sbc a,c			;7c2f
-	and (hl)		;7c30
-	and a			;7c31
-	xor b			;7c32
-	adc a,(hl)		;7c33
-	adc a,e			;7c34
-	xor e			;7c35
-	adc a,a			;7c36
-	sbc a,b			;7c37
-	and h			;7c38
-	and d			;7c39
-	and l			;7c3a
-	adc a,d			;7c3b
-	adc a,e			;7c3c
-	adc a,h			;7c3d
-	adc a,l			;7c3e
-	sbc a,c			;7c3f
-	and c			;7c40
-	and d			;7c41
-	and e			;7c42
-	add a,(hl)		;7c43
-	add a,a			;7c44
-	adc a,b			;7c45
-	adc a,c			;7c46
-	sbc a,b			;7c47
-	sbc a,(hl)		;7c48
-	sbc a,a			;7c49
-	and b			;7c4a
-	add a,d			;7c4b
-	add a,e			;7c4c
-	add a,h			;7c4d
-	add a,l			;7c4e
-	sbc a,c			;7c4f
-	sbc a,h			;7c50
-	add a,h			;7c51
-	sbc a,l			;7c52
-	rst 38h			;7c53
+; Stage 1, data pointer 3. See 0x5165.
+	defb 0x70		;7960
+	defb 0x79		;7961
+	defb 0xA3		;7962
+	defb 0x79		;7963
+	defb 0xCF		;7964
+	defb 0x79		;7965
+	defb 0x11		;7966
+	defb 0x7A		;7967
+	defb 0x11		;7968
+	defb 0x7A		;7969
+	defb 0x2B		;796a
+	defb 0x7A		;796b
+	defb 0x5D		;796c
+	defb 0x7A		;796d
+	defb 0x83		;796e
+	defb 0x7A		;796f
+	defb 0x07		;7970
+	defb 0x07		;7971
+	defb 0x80		;7972
+	defb 0x80		;7973
+	defb 0x80		;7974
+	defb 0x80		;7975
+	defb 0x80		;7976
+	defb 0x80		;7977
+	defb 0x87		;7978
+	defb 0x80		;7979
+	defb 0x87		;797a
+	defb 0x8C		;797b
+	defb 0x8B		;797c
+	defb 0x8A		;797d
+	defb 0x80		;797e
+	defb 0x87		;797f
+	defb 0x80		;7980
+	defb 0x87		;7981
+	defb 0x85		;7982
+	defb 0x86		;7983
+	defb 0x89		;7984
+	defb 0xA0		;7985
+	defb 0xA0		;7986
+	defb 0x80		;7987
+	defb 0x87		;7988
+	defb 0x83		;7989
+	defb 0x84		;798a
+	defb 0x89		;798b
+	defb 0xA0		;798c
+	defb 0xA0		;798d
+	defb 0x80		;798e
+	defb 0x87		;798f
+	defb 0x81		;7990
+	defb 0x82		;7991
+	defb 0x88		;7992
+	defb 0x80		;7993
+	defb 0x87		;7994
+	defb 0x80		;7995
+	defb 0x87		;7996
+	defb 0xA0		;7997
+	defb 0xA0		;7998
+	defb 0xA0		;7999
+	defb 0x80		;799a
+	defb 0x87		;799b
+	defb 0x80		;799c
+	defb 0x80		;799d
+	defb 0x80		;799e
+	defb 0x80		;799f
+	defb 0x80		;79a0
+	defb 0x80		;79a1
+	defb 0x87		;79a2
+	defb 0x07		;79a3
+	defb 0x06		;79a4
+	defb 0x08		;79a5
+	defb 0x96		;79a6
+	defb 0x97		;79a7
+	defb 0x98		;79a8
+	defb 0x99		;79a9
+	defb 0x08		;79aa
+	defb 0x08		;79ab
+	defb 0x93		;79ac
+	defb 0x94		;79ad
+	defb 0x95		;79ae
+	defb 0x93		;79af
+	defb 0x08		;79b0
+	defb 0x08		;79b1
+	defb 0x8F		;79b2
+	defb 0x90		;79b3
+	defb 0x91		;79b4
+	defb 0x92		;79b5
+	defb 0x08		;79b6
+	defb 0x08		;79b7
+	defb 0x96		;79b8
+	defb 0x97		;79b9
+	defb 0x98		;79ba
+	defb 0x99		;79bb
+	defb 0x08		;79bc
+	defb 0x08		;79bd
+	defb 0x93		;79be
+	defb 0x94		;79bf
+	defb 0x95		;79c0
+	defb 0x93		;79c1
+	defb 0x08		;79c2
+	defb 0x08		;79c3
+	defb 0x8F		;79c4
+	defb 0x90		;79c5
+	defb 0x91		;79c6
+	defb 0x92		;79c7
+	defb 0x08		;79c8
+	defb 0xBD		;79c9
+	defb 0xBD		;79ca
+	defb 0xBD		;79cb
+	defb 0xBD		;79cc
+	defb 0xBD		;79cd
+	defb 0xBD		;79ce
+	defb 0x08		;79cf
+	defb 0x08		;79d0
+	defb 0x80		;79d1
+	defb 0x80		;79d2
+	defb 0x80		;79d3
+	defb 0x80		;79d4
+	defb 0x80		;79d5
+	defb 0x80		;79d6
+	defb 0x80		;79d7
+	defb 0x87		;79d8
+	defb 0x80		;79d9
+	defb 0x87		;79da
+	defb 0xA0		;79db
+	defb 0xBB		;79dc
+	defb 0xBC		;79dd
+	defb 0xA0		;79de
+	defb 0x80		;79df
+	defb 0x87		;79e0
+	defb 0x80		;79e1
+	defb 0x87		;79e2
+	defb 0xA0		;79e3
+	defb 0xB3		;79e4
+	defb 0xB4		;79e5
+	defb 0xA0		;79e6
+	defb 0x80		;79e7
+	defb 0x87		;79e8
+	defb 0xA0		;79e9
+	defb 0xA0		;79ea
+	defb 0xA0		;79eb
+	defb 0xB1		;79ec
+	defb 0xB2		;79ed
+	defb 0xA0		;79ee
+	defb 0x80		;79ef
+	defb 0x87		;79f0
+	defb 0xA0		;79f1
+	defb 0xA0		;79f2
+	defb 0x8C		;79f3
+	defb 0x8B		;79f4
+	defb 0x8B		;79f5
+	defb 0x8A		;79f6
+	defb 0x80		;79f7
+	defb 0x87		;79f8
+	defb 0xA0		;79f9
+	defb 0xA0		;79fa
+	defb 0x9D		;79fb
+	defb 0x9E		;79fc
+	defb 0x9F		;79fd
+	defb 0x89		;79fe
+	defb 0x80		;79ff
+	defb 0x87		;7a00
+	defb 0x80		;7a01
+	defb 0x87		;7a02
+	defb 0x9A		;7a03
+	defb 0x9B		;7a04
+	defb 0x9C		;7a05
+	defb 0x88		;7a06
+	defb 0x80		;7a07
+	defb 0x87		;7a08
+	defb 0x80		;7a09
+	defb 0x80		;7a0a
+	defb 0x80		;7a0b
+	defb 0x80		;7a0c
+	defb 0x80		;7a0d
+	defb 0x80		;7a0e
+	defb 0x80		;7a0f
+	defb 0x87		;7a10
+	defb 0x08		;7a11
+	defb 0x03		;7a12
+	defb 0x8D		;7a13
+	defb 0x8E		;7a14
+	defb 0xA0		;7a15
+	defb 0xA0		;7a16
+	defb 0x8D		;7a17
+	defb 0x8E		;7a18
+	defb 0xA0		;7a19
+	defb 0xA0		;7a1a
+	defb 0xA0		;7a1b
+	defb 0x8D		;7a1c
+	defb 0x8E		;7a1d
+	defb 0xA0		;7a1e
+	defb 0xA0		;7a1f
+	defb 0x8D		;7a20
+	defb 0x8E		;7a21
+	defb 0xA0		;7a22
+	defb 0x8D		;7a23
+	defb 0x8E		;7a24
+	defb 0x8D		;7a25
+	defb 0x8E		;7a26
+	defb 0xA0		;7a27
+	defb 0xA0		;7a28
+	defb 0x8D		;7a29
+	defb 0x8E		;7a2a
+	defb 0x08		;7a2b
+	defb 0x06		;7a2c
+	defb 0xA0		;7a2d
+	defb 0xA0		;7a2e
+	defb 0xA0		;7a2f
+	defb 0xA0		;7a30
+	defb 0xAA		;7a31
+	defb 0xAB		;7a32
+	defb 0xAC		;7a33
+	defb 0xAD		;7a34
+	defb 0xAE		;7a35
+	defb 0xAF		;7a36
+	defb 0xB0		;7a37
+	defb 0xA0		;7a38
+	defb 0xA0		;7a39
+	defb 0xA0		;7a3a
+	defb 0xA0		;7a3b
+	defb 0xA0		;7a3c
+	defb 0xA0		;7a3d
+	defb 0xA0		;7a3e
+	defb 0xA0		;7a3f
+	defb 0xA0		;7a40
+	defb 0xAA		;7a41
+	defb 0xAB		;7a42
+	defb 0xA0		;7a43
+	defb 0xA0		;7a44
+	defb 0xA0		;7a45
+	defb 0xA0		;7a46
+	defb 0xAA		;7a47
+	defb 0xAB		;7a48
+	defb 0x8D		;7a49
+	defb 0x8E		;7a4a
+	defb 0xB7		;7a4b
+	defb 0xB8		;7a4c
+	defb 0xBA		;7a4d
+	defb 0xA0		;7a4e
+	defb 0xA0		;7a4f
+	defb 0xA0		;7a50
+	defb 0xB5		;7a51
+	defb 0xB6		;7a52
+	defb 0xB9		;7a53
+	defb 0xA0		;7a54
+	defb 0x8D		;7a55
+	defb 0x8E		;7a56
+	defb 0xA0		;7a57
+	defb 0xA0		;7a58
+	defb 0xA0		;7a59
+	defb 0xA0		;7a5a
+	defb 0x8D		;7a5b
+	defb 0x8E		;7a5c
+	defb 0x06		;7a5d
+	defb 0x06		;7a5e
+	defb 0x80		;7a5f
+	defb 0x80		;7a60
+	defb 0x80		;7a61
+	defb 0x80		;7a62
+	defb 0x80		;7a63
+	defb 0x87		;7a64
+	defb 0x80		;7a65
+	defb 0x8C		;7a66
+	defb 0x8B		;7a67
+	defb 0x8A		;7a68
+	defb 0x80		;7a69
+	defb 0x87		;7a6a
+	defb 0xA7		;7a6b
+	defb 0xA8		;7a6c
+	defb 0xA9		;7a6d
+	defb 0x89		;7a6e
+	defb 0x80		;7a6f
+	defb 0x87		;7a70
+	defb 0xA4		;7a71
+	defb 0xA5		;7a72
+	defb 0xA6		;7a73
+	defb 0x88		;7a74
+	defb 0x80		;7a75
+	defb 0x87		;7a76
+	defb 0x80		;7a77
+	defb 0x87		;7a78
+	defb 0xA0		;7a79
+	defb 0xA0		;7a7a
+	defb 0x80		;7a7b
+	defb 0x87		;7a7c
+	defb 0x80		;7a7d
+	defb 0x80		;7a7e
+	defb 0x80		;7a7f
+	defb 0x80		;7a80
+	defb 0x80		;7a81
+	defb 0x87		;7a82
+	defb 0x07		;7a83
+	defb 0x04		;7a84
+	defb 0xA0		;7a85
+	defb 0xAA		;7a86
+	defb 0xAB		;7a87
+	defb 0xA0		;7a88
+	defb 0xA0		;7a89
+	defb 0xA0		;7a8a
+	defb 0xAA		;7a8b
+	defb 0xAB		;7a8c
+	defb 0xA1		;7a8d
+	defb 0xA2		;7a8e
+	defb 0xA0		;7a8f
+	defb 0xA0		;7a90
+	defb 0xA0		;7a91
+	defb 0xA0		;7a92
+	defb 0xAA		;7a93
+	defb 0xAB		;7a94
+	defb 0xA0		;7a95
+	defb 0xA1		;7a96
+	defb 0xA2		;7a97
+	defb 0xA0		;7a98
+	defb 0xA0		;7a99
+	defb 0xA0		;7a9a
+	defb 0xAA		;7a9b
+	defb 0xAB		;7a9c
+	defb 0xA0		;7a9d
+	defb 0xAA		;7a9e
+	defb 0xAB		;7a9f
+	defb 0xA0		;7aa0
+	defb 0x03		;7aa1
+	defb 0x01		;7aa2
+	defb 0x07		;7aa3
+	defb 0x00		;7aa4
+	defb 0x09		;7aa5
+	defb 0x01		;7aa6
+	defb 0x0A		;7aa7
+	defb 0x01		;7aa8
+	defb 0x00		;7aa9
+
+; Stage 2+3, data pointer 1. See 0x5167, 0x516D.
+	defb 0x10		;7aaa
+	defb 0x49		;7aab
+	defb 0x13		;7aac
+	defb 0x18		;7aad
+	defb 0x20		;7aae
+	defb 0x49		;7aaf
+	defb 0x22		;7ab0
+	defb 0x19		;7ab1
+	defb 0x20		;7ab2
+	defb 0x31		;7ab3
+	defb 0x21		;7ab4
+	defb 0x29		;7ab5
+	defb 0x20		;7ab6
+	defb 0x39		;7ab7
+	defb 0x22		;7ab8
+	defb 0x29		;7ab9
+	defb 0x20		;7aba
+	defb 0x51		;7abb
+	defb 0x24		;7abc
+	defb 0x18		;7abd
+	defb 0x10		;7abe
+	defb 0x79		;7abf
+	defb 0x13		;7ac0
+	defb 0x18		;7ac1
+	defb 0x20		;7ac2
+	defb 0xA5		;7ac3
+	defb 0x20		;7ac4
+	defb 0x65		;7ac5
+	defb 0x21		;7ac6
+	defb 0x19		;7ac7
+	defb 0x24		;7ac8
+	defb 0x18		;7ac9
+	defb 0x10		;7aca
+	defb 0x19		;7acb
+	defb 0xFE		;7acc Special value. Checked for at 0x56FA.
+
+; Stage 2+3, data pointer 3. See 0x516B, 0x5171.
+	defb 0xDB		;7acd
+	defb 0x7A		;7ace
+	defb 0xFD		;7acf
+	defb 0x7A		;7ad0
+	defb 0x22		;7ad1
+	defb 0x7B		;7ad2
+	defb 0x40		;7ad3
+	defb 0x7B		;7ad4
+	defb 0x72		;7ad5
+	defb 0x7B		;7ad6
+	defb 0x9C		;7ad7
+	defb 0x7B		;7ad8
+	defb 0x00		;7ad9
+	defb 0x00		;7ada
+	defb 0x08		;7adb
+	defb 0x04		;7adc
+	defb 0x84		;7add
+	defb 0x85		;7ade
+	defb 0x86		;7adf
+	defb 0xC5		;7ae0
+	defb 0x82		;7ae1
+	defb 0x83		;7ae2
+	defb 0xC5		;7ae3
+	defb 0xC5		;7ae4
+	defb 0xC5		;7ae5
+	defb 0x84		;7ae6
+	defb 0x85		;7ae7
+	defb 0x86		;7ae8
+	defb 0xC5		;7ae9
+	defb 0x82		;7aea
+	defb 0x83		;7aeb
+	defb 0xC5		;7aec
+	defb 0xC5		;7aed
+	defb 0x84		;7aee
+	defb 0x85		;7aef
+	defb 0x86		;7af0
+	defb 0xC5		;7af1
+	defb 0x82		;7af2
+	defb 0x83		;7af3
+	defb 0xC5		;7af4
+	defb 0x84		;7af5
+	defb 0x85		;7af6
+	defb 0x86		;7af7
+	defb 0xC5		;7af8
+	defb 0x82		;7af9
+	defb 0x83		;7afa
+	defb 0xC5		;7afb
+	defb 0xC5		;7afc
+	defb 0x07		;7afd
+	defb 0x05		;7afe
+	defb 0xAE		;7aff
+	defb 0xAE		;7b00
+	defb 0xAE		;7b01
+	defb 0xAE		;7b02
+	defb 0xC5		;7b03
+	defb 0xC5		;7b04
+	defb 0xA0		;7b05
+	defb 0x9F		;7b06
+	defb 0x9E		;7b07
+	defb 0xB0		;7b08
+	defb 0xC5		;7b09
+	defb 0xA9		;7b0a
+	defb 0xAA		;7b0b
+	defb 0x9D		;7b0c
+	defb 0xB0		;7b0d
+	defb 0xAB		;7b0e
+	defb 0xA8		;7b0f
+	defb 0xA7		;7b10
+	defb 0x9D		;7b11
+	defb 0xB0		;7b12
+	defb 0xAB		;7b13
+	defb 0xA6		;7b14
+	defb 0xA7		;7b15
+	defb 0x9D		;7b16
+	defb 0xB0		;7b17
+	defb 0xC5		;7b18
+	defb 0xA4		;7b19
+	defb 0xA5		;7b1a
+	defb 0x9C		;7b1b
+	defb 0xB0		;7b1c
+	defb 0xAE		;7b1d
+	defb 0xAE		;7b1e
+	defb 0xAE		;7b1f
+	defb 0xAE		;7b20
+	defb 0xC5		;7b21
+	defb 0x07		;7b22
+	defb 0x04		;7b23
+	defb 0xC5		;7b24
+	defb 0xC5		;7b25
+	defb 0xAC		;7b26
+	defb 0xAD		;7b27
+	defb 0xC5		;7b28
+	defb 0xC5		;7b29
+	defb 0xAC		;7b2a
+	defb 0xAD		;7b2b
+	defb 0xA0		;7b2c
+	defb 0x9F		;7b2d
+	defb 0x9F		;7b2e
+	defb 0x9E		;7b2f
+	defb 0x07		;7b30
+	defb 0xA1		;7b31
+	defb 0xA3		;7b32
+	defb 0x9D		;7b33
+	defb 0x07		;7b34
+	defb 0xA1		;7b35
+	defb 0xA2		;7b36
+	defb 0x9D		;7b37
+	defb 0x07		;7b38
+	defb 0xA1		;7b39
+	defb 0xA3		;7b3a
+	defb 0x9D		;7b3b
+	defb 0x07		;7b3c
+	defb 0xA1		;7b3d
+	defb 0xA2		;7b3e
+	defb 0x9C		;7b3f
+	defb 0x08		;7b40
+	defb 0x06		;7b41
+	defb 0x84		;7b42
+	defb 0x85		;7b43
+	defb 0x86		;7b44
+	defb 0x84		;7b45
+	defb 0x85		;7b46
+	defb 0x86		;7b47
+	defb 0x82		;7b48
+	defb 0x83		;7b49
+	defb 0xC5		;7b4a
+	defb 0x82		;7b4b
+	defb 0x83		;7b4c
+	defb 0xC5		;7b4d
+	defb 0x84		;7b4e
+	defb 0x85		;7b4f
+	defb 0x86		;7b50
+	defb 0x84		;7b51
+	defb 0x85		;7b52
+	defb 0x86		;7b53
+	defb 0x82		;7b54
+	defb 0x83		;7b55
+	defb 0xC5		;7b56
+	defb 0x82		;7b57
+	defb 0x83		;7b58
+	defb 0xC5		;7b59
+	defb 0xC5		;7b5a
+	defb 0x84		;7b5b
+	defb 0x85		;7b5c
+	defb 0x86		;7b5d
+	defb 0xC5		;7b5e
+	defb 0xC5		;7b5f
+	defb 0xC5		;7b60
+	defb 0x82		;7b61
+	defb 0x83		;7b62
+	defb 0xC5		;7b63
+	defb 0xC5		;7b64
+	defb 0xC5		;7b65
+	defb 0x84		;7b66
+	defb 0x85		;7b67
+	defb 0x86		;7b68
+	defb 0xC5		;7b69
+	defb 0xC5		;7b6a
+	defb 0xC5		;7b6b
+	defb 0x82		;7b6c
+	defb 0x83		;7b6d
+	defb 0xC5		;7b6e
+	defb 0xC5		;7b6f
+	defb 0xC5		;7b70
+	defb 0xC5		;7b71
+	defb 0x08		;7b72
+	defb 0x05		;7b73
+	defb 0xC5		;7b74
+	defb 0xC5		;7b75
+	defb 0x8A		;7b76
+	defb 0x8C		;7b77
+	defb 0x8E		;7b78
+	defb 0xC5		;7b79
+	defb 0xC5		;7b7a
+	defb 0x89		;7b7b
+	defb 0x8B		;7b7c
+	defb 0x8D		;7b7d
+	defb 0x87		;7b7e
+	defb 0x88		;7b7f
+	defb 0xC5		;7b80
+	defb 0xC5		;7b81
+	defb 0xC5		;7b82
+	defb 0xC5		;7b83
+	defb 0xC5		;7b84
+	defb 0xC5		;7b85
+	defb 0xC5		;7b86
+	defb 0xC5		;7b87
+	defb 0xC5		;7b88
+	defb 0xC5		;7b89
+	defb 0x94		;7b8a
+	defb 0x95		;7b8b
+	defb 0x8E		;7b8c
+	defb 0xC5		;7b8d
+	defb 0xC5		;7b8e
+	defb 0x92		;7b8f
+	defb 0x93		;7b90
+	defb 0x8D		;7b91
+	defb 0x94		;7b92
+	defb 0x95		;7b93
+	defb 0x8E		;7b94
+	defb 0xC5		;7b95
+	defb 0xC5		;7b96
+	defb 0x92		;7b97
+	defb 0x93		;7b98
+	defb 0x8D		;7b99
+	defb 0xC5		;7b9a
+	defb 0xC5		;7b9b
+	defb 0x04		;7b9c
+	defb 0x03		;7b9d
+	defb 0x8F		;7b9e
+	defb 0x90		;7b9f
+	defb 0x91		;7ba0
+	defb 0xC5		;7ba1
+	defb 0xC5		;7ba2
+	defb 0xC5		;7ba3
+	defb 0xC5		;7ba4
+	defb 0x80		;7ba5
+	defb 0x81		;7ba6
+	defb 0x80		;7ba7
+	defb 0x81		;7ba8
+	defb 0xC5		;7ba9
+
+; Stage 2+3, data pointer 2. See 0x5169, 0x516F.
+	defb 0x90		;7baa
+	defb 0x90		;7bab
+	defb 0x90		;7bac
+	defb 0x25		;7bad
+	defb 0x83		;7bae
+	defb 0x83		;7baf
+	defb 0x20		;7bb0
+	defb 0x90		;7bb1
+	defb 0x83		;7bb2
+	defb 0x90		;7bb3
+	defb 0x90		;7bb4
+	defb 0x25		;7bb5
+	defb 0x20		;7bb6
+	defb 0xFF		;7bb7
+	defb 0x25		;7bb8
+	defb 0x25		;7bb9
+	defb 0x20		;7bba
+	defb 0xFF		;7bbb
+	defb 0xFF		;7bbc
+	defb 0x20		;7bbd
+	defb 0x20		;7bbe
+	defb 0xFF		;7bbf
+	defb 0x25		;7bc0
+	defb 0x20		;7bc1
+	defb 0x25		;7bc2
+	defb 0x34		;7bc3
+	defb 0xFF		;7bc4
+	defb 0x32		;7bc5
+	defb 0x35		;7bc6
+	defb 0x23		;7bc7
+	defb 0x30		;7bc8
+	defb 0x30		;7bc9
+	defb 0xFF		;7bca
+	defb 0xFF		;7bcb
+	defb 0xFF		;7bcc
+	defb 0x94		;7bcd
+	defb 0x92		;7bce
+	defb 0x90		;7bcf
+	defb 0xFF		;7bd0
+	defb 0x94		;7bd1
+	defb 0x94		;7bd2
+	defb 0x90		;7bd3
+	defb 0x92		;7bd4
+	defb 0xFF		;7bd5
+	defb 0xFF		;7bd6
+	defb 0x25		;7bd7
+	defb 0x30		;7bd8
+	defb 0x21		;7bd9
+	defb 0xFF		;7bda
+	defb 0x24		;7bdb
+	defb 0x24		;7bdc
+	defb 0x30		;7bdd
+	defb 0x23		;7bde
+	defb 0xFF		;7bdf
+	defb 0x30		;7be0
+	defb 0x23		;7be1
+	defb 0x75		;7be2
+	defb 0xFF		;7be3
+	defb 0x30		;7be4
+	defb 0x30		;7be5
+	defb 0x34		;7be6
+	defb 0xFF		;7be7
+	defb 0x34		;7be8
+	defb 0x23		;7be9
+	defb 0x30		;7bea
+	defb 0x23		;7beb
+	defb 0xFF		;7bec
+	defb 0x24		;7bed
+	defb 0x30		;7bee
+	defb 0x30		;7bef
+	defb 0xFF		;7bf0
+	defb 0x30		;7bf1
+	defb 0xFF		;7bf2
+	defb 0x35		;7bf3
+	defb 0x34		;7bf4
+	defb 0xFF		;7bf5
+	defb 0x30		;7bf6
+	defb 0xFF		;7bf7
+	defb 0x23		;7bf8
+	defb 0x30		;7bf9
+	defb 0xFF		;7bfa
+	defb 0xFF		;7bfb
+	defb 0x35		;7bfc
+	defb 0x35		;7bfd
+	defb 0xFF		;7bfe
+	defb 0x34		;7bff
+	defb 0x30		;7c00
+	defb 0x32		;7c01
+	defb 0xFF		;7c02
+	defb 0x30		;7c03
+	defb 0x32		;7c04
+	defb 0xFF		;7c05
+	defb 0x34		;7c06
+	defb 0x30		;7c07
+	defb 0xFF		;7c08
+	defb 0x30		;7c09
+	defb 0xFF		;7c0a
+	defb 0x32		;7c0b
+	defb 0x30		;7c0c
+	defb 0xFF		;7c0d
+	defb 0x30		;7c0e
+	defb 0x34		;7c0f
+	defb 0xFF		;7c10
+	defb 0x30		;7c11
+	defb 0x30		;7c12
+	defb 0x30		;7c13
+	defb 0xFF		;7c14
+	defb 0x23		;7c15
+	defb 0xFF		;7c16
+	defb 0x30		;7c17
+	defb 0x34		;7c18
+	defb 0x30		;7c19
+	defb 0xFF		;7c1a
+	defb 0xFF		;7c1b
+	defb 0x25		;7c1c
+	defb 0x25		;7c1d
+	defb 0x90		;7c1e
+	defb 0x83		;7c1f
+	defb 0x83		;7c20
+	defb 0xFF		;7c21
+	defb 0xFF		;7c22
+	defb 0x94		;7c23
+	defb 0x95		;7c24
+	defb 0x96		;7c25
+	defb 0x97		;7c26
+	defb 0x98		;7c27
+	defb 0xA9		;7c28
+	defb 0x96		;7c29
+	defb 0xAA		;7c2a
+	defb 0x90		;7c2b
+	defb 0x91		;7c2c
+	defb 0x92		;7c2d
+	defb 0x93		;7c2e
+	defb 0x99		;7c2f
+	defb 0xA6		;7c30
+	defb 0xA7		;7c31
+	defb 0xA8		;7c32
+	defb 0x8E		;7c33
+	defb 0x8B		;7c34
+	defb 0xAB		;7c35
+	defb 0x8F		;7c36
+	defb 0x98		;7c37
+	defb 0xA4		;7c38
+	defb 0xA2		;7c39
+	defb 0xA5		;7c3a
+	defb 0x8A		;7c3b
+	defb 0x8B		;7c3c
+	defb 0x8C		;7c3d
+	defb 0x8D		;7c3e
+	defb 0x99		;7c3f
+	defb 0xA1		;7c40
+	defb 0xA2		;7c41
+	defb 0xA3		;7c42
+	defb 0x86		;7c43
+	defb 0x87		;7c44
+	defb 0x88		;7c45
+	defb 0x89		;7c46
+	defb 0x98		;7c47
+	defb 0x9E		;7c48
+	defb 0x9F		;7c49
+	defb 0xA0		;7c4a
+	defb 0x82		;7c4b
+	defb 0x83		;7c4c
+	defb 0x84		;7c4d
+	defb 0x85		;7c4e
+	defb 0x99		;7c4f
+	defb 0x9C		;7c50
+	defb 0x84		;7c51
+	defb 0x9D		;7c52
+	defb 0xFF		;7c53
+
+
 
 ; Data. See 0x50F5, 0x55A6.
 	defb 0x04		;7c54
@@ -20185,359 +20433,440 @@
 	defb 0xC5		;7e54
 	defb 0xC5		;7e55
 	defb 0xFF		;7e56
+	defb 0x39		;7e57
+	defb 0x06		;7e58
+	defb 0x33		;7e59
+	defb 0x04		;7e5a
+	defb 0x11		;7e5b
+	defb 0x06		;7e5c
+	defb 0x2B		;7e5d
+	defb 0x04		;7e5e
+	defb 0x25		;7e5f
 
-	add hl,sp		;7e57
-	ld b,033h		;7e58
-	inc b			;7e5a
-	ld de,02b06h		;7e5b
-	inc b			;7e5e
-	dec h			;7e5f
-	djnz $+51		;7e60 if (--B != 0) jump to 0x7E93
-	inc de			;7e62
-	jr $+34			;7e63 jump to 0x7E85
-	xor l			;7e65
-	jr nz,$+103		;7e66 if (nz) jump to 0x7ECD
-	ld (02021h),hl		;7e68
-	ld e,c			;7e6b
-	ld hl,02021h		;7e6c
-	add a,c			;7e6f
-	ld (02019h),hl		;7e70
-	ld b,c			;7e73
-	ld hl,02019h		;7e74
-	ld l,c			;7e77
-	inc h			;7e78
-	jr $+18			;7e79 jump to 0x7E8B
-	ld h,c			;7e7b
+; Stage 5, data pointer 1. See 0x5179.
+	defb 0x10		;7e60
+	defb 0x31		;7e61
+	defb 0x13		;7e62
+	defb 0x18		;7e63
+	defb 0x20		;7e64
+	defb 0xAD		;7e65
+	defb 0x20		;7e66
+	defb 0x65		;7e67
+	defb 0x22		;7e68
+	defb 0x21		;7e69
+	defb 0x20		;7e6a
+	defb 0x59		;7e6b
+	defb 0x21		;7e6c
+	defb 0x21		;7e6d
+	defb 0x20		;7e6e
+	defb 0x81		;7e6f
+	defb 0x22		;7e70
+	defb 0x19		;7e71
+	defb 0x20		;7e72
+	defb 0x41		;7e73
+	defb 0x21		;7e74
+	defb 0x19		;7e75
+	defb 0x20		;7e76
+	defb 0x69		;7e77
+	defb 0x24		;7e78
+	defb 0x18		;7e79
+	defb 0x10		;7e7a
+	defb 0x61		;7e7b
+	defb 0xFE		;7e7c Special value. Checked for at 0x56FA.
+	defb 0xFE		;7e7d Special value. Checked for at 0x56FA.
+	defb 0xFE		;7e7e Special value. Checked for at 0x56FA.
+	defb 0xFE		;7e7f Special value. Checked for at 0x56FA.
+	defb 0xFE		;7e80 Special value. Checked for at 0x56FA.
+	defb 0xFE		;7e81 Special value. Checked for at 0x56FA.
+	defb 0xFE		;7e82 Special value. Checked for at 0x56FA.
 
-	defb 0xFE		;7e7c 0xFE & 0x03 == 0x02
-	defb 0xFE		;7e7d
-	defb 0xFE		;7e7e
-	defb 0xFE		;7e7f
-	defb 0xFE		;7e80
-	defb 0xFE		;7e81
-	defb 0xFE		;7e82
+; Stage 4, data pointer 1. See 0x5173.
 	defb 0x10		;7e83
+	defb 0x29		;7e84
+	defb 0x11		;7e85
+	defb 0x09		;7e86
+	defb 0x13		;7e87
+	defb 0x18		;7e88
+	defb 0x20		;7e89
+	defb 0x31		;7e8a
+	defb 0x24		;7e8b
+	defb 0x18		;7e8c
+	defb 0x10		;7e8d
+	defb 0x19		;7e8e
+	defb 0x13		;7e8f
+	defb 0x18		;7e90
+	defb 0x20		;7e91
+	defb 0xFB		;7e92
+	defb 0x20		;7e93
+	defb 0x6F		;7e94
+	defb 0x24		;7e95
+	defb 0x18		;7e96
+	defb 0x10		;7e97
+	defb 0x19		;7e98
+	defb 0x12		;7e99
+	defb 0x11		;7e9a
+	defb 0x10		;7e9b
+	defb 0x49		;7e9c
+	defb 0x11		;7e9d
+	defb 0x09		;7e9e
+	defb 0x13		;7e9f
+	defb 0x18		;7ea0
+	defb 0x20		;7ea1
+	defb 0xC1		;7ea2
+	defb 0x24		;7ea3;
+	defb 0x18		;7ea4
+	defb 0x10		;7ea5
+	defb 0x19		;7ea6
+	defb 0xFE		;7ea7 Special value. Checked for at 0x56FA.
 
-; more data?
-	add hl,hl		;7e84
-	ld de,01309h		;7e85
-	jr $+34			;7e88 jump to 0x7EAA
-	ld sp,01824h		;7e8a
-	djnz $+27		;7e8d if (--B != 0) jump to 0x7EA8
-	inc de			;7e8f
-	jr $+34			;7e90 jump to 0x7EB2
-	ei			;7e92
-	jr nz,$+113		;7e93 if (nz) jump to 0x7F04
-	inc h			;7e95
-	jr $+18			;7e96 jump to 0x7EA8
-	add hl,de		;7e98
-	ld (de),a		;7e99
-	ld de,04910h		;7e9a
-	ld de,01309h		;7e9d
-	jr $+34			;7ea0 jump to 0x7EC2
-	pop bc			;7ea2
-	inc h			;7ea3
-	jr $+18			;7ea4 jump to 0x7EB6
-	add hl,de		;7ea6
-	cp 010h			;7ea7
-	ld sp,01813h		;7ea9
-	jr nz,$+99		;7eac if (nz) jump to 0x7F0F
-	ld hl,02429h		;7eae
-	jr $+18			;7eb1 jump to 0x7EC3
-	ld hl,01813h		;7eb3
-	jr nz,$+27		;7eb6 if (nz) jump to 0x7ED1
-	ld (02029h),hl		;7eb8
-	ld d,c			;7ebb
-	inc h			;7ebc
-	jr $+18			;7ebd jump to 0x7ECF
-	ld h,c			;7ebf
-	inc de			;7ec0
-	jr $+34			;7ec1 jump to 0x7EE3
-	sub c			;7ec3
-	inc h			;7ec4
-	jr $+18			;7ec5 jump to 0x7ED7
-	ld sp,01813h		;7ec7
-	jr nz,$+99		;7eca if (nz) jump to 0x7F2D
-	inc h			;7ecc
-	jr $+18			;7ecd jump to 0x7EDF
-	add hl,de		;7ecf
-	cp 0d9h			;7ed0
-	ld a,(hl)		;7ed2
-	inc bc			;7ed3
-	ld a,a			;7ed4
-	inc hl			;7ed5
-	ld a,a			;7ed6
-	ld b,c			;7ed7
-	ld a,a			;7ed8
-	ex af,af'		;7ed9
-	dec b			;7eda
-	rrca			;7edb
-	add a,e			;7edc
-	add a,h			;7edd
-	rrca			;7ede
-	rrca			;7edf
-	rrca			;7ee0
-	add a,c			;7ee1
-	add a,d			;7ee2
-	rrca			;7ee3
-	rrca			;7ee4
-	rrca			;7ee5
-	rrca			;7ee6
-	rrca			;7ee7
-	add a,e			;7ee8
-	add a,h			;7ee9
-	add a,e			;7eea
-	add a,h			;7eeb
-	rrca			;7eec
-	add a,c			;7eed
-	add a,d			;7eee
-	add a,c			;7eef
-	add a,d			;7ef0
-	rrca			;7ef1
-	rrca			;7ef2
-	rrca			;7ef3
-	rrca			;7ef4
-	rrca			;7ef5
-	rrca			;7ef6
-	add a,e			;7ef7
-	add a,h			;7ef8
-	rrca			;7ef9
-	add a,e			;7efa
-	add a,h			;7efb
-	add a,c			;7efc
-	add a,d			;7efd
-	rrca			;7efe
-	add a,c			;7eff
-	add a,d			;7f00
-	rrca			;7f01
-	rrca			;7f02
-	dec b			;7f03
-	ld b,00fh		;7f04
-	rrca			;7f06
-	add a,a			;7f07
-	adc a,b			;7f08
-	adc a,c			;7f09
-	rrca			;7f0a
-	rrca			;7f0b
-	rrca			;7f0c
-	add a,l			;7f0d
-	add a,(hl)		;7f0e
-	rrca			;7f0f
-	rrca			;7f10
-	rrca			;7f11
-	rrca			;7f12
-	rrca			;7f13
-	rrca			;7f14
-	rrca			;7f15
-	rrca			;7f16
-	rrca			;7f17
-	rrca			;7f18
-	rrca			;7f19
-	rrca			;7f1a
-	rrca			;7f1b
-	rrca			;7f1c
-	dec hl			;7f1d
-	cpl			;7f1e
-	ld l,021h		;7f1f
-	dec l			;7f21
-	add hl,hl		;7f22
-	rlca			;7f23
-	inc b			;7f24
-	sbc a,b			;7f25
-	sub a			;7f26
-	sub a			;7f27
-	sub (hl)		;7f28
-	sub c			;7f29
-	sub d			;7f2a
-	sub e			;7f2b
-	sub l			;7f2c
-	adc a,l			;7f2d
-	adc a,(hl)		;7f2e
-	sub b			;7f2f
-	sub l			;7f30
-	adc a,l			;7f31
-	adc a,(hl)		;7f32
-	adc a,a			;7f33
-	sub l			;7f34
-	adc a,d			;7f35
-	adc a,e			;7f36
-	adc a,h			;7f37
-	sub h			;7f38
-	rrca			;7f39
-	add a,a			;7f3a
-	adc a,b			;7f3b
-	adc a,c			;7f3c
-	rrca			;7f3d
-	add a,l			;7f3e
-	add a,(hl)		;7f3f
-	rrca			;7f40
-	ex af,af'		;7f41
-	dec b			;7f42
-	rrca			;7f43
-	add a,a			;7f44
-	adc a,b			;7f45
-	adc a,c			;7f46
-	rrca			;7f47
-	rrca			;7f48
-	add a,l			;7f49
-	add a,(hl)		;7f4a
-	rrca			;7f4b
-	rrca			;7f4c
-	add a,a			;7f4d
-	adc a,b			;7f4e
-	add a,a			;7f4f
-	adc a,b			;7f50
-	adc a,c			;7f51
-	add a,l			;7f52
-	add a,(hl)		;7f53
-	add a,l			;7f54
-	add a,(hl)		;7f55
-	rrca			;7f56
-	rrca			;7f57
-	add a,a			;7f58
-	adc a,b			;7f59
-	adc a,c			;7f5a
-	rrca			;7f5b
-	rrca			;7f5c
-	add a,l			;7f5d
-	add a,(hl)		;7f5e
-	rrca			;7f5f
-	rrca			;7f60
-	add a,a			;7f61
-	adc a,b			;7f62
-	add a,a			;7f63
-	adc a,b			;7f64
-	adc a,c			;7f65
-	add a,l			;7f66
-	add a,(hl)		;7f67
-	add a,l			;7f68
-	add a,(hl)		;7f69
-	rrca			;7f6a
-	sub e			;7f6b
-	ld de,00393h		;7f6c
-	inc bc			;7f6f
-	inc de			;7f70
-	rst 38h			;7f71
-	ld (de),a		;7f72
-	ld (de),a		;7f73
-	ld (bc),a		;7f74
-	inc bc			;7f75
-	ld (bc),a		;7f76
-	inc de			;7f77
-	inc bc			;7f78
-	inc bc			;7f79
-	rst 38h			;7f7a
-	inc de			;7f7b
-	inc de			;7f7c
-	inc de			;7f7d
-	inc bc			;7f7e
-	inc bc			;7f7f
-	ld (de),a		;7f80
-	rst 38h			;7f81
-	sub e			;7f82
-	add a,e			;7f83
-	rst 38h			;7f84
-	sub d			;7f85
-	sub d			;7f86
-	rst 38h			;7f87
-	add a,d			;7f88
-	add a,d			;7f89
-	add a,c			;7f8a
-	ld (hl),e		;7f8b
-	ld (hl),d		;7f8c
-	add a,d			;7f8d
-	sub d			;7f8e
-	add a,e			;7f8f
-	add a,e			;7f90
-	add a,e			;7f91
-	sub b			;7f92
-	sub e			;7f93
-	sub e			;7f94
-	rst 38h			;7f95
-	nop			;7f96
-	djnz $+5		;7f97 if (--B != 0) jump to 0x7F9C
-	nop			;7f99
-	inc bc			;7f9a
-	rst 38h			;7f9b
-	ld bc,0ff13h		;7f9c
-	ld (de),a		;7f9f
-	ld (de),a		;7fa0
-	ld (bc),a		;7fa1
-	rst 38h			;7fa2
-	ld (bc),a		;7fa3
-	sub d			;7fa4
-	sub d			;7fa5
-	inc bc			;7fa6
-	inc bc			;7fa7
-	add a,e			;7fa8
-	sub e			;7fa9
-	inc bc			;7faa
-	ld bc,083ffh		;7fab
-	sub b			;7fae
-	inc de			;7faf
-	sub e			;7fb0
-	ld (bc),a		;7fb1
-	ld bc,00010h		;7fb2
-	inc bc			;7fb5
-	inc bc			;7fb6
-	inc de			;7fb7
-	inc bc			;7fb8
-	ld (0ff12h),hl		;7fb9
-	inc de			;7fbc
-	inc bc			;7fbd
-	ld bc,01013h		;7fbe
-	rst 38h			;7fc1
-	inc bc			;7fc2
-	inc de			;7fc3
-	djnz $+2		;7fc4 if (--B != 0) jump to 0x7FC6
-	sub e			;7fc6
-	inc bc			;7fc7
-	rst 38h			;7fc8
-	ld (de),a		;7fc9
-	ld (de),a		;7fca
-	sub e			;7fcb
-	add a,e			;7fcc
-	inc bc			;7fcd
-	inc bc			;7fce
-	ld bc,01310h		;7fcf
-	ld (01022h),hl		;7fd2
-	inc bc			;7fd5
-	inc bc			;7fd6
-	inc de			;7fd7
-	inc de			;7fd8
-	rst 38h			;7fd9
-	ld (de),a		;7fda
-	inc bc			;7fdb
-	inc bc			;7fdc
-	inc de			;7fdd
-	inc de			;7fde
-	djnz $+3		;7fdf if (--B != 0) jump to 0x7FE2
-	sub d			;7fe1
-	sub d			;7fe2
+; Stage 6, data pointer 1. See 0x517F.
+	defb 0x10		;7ea8
+	defb 0x31		;7ea9
+	defb 0x13		;7eaa
+	defb 0x18		;7eab
+	defb 0x20		;7eac
+	defb 0x61		;7ead
+	defb 0x21		;7eae
+	defb 0x29		;7eaf
+	defb 0x24		;7eb0
+	defb 0x18		;7eb1
+	defb 0x10		;7eb2
+	defb 0x21		;7eb3
+	defb 0x13		;7eb4
+	defb 0x18		;7eb5
+	defb 0x20		;7eb6
+	defb 0x19		;7eb7
+	defb 0x22		;7eb8
+	defb 0x29		;7eb9
+	defb 0x20		;7eba
+	defb 0x51		;7ebb
+	defb 0x24		;7ebc
+	defb 0x18		;7ebd
+	defb 0x10		;7ebe
+	defb 0x61		;7ebf
+	defb 0x13		;7ec0
+	defb 0x18		;7ec1
+	defb 0x20		;7ec2
+	defb 0x91		;7ec3
+	defb 0x24		;7ec4
+	defb 0x18		;7ec5
+	defb 0x10		;7ec6
+	defb 0x31		;7ec7
+	defb 0x13		;7ec8
+	defb 0x18		;7ec9
+	defb 0x20		;7eca
+	defb 0x61		;7ecb
+	defb 0x24		;7ecc
+	defb 0x18		;7ecd
+	defb 0x10		;7ece
+	defb 0x19		;7ecf
+	defb 0xFE		;7ed0 Special value. Checked for at 0x56FA.
+
+; Stage 6, data pointer 3. See 0x5183.
+	defb 0xD9		;7ed1
+	defb 0x7E		;7ed2
+	defb 0x03		;7ed3
+	defb 0x7F		;7ed4
+	defb 0x23		;7ed5
+	defb 0x7F		;7ed6
+	defb 0x41		;7ed7
+	defb 0x7F		;7ed8
+	defb 0x08		;7ed9
+	defb 0x05		;7eda
+	defb 0x0F		;7edb
+	defb 0x83		;7edc
+	defb 0x84		;7edd
+	defb 0x0F		;7ede
+	defb 0x0F		;7edf
+	defb 0x0F		;7ee0
+	defb 0x81		;7ee1
+	defb 0x82		;7ee2
+	defb 0x0F		;7ee3
+	defb 0x0F		;7ee4
+	defb 0x0F		;7ee5
+	defb 0x0F		;7ee6
+	defb 0x0F		;7ee7
+	defb 0x83		;7ee8
+	defb 0x84		;7ee9
+	defb 0x83		;7eea
+	defb 0x84		;7eeb
+	defb 0x0F		;7eec
+	defb 0x81		;7eed
+	defb 0x82		;7eee
+	defb 0x81		;7eef
+	defb 0x82		;7ef0
+	defb 0x0F		;7ef1
+	defb 0x0F		;7ef2
+	defb 0x0F		;7ef3
+	defb 0x0F		;7ef4
+	defb 0x0F		;7ef5
+	defb 0x0F		;7ef6
+	defb 0x83		;7ef7
+	defb 0x84		;7ef8
+	defb 0x0F		;7ef9
+	defb 0x83		;7efa
+	defb 0x84		;7efb
+	defb 0x81		;7efc
+	defb 0x82		;7efd
+	defb 0x0F		;7efe
+	defb 0x81		;7eff
+	defb 0x82		;7f00
+	defb 0x0F		;7f01
+	defb 0x0F		;7f02
+	defb 0x05		;7f03
+	defb 0x06		;7f04
+	defb 0x0F		;7f05
+	defb 0x0F		;7f06
+	defb 0x87		;7f07
+	defb 0x88		;7f08
+	defb 0x89		;7f09
+	defb 0x0F		;7f0a
+	defb 0x0F		;7f0b
+	defb 0x0F		;7f0c
+	defb 0x85		;7f0d
+	defb 0x86		;7f0e
+	defb 0x0F		;7f0f
+	defb 0x0F		;7f10
+	defb 0x0F		;7f11
+	defb 0x0F		;7f12
+	defb 0x0F		;7f13
+	defb 0x0F		;7f14
+	defb 0x0F		;7f15
+	defb 0x0F		;7f16
+	defb 0x0F		;7f17
+	defb 0x0F		;7f18
+	defb 0x0F		;7f19
+	defb 0x0F		;7f1a
+	defb 0x0F		;7f1b
+	defb 0x0F		;7f1c
+	defb 0x2B		;7f1d
+	defb 0x2F		;7f1e
+	defb 0x2E		;7f1f
+	defb 0x21		;7f20
+	defb 0x2D		;7f21
+	defb 0x29		;7f22
+	defb 0x07		;7f23
+	defb 0x04		;7f24
+	defb 0x98		;7f25
+	defb 0x97		;7f26
+	defb 0x97		;7f27
+	defb 0x96		;7f28
+	defb 0x91		;7f29
+	defb 0x92		;7f2a
+	defb 0x93		;7f2b
+	defb 0x95		;7f2c
+	defb 0x8D		;7f2d
+	defb 0x8E		;7f2e
+	defb 0x90		;7f2f
+	defb 0x95		;7f30
+	defb 0x8D		;7f31
+	defb 0x8E		;7f32
+	defb 0x8F		;7f33
+	defb 0x95		;7f34
+	defb 0x8A		;7f35
+	defb 0x8B		;7f36
+	defb 0x8C		;7f37
+	defb 0x94		;7f38
+	defb 0x0F		;7f39
+	defb 0x87		;7f3a
+	defb 0x88		;7f3b
+	defb 0x89		;7f3c
+	defb 0x0F		;7f3d
+	defb 0x85		;7f3e
+	defb 0x86		;7f3f
+	defb 0x0F		;7f40
+	defb 0x08		;7f41
+	defb 0x05		;7f42
+	defb 0x0F		;7f43
+	defb 0x87		;7f44
+	defb 0x88		;7f45
+	defb 0x89		;7f46
+	defb 0x0F		;7f47
+	defb 0x0F		;7f48
+	defb 0x85		;7f49
+	defb 0x86		;7f4a
+	defb 0x0F		;7f4b
+	defb 0x0F		;7f4c
+	defb 0x87		;7f4d
+	defb 0x88		;7f4e
+	defb 0x87		;7f4f
+	defb 0x88		;7f50
+	defb 0x89		;7f51
+	defb 0x85		;7f52
+	defb 0x86		;7f53
+	defb 0x85		;7f54
+	defb 0x86		;7f55
+	defb 0x0F		;7f56
+	defb 0x0F		;7f57
+	defb 0x87		;7f58
+	defb 0x88		;7f59
+	defb 0x89		;7f5a
+	defb 0x0F		;7f5b
+	defb 0x0F		;7f5c
+	defb 0x85		;7f5d
+	defb 0x86		;7f5e
+	defb 0x0F		;7f5f
+	defb 0x0F		;7f60
+	defb 0x87		;7f61
+	defb 0x88		;7f62
+	defb 0x87		;7f63
+	defb 0x88		;7f64
+	defb 0x89		;7f65
+	defb 0x85		;7f66
+	defb 0x86		;7f67
+	defb 0x85		;7f68
+	defb 0x86		;7f69
+	defb 0x0F		;7f6a
+
+; Stage 6, data pointer 2. See 0x5181.
+	defb 0x93		;7f6b
+	defb 0x11		;7f6c
+	defb 0x93		;7f6d
+	defb 0x03		;7f6e
+	defb 0x03		;7f6f
+	defb 0x13		;7f70
+	defb 0xFF		;7f71
+	defb 0x12		;7f72
+	defb 0x12		;7f73
+	defb 0x02		;7f74
+	defb 0x03		;7f75
+	defb 0x02		;7f76
+	defb 0x13		;7f77
+	defb 0x03		;7f78
+	defb 0x03		;7f79
+	defb 0xFF		;7f7a
+	defb 0x13		;7f7b
+	defb 0x13		;7f7c
+	defb 0x13		;7f7d
+	defb 0x03		;7f7e
+	defb 0x03		;7f7f
+	defb 0x12		;7f80
+	defb 0xFF		;7f81
+	defb 0x93		;7f82
+	defb 0x83		;7f83
+	defb 0xFF		;7f84
+	defb 0x92		;7f85
+	defb 0x92		;7f86
+	defb 0xFF		;7f87
+	defb 0x82		;7f88
+	defb 0x82		;7f89
+	defb 0x81		;7f8a
+	defb 0x73		;7f8b
+	defb 0x72		;7f8c
+	defb 0x82		;7f8d
+	defb 0x92		;7f8e
+	defb 0x83		;7f8f
+	defb 0x83		;7f90
+	defb 0x83		;7f91
+	defb 0x90		;7f92
+	defb 0x93		;7f93
+	defb 0x93		;7f94
+	defb 0xFF		;7f95
+	defb 0x00		;7f96
+	defb 0x10		;7f97
+	defb 0x03		;7f98
+	defb 0x00		;7f99
+	defb 0x03		;7f9a
+	defb 0xFF		;7f9b
+	defb 0x01		;7f9c
+	defb 0x13		;7f9d
+	defb 0xFF		;7f9e
+	defb 0x12		;7f9f
+	defb 0x12		;7fa0
+	defb 0x02		;7fa1
+	defb 0xFF		;7fa2
+	defb 0x02		;7fa3
+	defb 0x92		;7fa4
+	defb 0x92		;7fa5
+	defb 0x03		;7fa6
+	defb 0x03		;7fa7
+	defb 0x83		;7fa8
+	defb 0x93		;7fa9
+	defb 0x03		;7faa
+	defb 0x01		;7fab
+	defb 0xFF		;7fac
+	defb 0x83		;7fad
+	defb 0x90		;7fae
+	defb 0x13		;7faf
+	defb 0x93		;7fb0
+	defb 0x02		;7fb1
+	defb 0x01		;7fb2
+	defb 0x10		;7fb3
+	defb 0x00		;7fb4
+	defb 0x03		;7fb5
+	defb 0x03		;7fb6
+	defb 0x13		;7fb7
+	defb 0x03		;7fb8
+	defb 0x22		;7fb9
+	defb 0x12		;7fba
+	defb 0xFF		;7fbb
+	defb 0x13		;7fbc
+	defb 0x03		;7fbd
+	defb 0x01		;7fbe
+	defb 0x13		;7fbf
+	defb 0x10		;7fc0
+	defb 0xFF		;7fc1
+	defb 0x03		;7fc2
+	defb 0x13		;7fc3
+	defb 0x10		;7fc4
+	defb 0x00		;7fc5
+	defb 0x93		;7fc6
+	defb 0x03		;7fc7
+	defb 0xFF		;7fc8
+	defb 0x12		;7fc9
+	defb 0x12		;7fca
+	defb 0x93		;7fcb
+	defb 0x83		;7fcc
+	defb 0x03		;7fcd
+	defb 0x03		;7fce
+	defb 0x01		;7fcf
+	defb 0x10		;7fd0
+	defb 0x13		;7fd1
+	defb 0x22		;7fd2
+	defb 0x22		;7fd3
+	defb 0x10		;7fd4
+	defb 0x03		;7fd5
+	defb 0x03		;7fd6
+	defb 0x13		;7fd7
+	defb 0x13		;7fd8
+	defb 0xFF		;7fd9
+	defb 0x12		;7fda
+	defb 0x03		;7fdb
+	defb 0x03		;7fdc
+	defb 0x13		;7fdd
+	defb 0x13		;7fde
+	defb 0x10		;7fdf
+	defb 0x01		;7fe0
+	defb 0x92		;7fe1
+	defb 0x92		;7fe2
 	defb 0xFF		;7fe3
 
+; Data, stage 6, see 0x50D5, 0x56C3.
 	defb 0x00		;7fe4
 	defb 0x00		;7fe5
 	defb 0x00		;7fe6
 	defb 0x00		;7fe7
-	ld (00020h),hl		;7fe8
-	nop			;7feb
-	nop			;7fec
-	nop			;7fed
-	adc a,b			;7fee
-	add a,b			;7fef
-	rst 38h			;7ff0
-	rst 38h			;7ff1
-	rst 38h			;7ff2
-	cp d			;7ff3
-	adc a,a			;7ff4
-	add a,c			;7ff5
-	or (hl)			;7ff6
-	sbc a,e			;7ff7
-	nop			;7ff8
-	or a			;7ff9
-	sub e			;7ffa
-	cp d			;7ffb
-	xor d			;7ffc
-	ld a,(bc)		;7ffd
-	jr nc,$-84		;7ffe if (nc) jump to 0x7FAA
+	defb 0x22		;7fe8
+	defb 0x20		;7fe9
+	defb 0x00		;7fea
+	defb 0x00		;7feb
+	defb 0x00		;7fec
+	defb 0x00		;7fed
+	defb 0x88		;7fee
+	defb 0x80		;7fef
+	defb 0xFF		;7ff0
+	defb 0xFF		;7ff1
+	defb 0xFF		;7ff2
+	defb 0xBA		;7ff3
+	defb 0x8F		;7ff4
+	defb 0x81		;7ff5
+	defb 0xB6		;7ff6
+	defb 0x9B		;7ff7
+	defb 0x00		;7ff8
+	defb 0xB7		;7ff9
+	defb 0x93		;7ffa
+	defb 0xBA		;7ffb
+	defb 0xAA		;7ffc
+	defb 0x0A		;7ffd
+	defb 0x30		;7ffe
+	defb 0xAA		;7fff
