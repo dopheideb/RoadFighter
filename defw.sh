@@ -24,6 +24,10 @@ if [ "${END:0:2}" = '0x' ]
 then
 	## Interpret as hex.
 	END=$[ ${END} ]
+elif [ "${END:0:1}" = '+' ]
+then
+	## Interpret as length.
+	END=$[ ${START} + ${END} - 1 ]
 fi
 if [ $[ ($END - $START) % 2 ] -eq 0 ]
 then
@@ -47,5 +51,5 @@ dd\
 do
 	if [ "${LINE}" = '' ]; then continue; fi
 	printf "%s%04x\n" "${LINE}" "${START}"
-	let ++START
+	let START+=2
 done
