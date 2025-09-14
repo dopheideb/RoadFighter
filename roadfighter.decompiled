@@ -17,7 +17,50 @@
 	jp 01770h		;013e [BIOS] RDVDP : Read VDP Status Register
 	jp 01773h		;0141 [BIOS] SNSMAT: Read row of keyboard matrix
 	(...)
+
+; grauw.nl states:
+;   Address  : #0047
+;   Function : Write data in the VDP-register
+;   Input    : B  - Data to write
+;              C  - Number of the register
+;   Registers: AF, BC
+022e_WRTVDP:
+	di			;022e Disable interrupts.
 	
+	; The VDP docs says that bit 7 needs to be set. But the C should 
+	; be the number of the register, i.e. without bit 7 set. So, 
+	; fixed user errors, since we need the register number for 
+	; shadowing. See 0x0242.
+	res 7,c			;022f Reset bit 7 of register C.
+	
+	; TMS9918.pdf states in 2.1.2 ("CPU Write to VDP Register"): 
+	; "The first byte transferred is the data byte, and the second 
+	; byte transferred controls the destination. The MSB of the 
+	; second byte must be a 1."
+	; 
+	; Write the data byte.
+	ld a,b			;0231 A = B
+	out (099h),a		;0232 Write data (B) to the VDP.
+	
+	; Write to which register the data byte must go to.
+	ld a,c			;0234 A = C
+	or 080h			;0235 A = C | 0x80, MSB must be set to 1 according to VDP docs.
+	out (099h),a		;0237 Write address to the VDP.
+	ei			;0239 Enable interrupts.
+
+	; (0xF3DF)[C] = B, update MSX BIOS VDP register mirror address.
+	push hl			;023a Store HL (restored at 0x0243).
+	ld hl,0f3dfh		;023b HL = 0xF3DF
+	ld a,b			;023e A = B
+	ld b,000h		;023f B = 0x00
+	add hl,bc		;0241 HL += BC
+	ld (hl),a		;0242 *(HL) = A
+	pop hl			;0243 Restore HL (stored at 0x023A).
+
+	ret			;0244
+
+
+
 0260_SETWRT:
 	di			;0260 Disable interrupts.
 	
@@ -38,17 +81,17 @@
 
 
 
-	; Road Fighter ROM	
-	org	04000h
+; Road Fighter ROM	
+org	04000h
 
-	defm "AB"		;4000 ID. Must be "AB" for cartridge.
-	defw 0x404F		;4002 INIT. Entry point.
-	defw 0x0000		;4004 STATEMENT.                     Not used, so zeroed.
-	defw 0x0000		;4006 DEVICE.                        Not used, so zeroed.
-	defw 0x0000		;4008 TEXT.                          Not used, so zeroed.
-	defw 0x0000		;400A RESERVED FOR FUTURE USE.       Not used, so zeroed.
-	defw 0x0000		;400C RESERVED FOR FUTURE USE.       Not used, so zeroed.
-	defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
+defm "AB"		;4000 ID. Must be "AB" for cartridge.
+defw 0x404F		;4002 INIT. Entry point.
+defw 0x0000		;4004 STATEMENT.                     Not used, so zeroed.
+defw 0x0000		;4006 DEVICE.                        Not used, so zeroed.
+defw 0x0000		;4008 TEXT.                          Not used, so zeroed.
+defw 0x0000		;400A RESERVED FOR FUTURE USE.       Not used, so zeroed.
+defw 0x0000		;400C RESERVED FOR FUTURE USE.       Not used, so zeroed.
+defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
@@ -78,7 +121,7 @@
 	inc (hl)		;4021
 	ei			;4022 Enable interrupts.
 	call 046b6h		;4023 46b6_read_and_save_joystick_and_keyboard
-	call 04082h		;4026 4082_increment_ticker__read_input__jump_to_game_state_handler
+	call 04082h		;4026 4082_increment_ticker__read_input__jump_to_state_handler
 	ld a,000h		;4029 A = 0
 	ld (0e005h),a		;402b *(0xE005) = 0
 	
@@ -101,6 +144,13 @@
 
 
 
+; grauw.nl states:
+;   WRTVDP
+;   Address  : #0047
+;   Function : Write data in the VDP-register
+;   Input    : B  - Data to write
+;              C  - Number of the register
+;   Registers: AF, BC
 4038_wrtvdp_jump:
 	jp 0047_WRTVDP		;4038
 
@@ -142,9 +192,9 @@
 	pop hl			;4046 HL = *(SP)
 	
 	call 0403bh		;4047 HL += A
-	ld e,(hl)		;404a E = *(hl)
-	inc hl			;404b ++hl
-	ld d,(hl)		;404c D = *(hl)
+	ld e,(hl)		;404a E = *(HL)
+	inc hl			;404b ++HL
+	ld d,(hl)		;404c D = *(HL)
 	ex de,hl		;404d DE=HL, HL=DE
 	jp (hl)			;404e
 
@@ -193,12 +243,12 @@
 
 
 407f_jump_to_0x4B6E:
-	jp 04b6eh		;407f
+	jp 04b6eh		;407f 4b6e_sound_something
 
 
 ; We can get here from:
 ;   0x4026 (call) [4013_interrupt_hook]
-4082_increment_ticker__read_input__jump_to_game_state_handler:
+4082_increment_ticker__read_input__jump_to_state_handler:
 	ld hl,0e003h		;4082 HL = 0xE003
 	inc (hl)		;4085 Increment ticker
 	ld a,(0e002h)		;4086 A = *0xE002
@@ -270,17 +320,17 @@
 	
 	xor a			;40bc A = 0
 	; Switch to state #01, substate #00.
-	jp 04167h		;40bd 4167_increase_game_substate_and_set_E004_to_regA
+	jp 04167h		;40bd 4167_increase_substate_and_set_E004_to_regA
 	
 	
 	
 	; We can get here from:
 	;   0x40AB (djnz)
 	djnz $+13		;40c0 if (--B != 0) jump to 0x40CD
-40cc_state00_substate_02:
+40cc_state00_substate02:
 	call 0440ch		;40c2 440c_decrement_timer_and_do_return_magic
 	; Post: timer ran out.
-	call 049a6h		;40c5
+	call 049a6h		;40c5 49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo
 	ld a,020h		;40c8 A = 0x20
 	jp 04167h		;40ca
 
@@ -289,7 +339,7 @@
 	; We can get here from:
 	;   0x40C0 (djnz)
 	djnz $+25		;40cd if (--B != 0) jump to 0x40E6
-40cf_state00_substate_03:
+40cf_state00_substate03:
 	ld hl,0e004h		;40cf HL = *0xE004
 	dec (hl)		;40d2
 	ld a,(hl)		;40d3
@@ -310,18 +360,26 @@
 	; We can get here from:
 	;   0x40CD (djnz)
 	djnz $+52		;40e6 if (--B != 0) jump to 0x411A
-40cf_state00_substate_04:
+40cf_state00_substate04:
 	ld hl,0e004h		;40e8 HL = 0xE004
 	dec (hl)		;40eb
 	jr z,$+34		;40ec if (*0xE004 == 0) jump to 0x410E
 	ld a,(hl)		;40ee A = *(0xE004)
+				;xxxx fall to 40ef_draw_road_fighter_logo(color_set=A)
 
-	; We can get here from:
-	;   0x40EE (fall)
-	;   0x49BC (jump) Very far away!!!
+
+; Draw Road Fighter logo.
+; 
+; Input:
+;   A: the requested color set (0..3)
+; 
+; We can get here from:
+;   0x40EE (fall) A == *(0xE004) and *(0xE004) != 0
+;   0x49BC (jump) A == 0x01
+40ef_draw_road_fighter_logo:
 	and 003h		;40ef A &= 0x03
 	add a,a			;40f1 A *= 2
-	ld de,04112h		;40f2 DE = 0x4112
+	ld de,04112h		;40f2 DE = 0x4112 (4112_road_fighter_logo_blink_colors)
 	call 04040h		;40f5 DE += A
 	ld a,(de)		;40f8 A = 4112_road_fighter_logo_blink_colors[A]
 	
@@ -339,29 +397,39 @@
 	ld c,058h		;4109 C = 0x58 (length)
 	jp 045cfh		;410b 45cf_filvrm_color_or_pattern_generator
 
+
+
 ; We can get here from:
 ;   0x40EC (jump)
-410e_state00_substate_04_timer_ran_out:
+410e_state00_substate04_timer_ran_out:
 	xor a			;410e A = 0
-	jp 042fah		;410f 42fa_set_gamestate_to_regA_reset_substate_and_return
+	jp 042fah		;410f 42fa_set_state_to_regA_reset_substate_and_return
 
 
 
+; Color sets for the Road Fighter logo. There are four sets, each with 2 
+; byte elements:
+; 
+;   byte #00: dark color
+;   byte #01: light color.
+;  
+; Total size: 4 element * 2 bytes per element == 8 bytes
+; 
 ; Used at 0x40F2.
 4112_road_fighter_logo_blink_colors:
-	defb 0x40		;4112 #00 FG=dark blue        , BG=transparent
-	defb 0x70		;4113 #01 FG=light blue (cyan), BG=transparent
-	defb 0x60		;4114 #02 FG=dark red         , BG=transparent
-	defb 0x90		;4115 #03 FG=light red        , BG=transparent
-	defb 0xA0		;4116 #04 FG=dark yellow      , BG=transparent
-	defb 0xF0		;4117 #05 FG=light yellow     , BG=transparent
-	defb 0x60		;4118 #06 FG=dark red         , BG=transparent
-	defb 0x90		;4119 #07 FG=light red        , BG=transparent
+	defb 0x40		;4112 #00.0 FG=dark blue        , BG=transparent
+	defb 0x70		;4113 #00.1 FG=light blue (cyan), BG=transparent
+	defb 0x60		;4114 #01.0 FG=dark red         , BG=transparent
+	defb 0x90		;4115 #01.1 FG=light red        , BG=transparent
+	defb 0xA0		;4116 #02.0 FG=dark yellow      , BG=transparent
+	defb 0xF0		;4117 #02.1 FG=light yellow     , BG=transparent
+	defb 0x60		;4118 #03.0 FG=dark red         , BG=transparent
+	defb 0x90		;4119 #03.1 FG=light red        , BG=transparent
 
 
 ; We can get here from:
 ;   0x40E6 (djnz)
-411a_state00_substate_05:
+411a_state00_substate05:
 	call 04698h		;411a 4698_setup_VDP_registers
 	call 04584h		;411d 4584_clear_name_table_and_set_sprite_00_vpos_to_D0
 	
@@ -383,9 +451,9 @@
 
 
 ; See jump table 0x4099.
-4137_game_state_02:
+4137_state02:
 	djnz $+35		;4137 if (--B != 0) jump to 0x415A
-4139_game_state_02_substate_01:
+4139_state02_substate01:
 	call 052d1h		;4139 52d1_fudge_currently_pressed_keys
 	call 05224h		;413c
 	ld a,(0e045h)		;413f
@@ -407,7 +475,7 @@
 ;   0x4162 (jump) A == 4 (demo)
 ;   0x431B (call) A == 8 (checkpoint)
 ;   0x43A8 (call) A == 1 (level select)
-414f_store_game_state_and_reset_timer:
+414f_store_state_and_reset_timer:
 	ld (e000_game_state),a	;414f Store game state manually (i.e. do not use 0x42F8).
 	ld a,018h		;4152 A = 0x18
 	ld (0e004h),a		;4154 Set state specific value.
@@ -415,15 +483,15 @@
 
 
 
-415a_game_state_02_substate_02:
+415a_state02_substate02:
 	call 052b8h		;415a 52b8_fixme
-	call 0504ch		;415d 504c_init
+	call 0504ch		;415d 504c_init_new_game
 	ld a,004h		;4160 A = 0x04 (demo state)
-	jp 0414f		;4162 414f_store_game_state_and_reset_timer
+	jp 0414f		;4162 414f_store_state_and_reset_timer
 
 
 
-4165_increase_game_substate_and_set_E004_to_0x18:
+4165_increase_substate_and_set_E004_to_0x18:
 	ld a,018h			;4165 A = 0x18
 
 ; We can get here from:
@@ -445,9 +513,9 @@
 ;   0x4385 (jump) A == 0x00
 ;   0x43C0 (jump) A == 0x18
 ;   0x7492 (jump) A == 0x00
-4167_increase_game_substate_and_set_E004_to_regA:
+4167_increase_substate_and_set_E004_to_regA:
 	ld (0e004h),a			;4167 *(0xE004) = A
-	; Fall to 416a_increase_game_substate.
+	; Fall to 416a_increase_substate.
 
 ; We can get here from:
 ;   0x4167 (fall)
@@ -456,7 +524,7 @@
 ;   0x42EA (jump)
 ;   0x52AE (jump)
 ;   0x74B3 (jump)
-416a_increase_game_substate:
+416a_increase_substate:
 	ld hl,e001_game_substate	;416a HL = 0xE001
 	inc (hl)			;416d Increase game substate
 	ret				;416e return
@@ -466,7 +534,7 @@
 ; See jump table 0x4099 (0x409F).
 ; 
 ; ?Start of a new game.?
-416f_game_state_03:
+416f_state03:
 	djnz $+29		;416f if (--B != 0) jump to 0x418C
 418e_state03_substate01:
 	ld hl,0e004h		;4171
@@ -504,7 +572,7 @@
 	call 04429h		;4197
 	ret p			;419a
 	call 068aah		;419b
-	call 0504ch		;419e 504c_init()
+	call 0504ch		;419e 504c_init_new_game()
 	call 044d0h		;41a1
 	call 042edh		;41a4
 	ld a,078h		;41a7
@@ -520,7 +588,7 @@
 	call 0440ch		;41b1 440c_decrement_timer_and_do_return_magic
 	; Post: timer ran out.
 	ld a,004h		;41b4 A = 0x04
-	jp 04167h		;41b6 4167_increase_game_substate_and_set_E004_to_regA
+	jp 04167h		;41b6 4167_increase_substate_and_set_E004_to_regA
 
 
 
@@ -539,7 +607,7 @@
 41c2_state03_substate06:
 	call 077c8h		;41c2 77c8_copy_start_of_coarse_stage01_to_coarse_memory()
 	call 0573ah		;41c5 573a_copy_coarse_to_VRAM()
-	jp 0416ah		;41c8 416a_increase_game_substate()
+	jp 0416ah		;41c8 416a_increase_substate()
 
 
 
@@ -610,7 +678,7 @@
 	; We can get here from:
 	;   0x4210 (jump) A == 0x05 (sound ID of yellow traffic light)
 	;   0x4213 (fall) A == 0x07 (sound ID of green traffic light)
-	call 04b6eh		;4214
+	call 04b6eh		;4214 4b6e_sound_something
 	
 	ld a,(0e004h)		;4217
 	bit 0,a			;421a
@@ -693,15 +761,15 @@
 ;   0x41E3 (jump)
 4266_state03_substate00:
 	ld a,098h		;4266 A = 0x98 Tune after selecting either level A or B
-	call 04b6eh		;4268
+	call 04b6eh		;4268 4b6e_sound_something
 	
 	ld a,050h		;426b A = 0x50
-	jp 04167h		;426d 4167_increase_game_substate_and_set_E004_to_regA
+	jp 04167h		;426d 4167_increase_substate_and_set_E004_to_regA
 
 
 
 ; See jump table 0x4099.
-4270_game_state_04_demo:
+4270_state04_demo:
 	djnz $+15		;4270 if (--B != 0) jump to 0x427F
 	call 0440ch		;4272 440c_decrement_timer_and_do_return_magic
 	; Post: timer ran out.
@@ -735,7 +803,7 @@
 	bit 6,a			;42b3
 	jr z,$+7		;42b5 if (z) jump to 0x42BC
 	ld a,007h		;42b7 A = 0x07 Sound of green traffic light
-	call 04b6eh		;42b9
+	call 04b6eh		;42b9 4b6e_sound_something
 	ld a,048h		;42bc
 	jp 04167h		;42be
 	djnz $+20		;42c1 if (--B != 0) jump to 0x42D5
@@ -769,18 +837,18 @@
 
 
 
-42f8_set_gamestate_to_0x18_reset_substate_and_return:
+42f8_set_state_to_0x18_reset_substate_and_return:
 ; We can get here from:
 ;   0x4134 (jump) [from=412d_state01] Ran out of time to choose level A/B.
 ;   0x4263 (jump) [from=424a_state03_substate09_subsubstate01] Just switched from state 03,substate 09,subsubstate 01 to state 04.
-;   0x42CB (jump) [from=4270_game_state_04_demo] (*0xE002 & 0x40) == 0x40
+;   0x42CB (jump) [from=4270_state04_demo] (*0xE002 & 0x40) == 0x40
 ;   0x4317 (jump) Race started
 ;   0x4346 (jump) No fuel left
 	ld a,018h		;42f8 A = 0x18
 
 ; We can get here from:
 ;   0x410F (jump) A == 0
-42fa_set_gamestate_to_regA_reset_substate_and_return:
+42fa_set_state_to_regA_reset_substate_and_return:
 	ld (0e004h),a		;42fa
 	ld hl,e000_game_state	;42fd
 	inc (hl)		;4300 Increase game state
@@ -796,10 +864,10 @@
 
 
 ; See jump table 0x4099. Race has started.
-4306_game_state_05:
+4306_state05:
 	djnz $+28		;4306 if (--B != 0) jump to 0x4322
 
-4306_game_state_05_substate_01:
+4306_state05_substate01:
 	call 05224h		;4308
 	ld a,(0e00dh)		;430b
 	and a			;430e
@@ -812,19 +880,19 @@
 	; We can get here from:
 	;   0x430F (jump)
 	ld a,008h		;4319 A = 8 (playing)
-	call 414f_store_game_state_and_reset_timer	;431b
+	call 414f_store_state_and_reset_timer	;431b
 	ld (0e004h),a		;431e Store timer
 	ret			;4321
 	
 ; We can get here from:
 ;   0x4306 (djnz)
-4306_game_state_05_substate_02:
+4306_state05_substate02:
 	jp 0527dh		;4322 527d_fixme
 
 
 
 ; See jump table 0x4099. Player crashed the car.
-4325_game_state_06:
+4325_state06:
 	ld a,(E083_fuel)	;4325 A = *(0xE083), load fuel
 	or a			;4328
 	jr z,$+24		;4329 if (no fuel left) jump to 0x4341 (game over)
@@ -843,13 +911,13 @@
 ;   0x4329 (jump)
 4341_game_over:
 	ld a,095h		;4341 A = 0x95 Sound ID of "GAME OVER".
-	call 04b6eh		;4343
+	call 04b6eh		;4343 4b6e_sound_something
 	jr $-78			;4346 Jump to 0x42F8
 
 
 
 ; See jump table 0x4099. Out of fuel.
-4348_game_state_07_out_of_fuel:
+4348_state07_out_of_fuel:
 	push bc			;4348
 	call 0526bh		;4349 526b_copy_13_sprites_from_RAM_to_VRAM
 	ld a,006h		;434c
@@ -874,7 +942,7 @@
 
 
 ; See jump table 0x4099. (After) checkpoint reached.
-4373_game_state_08:
+4373_state08:
 	push bc			;4373
 	call 0526bh		;4374 526b_copy_13_sprites_from_RAM_to_VRAM
 	call 0597dh		;4377 597d_update_minicar_vpos_and_color
@@ -913,7 +981,7 @@
 	call 0414fh		;43a8
 	ld (e000_game_state),bc	;43ab Store game state and game sub state.
 	ld (0e00dh),a		;43af
-	call 0504ch		;43b2 504c_init()
+	call 0504ch		;43b2 504c_init_new_game()
 	ld a,06ch		;43b5 A = 0x6C
 	ld (e10e_mcar_vpos),a	;43b7
 	ret			;43ba
@@ -923,48 +991,68 @@
 	call 0440ch		;43bb 440c_decrement_timer_and_do_return_magic
 	; Post: timer ran out.
 	ld a,018h		;43be
-	jp 04167h		;43c0 4167_increase_game_substate_and_set_E004_to_regA
+	jp 04167h		;43c0 4167_increase_substate_and_set_E004_to_regA
 
 
 
 ; We can get here from:
 ;   0x4096 (call) Actually: AFTER this call, because of PC trickery.
+	; A = 46c3_read_joystick_and_keyboard()
 	call 046c3h		;43c3 46c3_read_joystick_and_keyboard
-	ld hl,0e03ah		;43c6
-	call 046bch		;43c9
-	or a			;43cc
-	ret z			;43cd
-	ld hl,0e004h		;43ce
-	ld (hl),000h		;43d1
-	ld l,(hl)		;43d3
-	ld de,0e03bh_levelAB	;43d4
-	ld b,(hl)		;43d7
+	; Post: A is unchanged
+
+	ld hl,0e03ah		;43c6 HL = 0xE03A
+	call 046bch		;43c9 46bc_save_pressed_keys_in_HL__save_newly_pressed_keys_in_HL_minus_1
+
+	or a			;43cc Update Z/NZ flag.
+	ret z			;43cd if (no key pressed at all) return
+
+	ld hl,0e004h		;43ce HL = 0xE004: state related bits
+	ld (hl),000h		;43d1 state_related_bits = 0x00
+	ld l,(hl)		;43d3 L = 0x00, so HL == 0xE000: HL points to game state
+	ld de,0e03bh_levelAB	;43d4 DE = &level
+	ld b,(hl)		;43d7 B = game state
+
 	djnz $+27		;43d8 if (--B != 0) jump to 0x43F3
-	and 030h		;43da
-	jr z,$+43		;43dc if (z) jump to 0x4407
-	ld a,(de)		;43de
-	or a			;43df
-	ld a,040h		;43e0
-	jr z,$+4		;43e2 if (z) jump to 0x43E6
-	ld a,060h		;43e4
-	ld (0e002h),a		;43e6
+	; Post: game state == 0x01: game is startable.
+43da_state01:
+	and 030h		;43da A &= 0x30 (mask for space/select/trigger 1/trigger 2)
+	jr z,$+43		;43dc if (space+select+trigger+trigger1 are all not pressed) jump to 0x4407
+
+	; Space or select or trigger 1 or trigger 2 is pressed.
+	ld a,(de)		;43de A = level
+	or a			;43df Update Z/NZ flag.
+	ld a,040h		;43e0 A = 0x40
+	jr z,$+4		;43e2 if (*(DE) == 0) jump to 0x43E6
+	ld a,060h		;43e4 A = 0x60
+	
+	; We can get here from:
+	;   0x43E2 (jump) A == 0x40
+	;   0x43E4 (fall) A == 0x60
+	ld (0e002h),a		;43e6 Store game flags.
+
 	ld (hl),003h		;43e9 Switch to game state #03: start game
 	inc hl			;43eb
 	ld c,000h		;43ec C = 0x00
 	ld (hl),c		;43ee Switch to game substate #00.
 	dec c			;43ef C = 0xFF
-	jp 05032h		;43f0
+	jp 05032h		;43f0 5032_fixme
 
 
 
-	ld (hl),001h		;43f3
-	ld a,01bh		;43f5
-	call 04b6eh		;43f7
-	ld a,007h		;43fa
-	ld (0e004h),a		;43fc
+; We can get here from:
+;   0x43D8 (djnz) HL == 0xE000, game state != 0x01
+43f3_switch_to_state01:
+	ld (hl),001h		;43f3 game state = 0x01
+	ld a,01bh		;43f5 A = 0x1B (silence, on all 3 PSG channels)
+	call 04b6eh		;43f7 4b6e_sound_something
+
+	ld a,007h		;43fa A = 0x07
+	ld (0e004h),a		;43fc *(0xE004) = 0x07
 	call 049bfh		;43ff
-	xor a			;4402
-	ld (0e004h),a		;4403
+
+	xor a			;4402 A = 0x00
+	ld (0e004h),a		;4403 *(0xE004) = 0x00
 	ret			;4406
 
 
@@ -994,7 +1082,7 @@
 ;   dec (hl)    ;40c5
 ;   ret nz      ;40c6
 440c_decrement_timer_and_do_return_magic:
-	ld hl,0e004h		;440c hl = 0xE004
+	ld hl,0e004h		;440c HL = 0xE004
 	dec (hl)		;440f --*(0xE004)
 	ret z			;4410 if (timer == 0) return
 	
@@ -1322,11 +1410,15 @@
 ; Input: HL
 ;   H: horizontal position of car minus 0x08
 ;   L: vertical   position of car minus 0x10
+; 
+; We can get here from:
+;   0x6B34 (call)
+;   0x6DA2 (call)
 4561_maybe_compute_draw_game_over:
 	ld a,l			;4561 A = L
 	
 	; Computes:
-	;   A >>= 6
+	;   A >>= 6 (i.e. divide by 64)
 	;   H >>= 3 (i.e. divide by 8)
 	;
 	; Carry is not of interest here, because of 0x456F.
@@ -1531,7 +1623,7 @@
 ; We can get here from:
 ;   0x477C (call) DE = 0x478A, HL = 0x2080 (pattern generator table)
 ;   0x48CF (call) DE = 0x490F, HL = 0x6200 (pattern generator table)
-;   0x49B7 (call) DE = 0x4A25, HL = 0x2600 (pattern generator table)
+;   0x49B7 (call) DE = 0x4A25, HL = 0x2600 (pattern generator table), 4a25_road_fighter_logo_patterns
 ;   0x68B0 (call) DE = 0x5DEC, HL = 0x2200 (pattern generator table)
 ;   0x68B9 (call) DE = 0x5F25, HL = 0x0200 (color table)
 ;   0x68C2 (call) DE = 0x5FEC, HL = 0x2680 (pattern generator table)
@@ -1593,10 +1685,12 @@
 45f0_show_symbols:
 	ld c,0ffh		;45f0 C = 0xFF, don't mask the letters/symbols, see 0x4600.
 
-	; We can get here from:
-	;   0x45F0 (fall) C == 0xFF: show symbols
-	;   0x4609 (jump) C == 0x00: hide symbols
-	45f2_fill_name_table:
+
+
+; We can get here from:
+;   0x45F0 (fall) C == 0xFF: show symbols
+;   0x4609 (jump) C == 0x00: hide symbols
+45f2_fill_name_table:
 	; HL = DE, DE += 2
 	ex de,hl		;45f2
 	ld e,(hl)		;45f3
@@ -1604,12 +1698,22 @@
 	ld d,(hl)		;45f5
 	ex de,hl		;45f6
 	inc de			;45f7
+	; Fall to 45f8_draw_or_hide_characters(start=DE, mask=C)
 
-;
+
+
+; Draw or hide characters.
+; 
+; Input:
+;   DE: Start of characters (end at value 0xFF)
+;    C: Mask to apply:
+;         0x00: Hide characters
+;         0xFF: Show characters
+; 
 ; We can get here from:
 ;   0x45F7 (fall)
 ;   0x4605 (jump) end of this draw loop
-;   0x5049 (jump)
+;   0x5049 (jump) DE == 0x475B, C == 0x00 (hide characters)
 45f8_draw_or_hide_characters:
 	ld a,(de)		;45f8
 	inc de			;45f9
@@ -1623,7 +1727,7 @@
 	and c			;4600 Either 0xFF (see 0x45F0) or 0x00 (see 0x4607).
 	call 004D_WRTVRM	;4601 Write A to VRAM address HL.
 	inc hl			;4604
-	jr $-13			;4605 Jump to 45f8_draw_or_hide_characters
+	jr $-13			;4605 Jump to 45f8_draw_or_hide_characters(start=DE, mask=C)
 
 
 ; We can get here from:
@@ -1727,11 +1831,11 @@
 
 
 4652_something_with_vram_copy_with_reverse_bits:
-	ld b,003h		;4652 b = 3
+	ld b,003h		;4652 B = 3
 	push bc			;4654
 	push hl			;4655
 	push de			;4656
-	ld b,008h		;4657 b = 8
+	ld b,008h		;4657 B = 8
 	call 04679h		;4659 4679_vram_copy_reverse_bits_to_vram_de
 	inc hl			;465c
 	inc de			;465d
@@ -1750,9 +1854,9 @@
 
 
 466e_reverse_bits_of_register_a:
-	push bc			;466e Save bc
-	ld c,a			;466f c = a
-	ld b,008h		;4670 b = 8
+	push bc			;466e Save BC.
+	ld c,a			;466f C = A
+	ld b,008h		;4670 B = 8
 	
 	; ?Is the carry zero here?
 	
@@ -1776,7 +1880,7 @@
 	rla			;4674 Rotate left  reg a via carry.
 	djnz $-3		;4675 if (--B != 0) jump to 0x4672
 	
-	pop bc			;4677 Restore bc
+	pop bc			;4677 Restore BC
 	ret			;4678
 
 
@@ -1784,10 +1888,10 @@
 ; HL: VRAM source
 ; DE: VRAM destination
 4679_vram_copy_reverse_bits_to_vram_de:
-	call 004A_RDVRM		;4679 a = vram[hl]
+	call 004A_RDVRM		;4679 A = vram[HL]
 	call 0466eh		;467c 466e_reverse_bits_of_register_a
 	ex de,hl		;467f
-	call 004D_WRTVRM	;4680 vram[hl] = a
+	call 004D_WRTVRM	;4680 vram[HL] = A
 	ex de,hl		;4683
 	ret			;4684
 
@@ -1816,7 +1920,7 @@
 
 
 ; We can get here from:
-;   0x411A (call) [from=411a_state00_substate_05]
+;   0x411A (call) [from=411a_state00_substate05]
 ;   0x4695 (fall)
 4698_setup_VDP_registers:
 	ld hl,046a9h		;4698 HL = 0x46A9
@@ -1827,20 +1931,20 @@
 	; This means we will write the following VDP registers:
 	;
 	; (Source: https://www.msx.org/wiki/Category:VDP_Registers) 
-	;   VDP register 0 (d==8): Screen mode, video output,interruption line, color bus setting
-	;   VDP register 1 (d==7): Screen mode, sprites size, Vblank, Display, VRAM mode setting
-	;   VDP register 2 (d==6): Pattern layout table setting (Foreground)
-	;   VDP register 3 (d==5): Colors table setting
-	;   VDP register 4 (d==4): Patterns generator table setting
-	;   VDP register 5 (d==3): Sprites attribute table setting
-	;   VDP register 6 (d==2): VDP Table Base Address Registers
-	;   VDP register 7 (d==1): Text and screen margin color setting
+	;   VDP register 0 (D==8): Screen mode, video output,interruption line, color bus setting
+	;   VDP register 1 (D==7): Screen mode, sprites size, Vblank, Display, VRAM mode setting
+	;   VDP register 2 (D==6): Pattern layout table setting (Foreground)
+	;   VDP register 3 (D==5): Colors table setting
+	;   VDP register 4 (D==4): Patterns generator table setting
+	;   VDP register 5 (D==3): Sprites attribute table setting
+	;   VDP register 6 (D==2): VDP Table Base Address Registers
+	;   VDP register 7 (D==1): Text and screen margin color setting
 	;
 	; We can get here from:
-	;   0x469D (fall)      hl = 0x46A9
-	;   0x46A6 (jump/loop) hl is increased by 1
+	;   0x469D (fall)      HL == 0x46A9
+	;   0x46A6 (jump/loop) HL is increased by 1
 	ld b,(hl)		;469f
-	call 0047_WRTVDP	;46a0 B: data to write, C: Number of register (=0)
+	call 0047_WRTVDP	;46a0 B: data to write, C: Number of the register (=0)
 	inc hl			;46a3
 	inc c			;46a4
 	dec d			;46a5
@@ -1920,9 +2024,15 @@
 
 
 
+; MSX2+: Set the VRAM page (3 high order bits of the address counter).
+; 
+; Note: register 14 does not exist in the MSX 1 (TMS9929A for instance).
+; 
+; We can get here from:
+;   0x49A8 (call) B == 0xE0
 46b1_write_B_to_vdp_register_14:
-	ld c,00eh		;46b1 C = 0x0E, VDP register to write to.
-	jp 04038h		;46b3 4038_wrtvdp_jump, B: data to write, C: number of the register
+	ld c,00eh		;46b1 C = 0x0E, VDP register to write to. 14 decimal.
+	jp 04038h		;46b3 4038_wrtvdp_jump(data=B, register_number=0x0E)
 
 
 
@@ -1936,16 +2046,21 @@
 46b6_read_and_save_joystick_and_keyboard:
 	call 046c3h		;46b6 46c3_read_joystick_and_keyboard
 	ld hl,0e009h		;46b9 HL = 0xE009
-	
-	; We can get here from:
-	;   0x43C9 (call)
-	;   0x46B9 (fall)
+
+
+
+; We can get here from:
+;   0x43C9 (call) HL == 0xE03A
+;   0x46B9 (fall) HL == 0xE009
+46bc_save_pressed_keys_in_HL__save_newly_pressed_keys_in_HL_minus_1:
 	ld c,(hl)		;46bc C = previous keyboard/joystick input
 	ld (hl),a		;46bd Save new keyboard/joystick input
+
 	xor c			;46be Compute all differences between previous and current input
 	and (hl)		;46bf Select only differences in currently pressed input.
-	dec hl			;46c0 HL = 0xE008
-	ld (hl),a		;46c1 Save newly pressed keys
+	dec hl			;46c0 HL = 0xE008 or HL == 0xE039
+	ld (hl),a		;46c1 Save newly pressed keys.
+
 	ret			;46c2
 
 
@@ -1974,8 +2089,8 @@
 	;   yes 0x01 (bit 0) pin control 6 of the general port 1*
 	;
 	; Read joystick A, turn LED off.
-	ld e,08fh		;46c3 e = 0x8F (data to write to PSG reg 15)
-	ld a,00fh		;46c5 a = 0x0F (PSG reg)
+	ld e,08fh		;46c3 A = 0x8F (data to write to PSG reg 15)
+	ld a,00fh		;46c5 A = 0x0F (PSG reg)
 	call 0093_WRTPSG	;46c7 A: PSG reg, E: data
 	
 	
@@ -1991,7 +2106,7 @@
 	; Bit 5 = Pin 7 state of the selected general port (Trigger 2 if joystick)
 	; Bit 6 = 1 for JIS, 0 for JP50on (only valid for Japanese MSX)
 	; Bit 7 = CASRD (Reading signal on cassette)
-	ld a,00eh		;46ca a = 0x0E
+	ld a,00eh		;46ca A = 0x0E
 	di			;46cc
 	call 0096_RDPSG		;46cd The value read is stored in register A.
 	ei			;46d0
@@ -2016,12 +2131,12 @@
 	; 0x80   0x40   0x20      0x10 0x08 0x04   0x02 0x01
 	; Return Select	Backspace Stop Tab  Escape F5   F4
 	;        ?End?
-	ld a,007h		;46d5 a = 7, the line of the keyboard matrix to get.
+	ld a,007h		;46d5 A = 7, the line of the keyboard matrix to get.
 	call 0141_SNSMAT	;46d7 Get specified line from the keyboard matrix.
 	cpl			;46da Flip all bits (because keyboard matrix is active low).
 	rrca			;46db rotate right, bit 0 to both bit 7 and carry.
-	and 020h		;46dc a &= 0x20 ("Select" key)
-	ld e,a			;46de e = a
+	and 020h		;46dc A &= 0x20 ("Select" key)
+	ld e,a			;46de E = A
 	
 	
 	
@@ -2032,14 +2147,14 @@
 	;        |    ^
 	; --->   |    |  <---  DEL  INS HOME SPACE
 	;        V    |
-	ld a,008h		;46df a = 8, the line of the keyboard matrix to get.
+	ld a,008h		;46df A = 8, the line of the keyboard matrix to get.
 	call 0141_SNSMAT	;46e1 Get specified line from the keyboard matrix.
 	cpl			;46e4 Flip all bits (because keyboard matrix is active low).
 	rrca			;46e5 rotate right: space right down up left del ins home
 	rrca			;46e6 rotate right: home space right down up left del ins
-	ld b,a			;46e7 Save
-	and 004h		;46e8 a &= 0x04, get status of "Left" key
-	or e			;46ea a |= e, add status of "Select" key (0x20 or 0x00)
+	ld b,a			;46e7 Save A
+	and 004h		;46e8 A &= 0x04, get status of "Left" key
+	or e			;46ea A |= E, add status of "Select" key (0x20 or 0x00)
 	ld c,a			;46eb
 	; Post: Bit meaning of register C:
 	;   0x04 Status of "Left" key
@@ -2070,14 +2185,14 @@
 	;   0x10 Status of "Space" key
 	;   0x20 Status of "Select" key
 	
-	pop bc			;46f9 b = joystick A state (see push at 0x46D4)
+	pop bc			;46f9 B = joystick A state (see push at 0x46D4)
 	or b			;46fa Combine input from keyboard and joystick
 	; Post: Bit meaning of register A:
 	;   0x01 Status of "Up"
 	;   0x02 Status of "Down"
 	;   0x04 Status of "Left"
 	;   0x08 Status of "Right"
-	;   0x10 Status of "Space" / trigger 1
+	;   0x10 Status of "Space"  / trigger 1
 	;   0x20 Status of "Select" / trigger 2
 	
 	ret			;46fb
@@ -3105,48 +3220,59 @@
 	defb 0x04, 0x00		;49a4 . . . . . . . .   01
 				;49a4 . . . . . . . .   02
 				;49a4 . . . . . . . .   03
-				;49a4 . . . . . . . .   04
+				;49a4 . . . . .  . .   04
 
 	defb 0x00		;49a5 END. Start was at 0x490F.
 
 
 
 ; We can get here from:
-;   0x40C5 (call)
-;   0x49BF (call)
-49a6_unknown:
-	ld b,0e0h		;49a6 B = 0xE0
-	call 046b1h		;49a8
+;   0x40C5 (call) [from=40cc_state00_substate02]
+;   0x49BF (call) [from=43f3_switch_to_state01]
+49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo:
+	ld b,0e0h		;49a6 B = 0xE0, (B&0x07) == 0 so set the VRAM page to 0.
+	call 046b1h		;49a8 46b1_write_B_to_vdp_register_14
 	
 	call 04584h		;49ab 4584_clear_name_table_and_set_sprite_00_vpos_to_D0
 	call 04773h		;49ae 4773_copy_symbols_to_VRAM
 	
-	ld de,04a25h		;49b1 DE = 0x4A25
+	; Copy Road Fighter logo patterns to VRAM.
+	ld de,04a25h		;49b1 DE = 0x4A24 (4a25_road_fighter_logo_patterns)
 	ld hl,02600h		;49b4 HL = 0x2600
 	call 45e0_copy2VRAM_3x	;49b7
 	
-	ld a,001h		;49ba A = 1
-	jp 040efh		;49bc
+	; Blink the Road Fighter logo, start with dark+light red (0x01).
+	ld a,001h		;49ba A = 0x01
+	jp 040efh		;49bc 40ef_draw_road_fighter_logo(color_set=0x01)
 
 
 
 ; We can get here from:
-;   0x43FF (call)
-	call 049a6h		;49bf
+;   0x43FF (call) [from=43f3_switch_to_state01] *(0xE004) == 0x07
+49bf_fixme:
+	call 049a6h		;49bf 49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo
 	
 	; We can get here from:
-	;   0x40D8 (call) *0xE004 == 0x20 (initial value, see 0x40C8)
-	;   0x49BF (fall)
+	;   0x40D8 (call) *(0xE004) == 0x20 (initial value, see 0x40C8)
+	;   0x49BF (fall) *(0xE004) == 0x07
 	ld de,0472ah		;49c2 DE = 472a_copyright_konami_1985_letters,play_select,level_A
 	call 45f0_show_symbols	;49c5 Show "©KONAMI 1985" + "PLAY SELECT" + "LEVEL A"
 	
 	; Post: DE == 0x4751 == 4751_level_B
 	; 
-	; Why separate level A and B? Since we both have to blink when 
-	; selected. See routine 4607_hide_symbols and code 0x4189
-	call 45f0_show_symbols	;49c8 Show "LEVEL B"
+	; Why separate level A and B? Since we want to be able to blink 
+	; them, independently. See routine 4607_hide_symbols and code 
+	; 0x4189.
+	call 45f0_show_symbols	;49c8 Show "LEVEL B".
 	
-	; Something about Road Fighter logo
+	; Set up details about the "ROAD" part of the Road Fighter 
+	; logo, and then draw "ROAD".
+	; 
+	;     Source:            DE = 0x4B0C
+	;                             0x4B0C: 4b0c_road_pattern_names_end_of_first_line
+	;     Destination:       HL = 0x3840 + (0x20 - *(0xE004))
+	;                             0x3840: start of third row.
+	;     Line element size: C = 0x11
 	ld a,(0e004h)		;49cb A = *(0xE004)
 	sub 020h		;49ce A -= 0x20
 	neg			;49d0 A = -A
@@ -3155,86 +3281,127 @@
 	ld h,038h		;49d5 H = 0x38 (name table, upper band)
 	ld de,04b0ch		;49d7 DE = 0x4B0C
 	ld c,011h		;49da C = 0x11
-	call 049ech		;49dc
+	call 049ech		;49dc 49ec_copy_road_or_fighter_to_pattern_name_table
 	
+	; Set up details about the "FIGHTER" part of the Road Fighter 
+	; logo, and then draw "FIGHTER".
+	;
+	;     Source:            DE = 0x4B2F
+	;                             0x4B2F: 4b2f_fighter_pattern_names
+	;     Destination:       HL = 0x38C0 + *(0xE004)
+	;                             0x38C0: start of seventh row.
+	;     Line element size: C = 0x15
 	ld a,(0e004h)		;49df A = *(0xE004)
 	add a,0c0h		;49e2 A += 0xC0
-	ld l,a			;49e4 L = A
+	ld l,a			;49e4 L = 0xC0 + *(0xE004)
 	ld h,038h		;49e5 H = 0x38 (name table, upper band)
-	ld de,04b2fh		;49e7 DE = 0x4b2f
+	ld de,04b2fh		;49e7 DE = 0x4B2F (4b2f_fighter_pattern_names)
 	ld c,015h		;49ea C = 0x15
-	
-	; We can get here from:
-	;   0x49DC (call) Not a jump...!
-	;   0x49EA (fall)
+				;fall 49ec_copy_road_or_fighter_to_pattern_name_table
+
+
+
+; We can get here from:
+;   0x49DC (call) DE == 0x4B0C, HL == 0x38??, C == 0x11
+;   0x49EA (fall) DE == 0x4B2F, HL == 0x38C0 + *(0xE004), C == 0x15
+49ec_copy_road_or_fighter_to_pattern_name_table:
 	ld b,003h		;49ec B = 3, loop over upper, middle, lower band.
-	
-	; We can get here from:
-	;   0x49EC (fall)
-	;   0x4a22 (djnz)
+				;fall 49ee_draw_road_fighter_logo___outer_loop_over_3_lines_of_the_word
+
+
+
+; We can get here from:
+;   0x49EC (fall) B == 3
+;   0x4a22 (djnz)
+49ee_draw_road_fighter_logo___outer_loop_over_3_lines_of_the_word:
+	; B: Store DJNZ loop counter.
+	; C: Store number of bytes to copy from DE to HL (name table)
 	push bc			;49ee
 	push hl			;49ef
 	push de			;49f0
 	
-	; Set DJNZ loop counter:
+	; Determine the number pattern names to copy to the pattern name 
+	; table (DJNZ loop counter):
 	; 
-	;     B = 0x20 - *0xE004
+	;     B = 0x20 - *(0xE004)
 	ld a,(0e004h)		;49f1 A = *0xE004
 	sub 020h		;49f4 A -= 0x20
 	neg			;49f6 A = -A
-	ld b,a			;49f8 Set DJNZ loop counter
+	ld b,a			;49f8 B = number of pattern names to copy
+				;fall 49f9_draw_road_fighter_logo___inner_loop_over_patters_of_a_single_line
+
 	
 	
-	
-	; We can get here from:
-	;   0x49F8 (fall)
-	;   0x4A14 (djnz)
+; We can get here from:
+;   0x49F8 (fall) 0x49DC DE == 0x4B0C, HL == 0x38??            , C == 0x11
+;                 0x49EA DE == 0x4B2F, HL == 0x38C0 + *(0xE004), C == 0x15
+;   0x4A14 (djnz)
+49f9_draw_road_fighter_logo___inner_loop_over_patters_of_a_single_line:
 	ld a,(de)		;49f9 A = *(DE)
 	inc a			;49fa ++A
 	jr z,$+25		;49fb if (*(DE) == 0xFF) jump to 0x4A14
 	
+	; Write 1 byte to the pattern name table.
 	call 0053_SETWRT	;49fd [BIOS]: Set VDP for writing, HL=VRAM address
 	push bc			;4a00
 	ld a,(00006h)		;4a01 A = 0x98 (VDP reading port #0)
 	ld c,a			;4a04 C = 0x98
 	ld a,(de)		;4a05
-	out (c),a		;4a06 Write to VDP
+	out (c),a		;4a06 Write to VDP.
 	pop bc			;4a08
-	inc hl			;4a09
-	inc de			;4a0a
+	
+	; Update HL and DE.
+	;
+	; "ROAD":    HL and DE have to be DEcremented.
+	; "FIGHTER": HL and DE have to be INcremented.
+	inc hl			;4a09 ++HL
+	inc de			;4a0a ++DE
 	ld a,c			;4a0b A = C
-	cp 015h			;4a0c
-	jr z,$+6		;4a0e if (A == 0x15) jump to 0x4A14
-	dec de			;4a10
-	dec de			;4a11
-	dec hl			;4a12
-	dec hl			;4a13
+	cp 015h			;4a0c Compute A - 0x15 and update Z/NZ flag.
+	jr z,$+6		;4a0e if (C == 0x15) jump to 0x4A14
+	; Post: C == 0x11 (since C was either 0x15 or 0x11)
+	; 
+	; C == 0x11 means we are busy with the "ROAD" part of the Road 
+	; Fighter logo.
+	;
+	; The source (DE) is read backwards, the destination (HL) is 
+	; written backwards. DE and HL were increased at 0x4A09 and 
+	; 0x4A0A, but we have to reverse that (one dec), and then do the 
+	; actual subtraction (another dec).
+	dec de			;4a10 --DE
+	dec de			;4a11 --DE
+	dec hl			;4a12 --HL
+	dec hl			;4a13 --HL
 	
 	; We can get here from:
-	;   0x49FB (jump)
-	;   0x4A0E (jump)
-	;   0x4A13 (fall)
-	djnz $-27		;4a14 if (--B != 0) jump to 0x49F9
+	;   0x49FB (jump) 0xFF (end of data) reached, no-op loop
+	;   0x4A0E (jump) DE and HL correctly incremented ("FIGHTER")
+	;   0x4A13 (fall) DE and HL correctly decremented ("ROAD")
+	djnz $-27		;4a14 if (--B != 0) jump to 0x49F9 (49f9_draw_road_fighter_logo___inner_loop_over_patters_of_a_single_line)
 	
 	
 	; Restore most registers.
-	pop de			;4a16
-	pop hl			;4a17
-	pop bc			;4a18
+	pop de			;4a16 Restore source address.
+	pop hl			;4a17 Restore VRAM destination address.
+	pop bc			;4a18 Restore DJNZ loop counter.
 	
 	ld a,020h		;4a19 A = 0x20
-	call 0403bh		;4a1b HL += A, go to next VRAM line
+	call 0403bh		;4a1b HL += A, go to next VRAM line.
 	
-	ld a,c			;4a1e
-	call 04040h		;4a1f DE += A
+	ld a,c			;4a1e A = C
+	call 04040h		;4a1f DE += A, go to next source line.
 	
+	; Continue loop at 49ee_draw_road_fighter_logo___outer_loop_over_3_lines_of_the_word.
 	djnz $-52		;4a22 if (--B != 0) jump to 0x49EE
+	
+	; Done. We looped over all 3 lines of the word "ROAD" or "FIGHTER".
 	ret			;4a24
 
 
 
-; Compressed pattern data, seen at 0x49B1.
-	defb 0x02, 0xFF		;4a26 x x x x x x x x   01 Character 0xc0.
+; Compressed pattern data, seen at 0x49B1. Makes up logo of Road Fighter.
+4a25_road_fighter_logo_patterns:
+	defb 0x02, 0xFF		;4a26 x x x x x x x x   01 Character 0xc0. Top left of D+E+F+R.
 				;4a26 x x x x x x x x   02
 	defb 0x83, 0xC0		;4a28 x x . . . . . .   01
 	defb 0xC7		;4a29 x x . . . x x x   02
@@ -3535,117 +3702,146 @@
 
 
 
-;data
-	rst 38h			;4afc
-	nop			;4afd
-	ret nz			;4afe
-	pop bc			;4aff
-	nop			;4b00
-	call nz,000c5h		;4b01
-	ret z			;4b04
-	ret			;4b05
-	nop			;4b06
-	ret nz			;4b07
-	pop bc			;4b08
-	nop			;4b09
-	nop			;4b0a
-	nop			;4b0b
+; Name tabla data: The "ROAD" part of the Road Fighter logo.
+; 
+; See 0x49D7. The pattern names of "ROAD" are traversed from back to 
+; front. That is why 0x49D7 points to 0x4B0C (the end of "ROAD") instead 
+; of 0x4AFC (the start of "ROAD"). It also explains why we "start" with 
+; 0xFF at 0x4AFC: it is the end instead of the start.
+; 
+; The length of each element (1 line) is 0x11 bytes. See also 0x49DA.
+4afc_road_pattern_names:
+	defb 0xFF		;4afc #00 END
+	defb 0x00		;4afd #01 First line of "ROAD".
+	defb 0xC0		;4afe #02 R
+	defb 0xC1		;4aff #03 R
+	defb 0x00		;4b00 #04 
+	defb 0xC4		;4b01 #05 O
+	defb 0xC5		;4b02 #06 O
+	defb 0x00		;4b03 #07 
+	defb 0xC8		;4b04 #08 A
+	defb 0xC9		;4b05 #09 A
+	defb 0x00		;4b06 #0A
+	defb 0xC0		;4b07 #0B D
+	defb 0xC1		;4b08 #0C D
+	defb 0x00		;4b09 #0D
+	defb 0x00		;4b0a #0E
+	defb 0x00		;4b0b #0F
+4b0c_road_pattern_names_end_of_first_line:
+	defb 0x00		;4b0c #10 See 0x49D7. End of first line.
 
-; data, see 0x49d7
-	nop			;4b0c
-	rst 38h			;4b0d
-	nop			;4b0e
-	sub 0d7h		;4b0f
-	nop			;4b11
-	ret c			;4b12
-	exx			;4b13
-	nop			;4b14
-	jp c,000dbh		;4b15
-	ret c			;4b18
-	exx			;4b19
-	nop			;4b1a
-	nop			;4b1b
-	nop			;4b1c
-	nop			;4b1d
-	rst 38h			;4b1e
-	nop			;4b1f
-	jp nz,000c3h		;4b20
-	add a,0c7h		;4b23
-	nop			;4b25
-	jp z,000cbh		;4b26
-	call z,000c7h		;4b29
-	nop			;4b2c
-	nop			;4b2d
-	nop			;4b2e
+	defb 0xFF		;4b0d END
+	defb 0x00		;4b0e Middle line of "ROAD".
+	defb 0xD6		;4b0f R
+	defb 0xD7		;4b10 R
+	defb 0x00		;4b11
+	defb 0xD8		;4b12 O
+	defb 0xD9		;4b13 O
+	defb 0x00		;4b14
+	defb 0xDA		;4b15 A
+	defb 0xDB		;4b16 A
+	defb 0x00		;4b17
+	defb 0xD8		;4b18 D
+	defb 0xD9		;4b19 D
+	defb 0x00		;4b1a
+	defb 0x00		;4b1b
+	defb 0x00		;4b1c
+	defb 0x00		;4b1d
+
+	defb 0xFF		;4b1e END
+	defb 0x00		;4b1f Last line of "ROAD".
+	defb 0xC2		;4b20 R
+	defb 0xC3		;4b21 R
+	defb 0x00		;4b22
+	defb 0xC6		;4b23 O
+	defb 0xC7		;4b24 O
+	defb 0x00		;4b25
+	defb 0xCA		;4b26 A
+	defb 0xCB		;4b27 A
+	defb 0x00		;4b28
+	defb 0xCC		;4b29 D
+	defb 0xC7		;4b2a D
+	defb 0x00		;4b2b
+	defb 0x00		;4b2c
+	defb 0x00		;4b2d
+	defb 0x00		;4b2e
 
 
 
-; VDP data, see 0x49e7. Road Fighter logo???
-	defb 0xC0		;4b2f
-	defb 0xCD		;4b30
-	defb 0x00		;4b31
-	defb 0xCE		;4b32
-	defb 0x00		;4b33
-	defb 0xC4		;4b34
-	defb 0xC1		;4b35
-	defb 0x00		;4b36
-	defb 0xCE		;4b37
-	defb 0xD5		;4b38
-	defb 0x00		;4b39
-	defb 0xD0		;4b3a
-	defb 0xD1		;4b3b
-	defb 0x00		;4b3c
-	defb 0xC0		;4b3d
-	defb 0xCD		;4b3e
-	defb 0x00		;4b3f
-	defb 0xC0		;4b40
-	defb 0xC1		;4b41
-	defb 0x00		;4b42
-	defb 0xFF		;4b43
-
-	defb 0xD6		;4b44
-	defb 0xDC		;4b45
+; Name tabla data: The "FIGHTER" part of the Road Fighter logo.
+; 
+; Data is referenced at 0x49E7.
+; 
+; The length of each element (1 line) is 0x15 bytes. See also 0x49EA.
+4b2f_fighter_pattern_names:
+	; Start of the first line.
+	defb 0xC0		;4b2f #00 F
+	defb 0xCD		;4b30 #01 F
+	defb 0x00		;4b31 #02
+	defb 0xCE		;4b32 #03 I
+	defb 0x00		;4b33 #04
+	defb 0xC4		;4b34 #05 G
+	defb 0xC1		;4b35 #06 G
+	defb 0x00		;4b36 #07
+	defb 0xCE		;4b37 #08 H
+	defb 0xD5		;4b38 #09 H
+	defb 0x00		;4b39 #0A
+	defb 0xD0		;4b3a #0B T
+	defb 0xD1		;4b3b #0C T
+	defb 0x00		;4b3c #0D
+	defb 0xC0		;4b3d #0E E
+	defb 0xCD		;4b3e #0F E
+	defb 0x00		;4b3f #10
+	defb 0xC0		;4b40 #11 R
+	defb 0xC1		;4b41 #12 R
+	defb 0x00		;4b42 #13
+	defb 0xFF		;4b43 #14 END
+	
+	; Start of the second line.
+	defb 0xD6		;4b44 F
+	defb 0xDC		;4b45 F
 	defb 0x00		;4b46
-	defb 0xD8		;4b47
+	defb 0xD8		;4b47 I
 	defb 0x00		;4b48
-	defb 0xD8		;4b49
-	defb 0xDD		;4b4a
+	defb 0xD8		;4b49 G
+	defb 0xDD		;4b4a G
 	defb 0x00		;4b4b
-	defb 0xD6		;4b4c
-	defb 0xDE		;4b4d
+	defb 0xD6		;4b4c H
+	defb 0xDE		;4b4d H
 	defb 0x00		;4b4e
-	defb 0xDF		;4b4f
-	defb 0xE0		;4b50
+	defb 0xDF		;4b4f T
+	defb 0xE0		;4b50 T
 	defb 0x00		;4b51
-	defb 0xD6		;4b52
-	defb 0xDC		;4b53
+	defb 0xD6		;4b52 E
+	defb 0xDC		;4b53 E
 	defb 0x00		;4b54
-	defb 0xD6		;4b55
-	defb 0xD7		;4b56
+	defb 0xD6		;4b55 R
+	defb 0xD7		;4b56 R
 	defb 0x00		;4b57
-	defb 0xFF		;4b58
-
-	defb 0xC2		;4b59
+	defb 0xFF		;4b58 END
+	
+	; Start of the third line.
+	defb 0xC2		;4b59 F
 	defb 0x00		;4b5a
 	defb 0x00		;4b5b
-	defb 0xC2		;4b5c
+	defb 0xC2		;4b5c I
 	defb 0x00		;4b5d
-	defb 0xC6		;4b5e
-	defb 0xC7		;4b5f
+	defb 0xC6		;4b5e G
+	defb 0xC7		;4b5f G
 	defb 0x00		;4b60
-	defb 0xC2		;4b61
-	defb 0xC3		;4b62
+	defb 0xC2		;4b61 H
+	defb 0xC3		;4b62 H
 	defb 0x00		;4b63
-	defb 0xD2		;4b64
-	defb 0xD3		;4b65
+	defb 0xD2		;4b64 T
+	defb 0xD3		;4b65 T
 	defb 0x00		;4b66
-	defb 0xCC		;4b67
-	defb 0xD4		;4b68
+	defb 0xCC		;4b67 E
+	defb 0xD4		;4b68 E
 	defb 0x00		;4b69
-	defb 0xC2		;4b6a
-	defb 0xC3		;4b6b
+	defb 0xC2		;4b6a R
+	defb 0xC3		;4b6b R
 	defb 0x00		;4b6c
-	defb 0xFF		;4b6d
+	defb 0xFF		;4b6d END
 
 
 
@@ -3672,7 +3868,7 @@
 4b6e_sound_something:
 	di			;4b6e Disable interrupts
 	ld d,000h		;4b6f D = 0
-	call 04b76h		;4b71
+	call 04b76h		;4b71 4b76_sound_something
 	ei			;4b74 Enable interrupts
 	ret			;4b75
 
@@ -5136,18 +5332,19 @@
 
 
 ; We can get here from:
-;   0x40DB (jump) [from=40cf_state00_substate_03]
+;   0x40DB (jump) [from=40cf_state00_substate03]
 ;   0x4131 (jump) [from=412d_state01]
 5028_:
 	ld hl,0e004h		;5028
 	bit 3,(hl)		;502b ?Test blink bit?
 	ld c,0ffh		;502d C = 0xFF (do write symbol)
-	jr nz,$+3		;502f if (nz) jump to 0x5032
+	jr nz,$+3		;502f if (nz) jump to 0x5032 5032_fixme
 	inc c			;5031 C = 0x00 (don't write symbol)
 	
-	; We can get here from:
-	;   0x502F (jump) C == 0xFF
-	;   0x5031 (fall) C == 0x00
+; We can get here from:
+;   0x502F (jump) C == 0xFF
+;   0x5031 (fall) C == 0x00
+5032_fixme:
 	ld hl,03a0ah		;5032 VRAM location for hand point to right (level A).
 	ld de,03a4ah		;5035 VRAM location for hand point to right (level B).
 	ld a,(0e03bh_levelAB)	;5038 0x00 == level A, 0x01 == level B
@@ -5178,11 +5375,11 @@
 	; [05] x x x x x x x x|x x . . . . . .|
 	; [06] . . . . x x x x|x . . . . . . .|
 	ld de,0475bh		;5046 475b_hand_pointing_to_right_characters
-	jp 045f8h		;5049
+	jp 045f8h		;5049 45f8_draw_or_hide_characters(start=0x475B, mask=C)
 
 
 
-504c_init:
+504c_init_new_game:
 	; Clear/zero 0xE048 upto and including 0xE395.
 	ld hl,0e048h		;504c LDIR: Source
 	ld de,0e049h		;504f LDIR: Destination
@@ -5256,8 +5453,8 @@
 
 
 ; We can get here from:
-;   0x507E (call)
-;   0x56FE (call)
+;   0x507E (call) [from=504c_init_new_game]
+;   0x56FE (call) [from=56f7_fixme]
 50bf_fixme:
 	call 05132h		;50bf
 	ld a,(e043_stage)	;50c2 A = stage
@@ -5324,10 +5521,11 @@
 
 
 ; We can get here from:
-;   0x50BF (call)
+;   0x50BF (call) [from=50bf_fixme]
 5132_fixme:
+	; Compute HL = 0x5161 + 6 * (stage - 1)
 	ld a,(e043_stage)	;5132 A = stage
-	dec a			;5135 Make stage 0 based
+	dec a			;5135 Make stage 0 based.
 	add a,a			;5136 A = 2 * stage_0based
 	ld b,a			;5137 B = 2 * stage_0based
 	add a,a			;5138 A = 4 * stage_0based
@@ -5335,6 +5533,7 @@
 	ld hl,05161h		;513a HL = 0x5161
 	call 0403bh		;513d HL = 0x5161 + 6 * stage_0based
 	
+	; Copy 6 bytes from HL to 0xE071.
 	ld bc,00006h		;5140 LDIR: count
 	ld de,0e071h		;5143 LDIR: destination
 	ldir			;5146 Copy HL to DE, 0x06 times. Copy 3 data pointers.
@@ -5345,11 +5544,14 @@
 	ld de,0e07ah		;5150 LDIR: destination = 0xE07A
 	ld c,002h		;5153 LDIR: count = 2 (B is still 0)
 	ldir			;5155 Copy HL to DE, 0x02 times. Copies 2 stage/track related bytes.
-	
 	ld (0e071h),hl		;5157 Store HL
+
+	; *(0xE06F) = 0x5998 (track data pointer)
 	ld hl,05998h		;515a HL = 0x5998
 	ld (0e06fh),hl		;515d *(0xE06F) = 0x5998
+
 	ret			;5160
+
 
 
 ; Data, 6 bytes per element (see 0x5140)
@@ -5514,8 +5716,8 @@
 
 
 ; We can get here from:
-;   0x413C (call) [from=4139_game_state_02_substate_01]
-;   0x4308 (call) [from=4306_game_state_05_substate_01]
+;   0x413C (call) [from=4139_state02_substate01]
+;   0x4308 (call) [from=4306_state05_substate01]
 5224_fixme:
 	call 0526bh		;5224 526b_copy_13_sprites_from_RAM_to_VRAM
 	call 0597dh		;5227 597d_update_minicar_vpos_and_color
@@ -5548,7 +5750,7 @@
 	ld a,(0e002h)		;525b Bit 6 (mask 0x40) means: 0==demo, 1==player is playing
 	bit 6,a			;525e Check if player if playing.
 	ld a,092h		;5260 Set tune ID to 0x92: Victorious tune when player reaches checkpoint
-	call nz,04b6eh		;5262 if (player is playing) call 0x4B6E
+	call nz,04b6eh		;5262 if (player is playing) call 4b6e_sound_something
 	
 	ld a,003h		;5265 A = 3
 	ld (e049_car_state),a	;5267 Store car state as 3: reached checkpoint
@@ -5557,10 +5759,10 @@
 
 
 ; We can get here from:
-;   0x4297 (call) [from=4270_game_state_04_demo]
-;   0x42E2 (call) [from=4270_game_state_04_demo]
-;   0x4349 (call) [from=4348_game_state_07_out_of_fuel]
-;   0x4374 (call) [from=4373_game_state_08]
+;   0x4297 (call) [from=4270_state04_demo]
+;   0x42E2 (call) [from=4270_state04_demo]
+;   0x4349 (call) [from=4348_state07_out_of_fuel]
+;   0x4374 (call) [from=4373_state08]
 ;   0x5224 (call) [from=5224_fixme]
 526b_copy_13_sprites_from_RAM_to_VRAM:
 	ld bc,00034h		;526b BC = 0x0034, number of bytes to copy to VRAM.
@@ -5588,7 +5790,7 @@
 
 
 ; We can get here from:
-;   0x4322 (jump) [from=4306_game_state_05_substate_02]
+;   0x4322 (jump) [from=4306_state05_substate02]
 527d_fixme:
 	call 05270h		;527d
 	call 06a70h		;5280
@@ -5609,8 +5811,8 @@
 	inc hl			;5297
 	ld a,(hl)		;5298
 	sub 0c0h		;5299 A -= 0xC0
-	cp 020h			;529b
-	jr c,$+14		;529d if (c) jump to 0x52AB
+	cp 020h			;529b Compute A - 0x20 and update C/NC flag.
+	jr c,$+14		;529d if (0xC0 <= (*HL) <= 0xDF) jump to 0x52AB
 	ld a,(hl)		;529f
 	sub 006h		;52a0 A -= 0x06
 	ld (hl),a		;52a2
@@ -5629,7 +5831,7 @@
 	;   0x529D (jump)
 	ld a,b			;52ab A = B
 	cp 001h			;52ac Compute A - 1 and set flags.
-	jp z,0416ah		;52ae if (A == 1) jump to 416a_increase_game_substate
+	jp z,0416ah		;52ae if (A == 1) jump to 416a_increase_substate
 	ld a,004h		;52b1 A = 4
 	call 0403bh		;52b3 HL += 4
 	jr $-14			;52b6 jump to 0x52A8
@@ -5666,7 +5868,7 @@
 
 
 ; We can get here from:
-;   0x4139 [from=4139_game_state_02_substate_01]
+;   0x4139 [from=4139_state02_substate01]
 52d1_fudge_currently_pressed_keys:
 	ld a,(e049_car_state)	;52d1
 	cp 004h			;52d4
@@ -5972,18 +6174,25 @@
 53dd_:
 	ld hl,(0e078h)		;53dd HL = *(0xE078), distance travelled
 	ld bc,00f00h		;53e0 BC = 0x0F00
-	and a			;53e3
-	sbc hl,bc		;53e4
-	ret nc			;53e6
+	and a			;53e3 Clear carry flag, for sbc.
+	sbc hl,bc		;53e4 HL -= BC
+	; Note: finish line is drawn at distance 0x0F09, which is quite near 0x0F00.
+	ret nc			;53e6 if (distance travelled >= 0x0F00) return
+
 	ld hl,(0e0bfh)		;53e7
 	ld a,(hl)		;53ea
-	cp 007h			;53eb
+	cp 007h			;53eb Compute A - 0x07 and update Z/NZ flag.
 	ret nz			;53ed
-	ld a,(e049_car_state)	;53ee
-	dec a			;53f1
-	ret z			;53f2
-	ld c,006h		;53f3
-	call 072f6h		;53f5
+
+	; if (car state == 1) return
+	ld a,(e049_car_state)	;53ee A = car state
+	dec a			;53f1 --A
+	ret z			;53f2 if (car state == 1) return
+	
+	; A = vpos of current rival car
+	ld c,006h		;53f3 C = 0x06
+	call 072f6h		;53f5 72f6_set_A_to_current_rival_car_index_C
+
 	ld a,(0e04ch)		;53f8
 	sub 010h		;53fb
 	sub (hl)		;53fd
@@ -6031,14 +6240,14 @@
 
 
 
-	ld hl,0e105h		;5434 hl = 0xE105
-	ld a,(hl)		;5437 a = *(0xE105)
+	ld hl,0e105h		;5434 HL = 0xE105
+	ld a,(hl)		;5437 A = *(0xE105)
 	or a			;5438
 	ret z			;5439 if (a == 0) return ?no truck?
 	
-	inc hl			;543a hl = 0xE106
-	inc hl			;543b hl = 0xE107
-	ld a,(hl)		;543c a = *(0xE107)
+	inc hl			;543a HL = 0xE106
+	inc hl			;543b HL = 0xE107
+	ld a,(hl)		;543c A = *(0xE107)
 	cp 0c0h			;543d
 	jr nc,$+95		;543f if (nc) jump to 0x549E
 	
@@ -6052,7 +6261,7 @@
 	jr nz,$+7		;544e if (A != 0x00) jump to 0x5455
 	
 	ld a,004h		;5450 A = 0x04
-	call 04b6eh		;5452 sound?
+	call 04b6eh		;5452 4b6e_sound_something
 	
 	; We can here here from:
 	;   0x544E (jump)
@@ -6273,7 +6482,7 @@
 ;   0x55E1 (jump) [stage 3]
 ;   0x5699 (jump) [stage 5]
 553a_:
-	call 05944h		;553a
+	call 05944h		;553a 5944_if_finish_in_sight_then_write_checkpoint_or_goal_to_RAM_buffer
 	call 054afh		;553d 54af_oil_something
 	call 05716h		;5540
 	pop hl			;5543 ?Don't return to caller?
@@ -6596,7 +6805,7 @@
 ;   0x5642 (call)
 ;   0x5890 (jump)
 ;   0x58A8 (jump)
-56f7_:
+56f7_fixme:
 	ld a,(0e07ah)		;56f7 A = *(0xE07A)
 	; Special value 0xFE is seen at:
 	;   Stage 1: 0x78E4
@@ -6605,13 +6814,13 @@
 	;   Stage 4: 0x7EA7
 	;   Stage 5: 0x7E7C-0x7E82
 	;   Stage 6: 0x7ED0
-	cp 0feh			;56fa
+	cp 0feh			;56fa Compute A - 0xFE and set flags.
 	jr nz,$+5		;56fc if (not special) jump to 0x5701
 	call 050bfh		;56fe
 
 	; We can get here from:
-	;   0x56FC (jump) *(0xE07A) != 0xFE (skips call to 0x50BF)
-	;   0x56FE (fall) *(0xE07A) == 0xFE (call to 0x50BF is done)
+	;   0x56FC (jump) *(0xE07A) != 0xFE (call to 0x50BF is SKIPPED)
+	;   0x56FE (fall) *(0xE07A) == 0xFE (call to 0x50BF is DONE)
 	call 0590eh		;5701
 
 	ld a,(0e07ah)		;5704 A = *(0xE07A)
@@ -6628,17 +6837,20 @@
 
 
 ; We can get here from:
-;   0x5540 (call) A == ?
+;   0x5540 (call)
 5716_:
-	ld hl,(0e046h)		;5716
+	ld hl,(0e046h)		;5716 HL = *(0xE046)
 	ld bc,0ffeah		;5719 BC = -0x16
 	add hl,bc		;571c HL -= 0x16 (22)
 	ld (0e046h),hl		;571d
 	ld bc,0e170h		;5720 BC = 0xE170
-	and a			;5723 Reset carry flag, determine Z/NZ flag
+	and a			;5723 Reset carry flag, for sbc.
 	sbc hl,bc		;5724 HL -= BC
-	jr nz,$+8		;5726 if (A != 0) jump to 0x572E
-	ld hl,0e380h		;5728 HL = 0xE380
+	jr nz,$+8		;5726 if (*(0xE046) != 0xE186) jump to 0x572E
+	
+	; Reset *0xE046 to value 0xE380: the last row of coarse pattern 
+	; name table.
+   	ld hl,0e380h		;5728 HL = 0xE380
 	ld (0e046h),hl		;572b
 	
 	; Copy 1 line of new coarse to current coarse.
@@ -6708,8 +6920,9 @@
 	ld a,(hl)		;5772
 	inc a			;5773
 	; Post: if *(HL) == 0xFF (special value) then A == 0
-
 	jr nz,$+8		;5774 if (nz) jump to 0x577C
+	
+	; *(0xE06F) == 0xFF, so reset track data pointer.
 	ld hl,05998h		;5776 HL = 0x5998
 	ld (0e06fh),hl		;5779
 	
@@ -6790,26 +7003,45 @@
 
 
 ; Target of jump table entries at 0x5712 and 0x5714.
-	ld hl,05808h		;57a7 HL = 0x5808
+57a7_:
+	; Determine which character must be used as left side of the 
+	; track (white or white with black dash).
+	ld hl,05808h		;57a7 HL = 5808_vertical_pattern_of_left_side_of_straight_track
 	ld a,(0e07bh)		;57aa
-	and 007h		;57ad
+	and 007h		;57ad A &= 0x07 (keep bits 0+1+2)
 	call 0403bh		;57af HL += A
-	ld a,(0e07dh)		;57b2
-	ld de,0e058h		;57b5
+	
+	; DE = 0xE058 + *(0xE07D)
+	;
+	; Determine memory location of left side of straight track.
+	ld a,(0e07dh)		;57b2 A = horizontal offset of left side of track
+	ld de,0e058h		;57b5 DE = 0xE058
 	add a,e			;57b8
 	ld e,a			;57b9
-	ldi			;57ba
-	ld hl,(0e06fh)		;57bc
-	ld a,(0e081h)		;57bf
-	ld c,a			;57c2
-	sub 009h		;57c3
-	neg			;57c5
+	
+	; Copy the character ID of the left side of the track to the 
+	; VRAM buffer.
+	ldi			;57ba *(DE++) = *(HL++)
+	; Post: DE == 0xE059
+
+
+	; Copy track data to VRAM buffer.
+	;   Source:      HL == *(0xE06F) + (9 - *(0xE081)
+	;   Destination: DE == 0xE059 (left most track)
+	;   Count:       BC == *(0xE081)
+	ld hl,(0e06fh)		;57bc LDIR: source: pointer to current track data.
+	ld a,(0e081h)		;57bf A = *(0xE081)
+	ld c,a			;57c2 LDIR: count: *(0xE081)
+	sub 009h		;57c3 A -= 9
+	neg			;57c5 A = -A, so A == 9 - *(0xE081)
 	call 0403bh		;57c7 HL += A
-	ld b,000h		;57ca
-	ldir			;57cc
+	ld b,000h		;57ca B = 0 (only C is used in LDIR)
+	ldir			;57cc do { *(DE++) = *(HL++) } while (--BC)
+
 	inc hl			;57ce
 	inc hl			;57cf
 	ld (0e06fh),hl		;57d0
+
 	ld hl,0e07bh		;57d3
 	ld a,(hl)		;57d6
 	sub 001h		;57d7
@@ -6833,7 +7065,7 @@
 	ld b,a			;57f6
 	and 00fh		;57f7
 	add a,a			;57f9
-	ld hl,0593ah		;57fa
+	ld hl,0593ah		;57fa HL = 0x593A
 	call 0403bh		;57fd HL += A
 	ld a,(hl)		;5800
 	inc hl			;5801
@@ -6842,10 +7074,13 @@
 	ld (0e06fh),hl		;5804
 	ret			;5807
 
-5808_fixme:
-	defb 0xE7		;5808 #00
+; Vertical pattern of left side of straight track:
+;   3 times regular
+;   1 time with black dash
+5808_vertical_pattern_of_left_side_of_straight_track:
+	defb 0xE7		;5808 #00 ?Left side of track, plain white?
 	defb 0xE7		;5809 #01
-	defb 0xE6		;580a #02
+	defb 0xE6		;580a #02 ?Left side of track, with black dash?
 	defb 0xE7		;580b #03
 	defb 0xE7		;580c #04
 	defb 0xE7		;580d #05
@@ -6870,9 +7105,9 @@
 	dec (hl)		;5829
 	ld a,(0e07ah)		;582a
 	ld b,a			;582d
-	and 00fh		;582e
-	add a,a			;5830
-	ld hl,0593ah		;5831
+	and 00fh		;582e A &= 0x0F (keep low nybble)
+	add a,a			;5830 A *= 2
+	ld hl,0593ah		;5831 HL = 0x593A
 	call 0403bh		;5834 HL += A
 	ld a,(hl)		;5837
 	inc hl			;5838
@@ -6901,51 +7136,65 @@
 	ld hl,(0e071h)		;585f
 	ld de,0e07ah		;5862 DE = 0xE07A
 	ld bc,00002h		;5865 BC = 0x0002
-	ldir			;5868
+	ldir			;5868 Copy 2 bytes from HL to DE.
 	ld (0e071h),hl		;586a
 
-	ld a,(0e07ah)		;586d
-	ld b,a			;5870
-	and 00fh		;5871
-	cp 002h			;5873
-	jr nz,$+6		;5875 if (nz) jump to 0x587B
-	ld hl,0e07dh		;5877
-	dec (hl)		;587a
-	add a,a			;587b
-	ld hl,0593ah		;587c
+	ld a,(0e07ah)		;586d A = *(0xE07A)
+	ld b,a			;5870 Save value in B.
+	and 00fh		;5871 A = *(0xE07A) & 0x0F
+	cp 002h			;5873 Compute A - 2 and update Z/NZ flag.
+	jr nz,$+6		;5875 if (A != 2) jump to 0x587B
+	
+	; Move left side of the road 1 character to the left.
+	ld hl,0e07dh		;5877 HL = 0xE07D
+	dec (hl)		;587a --*(HL)
+	
+	; We can get here from:
+	;   0x5875 (jump) A != 2
+	;   0x587A (fall) A == 2
+	add a,a			;587b A *= 2
+	ld hl,0593ah		;587c HL = 0x593A, array of 5 data pointers.
 	call 0403bh		;587f HL += A
-	ld a,(hl)		;5882
-	inc hl			;5883
+	ld a,(hl)		;5882 A = *(HL)
+	inc hl			;5883 ++HL
 	ld h,(hl)		;5884
 	ld l,a			;5885
 	ld (0e06fh),hl		;5886
-	ld a,b			;5889
-	and 00fh		;588a
-	sub 003h		;588c
-	cp 002h			;588e
-	jp nc,056f7h		;5890
-	ex af,af'		;5893
-	ld a,b			;5894
+	ld a,b			;5889 A = *(0xE07A) (see 0x5870)
+	and 00fh		;588a A &= 0x0F
+	sub 003h		;588c A -= 3
+	cp 002h			;588e Compute A - 0x02 and update C/NC flag.
+	jp nc,056f7h		;5890 if ((*(0xE07A) & 0x0F) in [3,4]) jump to 0x56F7
+	ex af,af'		;5893 A' = *(0xE07A) - 2
+	ld a,b			;5894 A = *(0xE07A) (see 0x5870)
+	
+	; A = *(0xE07A) >> 4, i.e. extract high nybble.
 	rra			;5895
 	rra			;5896
 	rra			;5897
 	rra			;5898
 	and 00fh		;5899
-	ld b,a			;589b
-	ex af,af'		;589c
-	add a,b			;589d
-	ld hl,058abh		;589e
+
+	ld b,a			;589b Store high nybble.
+	ex af,af'		;589c A = *(0xE07A) - 2 (see 0x5893)
+	add a,b			;589d A = 
+	ld hl,058abh		;589e HL = 0x58AB
 	call 0403bh		;58a1 HL += A
 	ld a,(hl)		;58a4
 	ld (0e081h),a		;58a5
 	jp 056f7h		;58a8
-	inc b			;58ab
-	rlca			;58ac
-	ld b,009h		;58ad
+
+; See 0x589E
+58ab_fixme:
+	defb 0x04		;58ab
+	defb 0x07		;58ac
+	defb 0x06		;58ad
+	defb 0x09		;58ae
+
+
 
 ; We can get here from:
 ;   0x5534 (call) Stage 1
-;   0x58AD (fall)
 	ld hl,0e07fh		;58af HL = 0xE07F
 	dec (hl)		;58b2
 	jr z,$+12		;58b3 if (z) jump to 0x58BF
@@ -7047,56 +7296,73 @@
 
 
 
-	sbc a,b			;593a
-	ld e,c			;593b
-	pop bc			;593c
-	ld e,c			;593d
-	add hl,de		;593e
-	ld e,d			;593f
-	dec de			;5940
-	ld e,d			;5941
-	jp 02a59h		;5942
-	ld a,b			;5945
-	ret po			;5946
-	ld bc,00f09h		;5947
-	and a			;594a
-	sbc hl,bc		;594b
-	ret nz			;594d
-	ld hl,(0e046h)		;594e
-	ld bc,0001ch		;5951
-	add hl,bc		;5954
-	ex de,hl		;5955
-	ld hl,0596dh		;5956 hl = 596d_start_of_check_point
-	ld c,00bh		;5959
-	ld a,(e043_stage)	;595b
+; Data. Pointers.
+;
+; Direct code references:
+;   0x57FA
+;   0x5831
+;   0x587C
+593a_fixme:
+	defw 0x5998		;593a Track data
+	defw 0x59C1		;593c
+	defw 0x5A19		;593e
+	defw 0x5A1B		;5940
+	defw 0x59C3		;5942
+
+
+
+; We can get here from:
+;   0x553A (call)
+5944_if_finish_in_sight_then_write_checkpoint_or_goal_to_RAM_buffer:
+	ld hl,(0e078h)		;5944 HL = distance travelled (high+mid byte)
+	ld bc,00f09h		;5947 DE = distance where checkpoint/goal is
+	and a			;594a Clear carry flag.
+	sbc hl,bc		;594b HL -= BC (carry flag is not set)
+	ret nz			;594d if (checkpoint/goal is not in sight) return
+
+	ld hl,(0e046h)		;594e HL = pointer to coarse pattern names, index 0x00
+	ld bc,0001ch		;5951 BC = 0x001C
+	add hl,bc		;5954 HL = pointer to coarse pattern names, index 0x1C
+	ex de,hl		;5955 DE = pointer to coarse pattern names, index 0x1C
+
+	ld hl,0596dh		;5956 HL = 596d_start_of_check_point_pattern_ids
+	ld c,00bh		;5959 C = 0x0B (length of "CHECK POINT")
+	ld a,(e043_stage)	;595b A = stage (1 based)
 	cp 006h			;595e
-	jr nz,$+10		;5960 if (nz) jump to 0x596A
-	ld hl,05978h		;5962 hl = 5978_start_of_goal
-	ld c,005h		;5965
-	inc de			;5967
-	inc de			;5968
-	inc de			;5969
-	ldir			;596a
+	jr nz,$+10		;5960 if (stage != 6) jump to 0x596A
+	ld hl,05978h		;5962 HL = 5978_start_of_goal
+	ld c,005h		;5965 C = 0x05 (length of "GOAL ")
+	inc de			;5967 Manually center "GOAL ".
+	inc de			;5968 Manually center "GOAL ".
+	inc de			;5969 Manually center "GOAL ".
+	
+	; We can get here from:
+	;   0x5960 (jump) stage 1/2/3/4/5, HL points to "CHECK POINT"
+	;   0x5969 (fall) stage 6        , HL points to "GOAL"
+	ldir			;596a Copy "CHECK POINT"/"GOAL".
 	ret			;596c
 	
-596d_start_of_check_point:
-	defb 0x23		;596d C (start of "CHECK POINT")
-	defb 0x28		;596e H
-	defb 0x25		;596f E
-	defb 0x23		;5970 C
-	defb 0x2b		;5971 K
-	defb 0x00		;5972 (space/black)
-	defb 0x30		;5973 P
-	defb 0x2f		;5974 O
-	defb 0x29		;5975 I
-	defb 0x2e		;5976 N
-	defb 0x34		;5977 T
+
+
+596d_start_of_check_point_pattern_ids:
+	defb 0x23		;596d #00 C (start of "CHECK POINT")
+	defb 0x28		;596e #01 H
+	defb 0x25		;596f #02 E
+	defb 0x23		;5970 #04 C
+	defb 0x2b		;5971 #05 K
+	defb 0x00		;5972 #06 (space/black)
+	defb 0x30		;5973 #07 P
+	defb 0x2f		;5974 #08 O
+	defb 0x29		;5975 #09 I
+	defb 0x2e		;5976 #0A N
+	defb 0x34		;5977 #0B T
 	
 5978_start_of_goal:
-	defb 0x27		;5978 G (start of "GOAL")
-	defb 0x2f		;5979 O
-	defb 0x21		;597a A
-	defb 0x2c		;597b L
+	defb 0x27		;5978 #00 G (start of "GOAL")
+	defb 0x2f		;5979 #01 O
+	defb 0x21		;597a #02 A
+	defb 0x2c		;597b #03 L
+	defb 0x3B		;597c #04 (space/black)
 
 
 
@@ -7130,37 +7396,11 @@
 
 
 
-	defb 0xE7		;5998 Seen at 0x515A.
-;data
-	defb 0xD0		;5999
-	defb 0xD0		;599a
-	defb 0xD1		;599b
-	defb 0xD0		;599c
-	defb 0xD0		;599d
-	defb 0xD1		;599e
-	defb 0xD0		;599f
-	defb 0xD0		;59a0
-	defb 0xDF		;59a1
-	defb 0xE6		;59a2
-	defb 0xD0		;59a3
-	defb 0xD0		;59a4
-	defb 0xD0		;59a5
-	defb 0xD0		;59a6
-	defb 0xD0		;59a7
-	defb 0xD0		;59a8
-	defb 0xD0		;59a9
-	defb 0xD0		;59aa
-	defb 0xDE		;59ab
-	defb 0xE7		;59ac
-	defb 0xD0		;59ad
-	defb 0xD0		;59ae
-	defb 0xD0		;59af
-	defb 0xD0		;59b0
-	defb 0xD0		;59b1
-	defb 0xD0		;59b2
-	defb 0xD0		;59b3
-	defb 0xD0		;59b4
-	defb 0xDF		;59b5
+5998_track_data:
+	defb 0xE7,0xD0,0xD0,0xD1,0xD0,0xD0,0xD1,0xD0,0xD0,0xDF		;5998  I  |  |  I
+	defb 0xE6,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xDE		;59a2  =        =
+	defb 0xE7,0xD0,0xD0,0xD1,0xD0,0xD0,0xD1,0xD0,0xD0,0xDF		;59ac  I  |  |  I
+
 	defb 0xE7		;59b6
 	defb 0xD0		;59b7
 	defb 0xD0		;59b8
@@ -7171,7 +7411,9 @@
 	defb 0xD0		;59bd
 	defb 0xD0		;59be
 	defb 0xDF		;59bf
+
 	defb 0xFF		;59c0
+
 	defb 0xF2		;59c1
 	defb 0xE7		;59c2
 	defb 0xD0		;59c3
@@ -15074,7 +15316,7 @@
 	; We can get here from:
 	;   0x6A78 (jump)
 	;   0x6A7A (fall)
-	inc hl			;6a7b hl = 0xE049
+	inc hl			;6a7b HL = 0xE049
 	ld a,(hl)		;6a7c
 	call 04045h		;6a7d PC = PC[2 * A]
 	defw 0x6A90		;6a80 car state #00 (all okay)
@@ -15089,7 +15331,7 @@
 
 
 6a90_car_state_00__all_okay:
-	call 06cd1h		;6a90
+	call 06cd1h		;6a90 6cd1_side_bounce_checker_and_actioner
 	ld a,(0e055h)		;6a93
 	add a,a			;6a96 A *= 2
 	add a,a			;6a97 A *= 2
@@ -15105,7 +15347,7 @@
 	ld a,(0e010h)		;6aab
 	or a			;6aae
 	ld a,001h		;6aaf
-	call z,04b6eh		;6ab1
+	call z,04b6eh		;6ab1 4b6e_sound_something
 	xor a			;6ab4 A = 0
 
 	; We can get here from:
@@ -15144,7 +15386,7 @@
 	;   0x6ACD (jump)
 	push af			;6ad6 Store A (0x08)
 	ld a,04fh		;6ad7
-	call 04b6eh		;6ad9
+	call 04b6eh		;6ad9 4b6e_sound_something
 	pop af			;6adc Restore A (0x08)
 	jr $-40			;6add jump to 0x6AB5
 
@@ -15217,7 +15459,7 @@
 	or a			;6b1f
 	ret nz			;6b20 if (some sound/tune/bleep is playing) return
 	ld a,01bh		;6b21 A = 0x1B
-	call 04b6eh		;6b23 Play sound?
+	call 04b6eh		;6b23 4b6e_sound_something
 	ld hl,0e04eh		;6b26 HL = 0xE04E
 	ld b,(hl)		;6b29 B = horizontal position of car
 	dec hl			;6b2a HL = 0xE04D
@@ -15276,9 +15518,9 @@
 	
 	; Test if car is outside screen.
 	ld hl,0e04ch		;6b71
-	ld a,(hl)		;6b74 Load car vertical position on screen
+	ld a,(hl)		;6b74 Load car vertical position on screen.
 	sub 0c8h		;6b75 A -= 0xC8
-	cp 008h			;6b77
+	cp 008h			;6b77 Compute A - 0x08 and update C/NC flag.
 	jr c,$+7		;6b79 if (0xC8 <= car vpos <= 0xCF) jump to 0x6B80
 	
 	; Not outside of the screen yet.
@@ -15338,7 +15580,7 @@
 	; We can get here from:
 	;   0x6B94 (skidding, recoverable, timer hasn't ran out yet)
 	call 06be2h		;6bb0
-	call 06cd1h		;6bb3
+	call 06cd1h		;6bb3 6cd1_side_bounce_checker_and_actioner
 	call 06e1dh		;6bb6 6e1d_store_car_sprite_attributes
 	ld a,(0e002h)		;6bb9
 	bit 6,a			;6bbc
@@ -15450,7 +15692,7 @@
 	jr nz,$+18		;6c45 if (nz) jump to 0x6C57
 	push hl			;6c47
 	ld a,00bh		;6c48
-	call 04b6eh		;6c4a
+	call 04b6eh		;6c4a 4b6e_sound_something
 	pop hl			;6c4d
 	ld a,(0e054h)		;6c4e
 	dec (hl)		;6c51
@@ -15573,8 +15815,7 @@
 ; We can get here from:
 ;   0x6A90 (call)
 ;   0x6BB3 (call)
-; ???BOUNC CHECKER+ACTIONER???
-6cd1_:
+6cd1_side_bounce_checker_and_actioner:
 	ld hl,0e04ch		;6cd1
 	call 06dc1h		;6cd4
 	ld hl,0e055h		;6cd7 HL = 0xE055
@@ -15605,14 +15846,22 @@
 	pop hl			;6d04 Remove return address.
 	pop hl			;6d05 Remove return address.
 	jp 06f1eh		;6d06
-	
-	; We can get here from:
-	;   0x6CDE (call)
+
+
+
+; Input:
+;   D: ???
+; 
+; We can get here from:
+;   0x6CDE (call) [from=6cd1_side_bounce_checker_and_actioner]
+6d09_fixme:
 	ld a,d			;6d09 A = D
 	sub 074h		;6d0a A -= 0x74
-	cp 008h			;6d0c
-	ccf			;6d0e
-	ret c			;6d0f
+	cp 008h			;6d0c Compute A - 0x08 and update C/NC flag.
+	ccf			;6d0e Complement carry flag. Flip carry flag.
+	ret c			;6d0f if (D < 0x74 || D > 0x7B) return
+	; Post: D in [0x74..0x7B]
+
 	cp 004h			;6d10
 	jr nc,$+14		;6d12 if (nc) jump to 0x6D20
 	ld a,004h		;6d14
@@ -15630,13 +15879,16 @@
 	call 06d8bh		;6d2c
 	ret nc			;6d2f
 	ld a,b			;6d30
-	cp 0cfh			;6d31
+	cp 0cfh			;6d31 A -= 0xCF
 	jr c,$+22		;6d33 if (c) jump to 0x6D49
-	sub 0d9h		;6d35
-	cp 008h			;6d37
-	jr nc,$+20		;6d39 if (nc) jump to 0x6D4D
-	ld a,c			;6d3b
-	push af			;6d3c
+
+	sub 0d9h		;6d35 A -= 0xD9
+	cp 008h			;6d37 Compute A - 0x08 and update C/NC flag.
+	jr nc,$+20		;6d39 if ((B-0xCF) < 0xD9 || (B-0xCF) > 0xE0) jump to 0x6D4D
+	; Post: 0xD9 <= (B-0xCF) <= 0xE0
+	
+	ld a,c			;6d3b A = C
+	push af			;6d3c Store A.
 	add a,00ch		;6d3d
 	and 0f8h		;6d3f
 	ld c,a			;6d41
@@ -15655,14 +15907,16 @@
 	ld b,004h		;6d56
 	call 06d8bh		;6d58
 	ret nc			;6d5b
-	ld a,b			;6d5c
-	cp 0fch			;6d5d
+	ld a,b			;6d5c A = B
+	cp 0fch			;6d5d A -= 0xFC
 	jr nc,$+25		;6d5f if (nc) jump to 0x6D78
-	sub 0e1h		;6d61
-	cp 008h			;6d63
-	jr nc,$+23		;6d65 if (nc) jump to 0x6D7C
-	ld a,c			;6d67
-	push af			;6d68
+	sub 0e1h		;6d61 A -= 0xE1
+	cp 008h			;6d63 Compute A - 0x08 and update C/NC flag.
+	jr nc,$+23		;6d65 if ((B-0xFC) < 0xE1 || (B-0xFC) > 0xE8) jump to 0x6D7C
+	; Post: 0xE1 <= (B-0xFC) <= 0xE8
+	
+	ld a,c			;6d67 A = C
+	push af			;6d68 Store A.
 	add a,004h		;6d69
 	and 0f8h		;6d6b
 	ld c,a			;6d6d
@@ -15684,8 +15938,19 @@
 	ld b,000h		;6d85
 	and a			;6d87
 	ret			;6d88
+
 	scf			;6d89
 	ret			;6d8a
+
+
+
+; Input:
+;   HL: ???
+; 
+; We can get here from:
+;   0x6D2C (call)
+;   0x6D58 (call)
+6d8b_fixme:
 	ld a,(hl)		;6d8b
 	inc hl			;6d8c
 	inc hl			;6d8d
@@ -15698,27 +15963,39 @@
 	ld l,000h		;6d98
 	jr nc,$+4		;6d9a if (nc) jump to 0x6D9E
 	ld l,0b8h		;6d9c
+	
+	; We can get here from:
+	;   0x6D94 (jump)
+	;   0x6D9A (jump)
+	;   0x6D9C (fall)
 	ld a,h			;6d9e
 	ld c,a			;6d9f
 	add a,b			;6da0
 	ld h,a			;6da1
-	call 04561h		;6da2
+	call 04561h		;6da2 4561_maybe_compute_draw_game_over
 	call 0050_SETRD		;6da5
-	ld a,(00007h)		;6da8
+	ld a,(00007h)		;6da8 A = 0x98 (VDP writing port #0)
+	
+	; Read from VDP.
 	exx			;6dab
 	ld c,a			;6dac
 	in a,(c)		;6dad
 	exx			;6daf
+
 	ld b,a			;6db0
 	ld d,a			;6db1
 	cp 0cfh			;6db2
 	jr c,$-43		;6db4 if (c) jump to 0x6D89
 	cp 0d9h			;6db6
 	jr c,$-51		;6db8 if (c) jump to 0x6D85
-	sub 0d9h		;6dba
-	cp 010h			;6dbc
+
+	sub 0d9h		;6dba A -= 0xD9
+	cp 010h			;6dbc Compute A - 0x10 and update C/NC flag.
 	jr nc,$-53		;6dbe if (nc) jump to 0x6D89
+	; Post: 0xD9 <= VDP_byte <= 0xE8
+
 	ret			;6dc0
+
 
 
 ; We can get here from:
@@ -15919,12 +16196,12 @@
 	ld a,(0e04ch)		;6e74 A = car_vertical_position
 	sub (hl)		;6e77 A -= *HL
 	sub 010h		;6e78 A -= 0x10
-	add a,020h		;6e7a A += 0x20, set NC/C flag.
+	add a,020h		;6e7a A += 0x20 and update C/NC flag.
 	inc hl			;6e7c
 	jp nc,06f0ah		;6e7d
 	ld a,(0e04eh)		;6e80 Get car's horizontal position on screen.
 	sub (hl)		;6e83
-	ld c,000h		;6e84 c = 0
+	ld c,000h		;6e84 C = 0
 	jr nc,$+3		;6e86 if (nc) jump to 0x6E89
 	inc c			;6e88
 	sub 00ah		;6e89
@@ -15935,11 +16212,13 @@
 	ld a,(0e0e4h)		;6e94
 	cp 003h			;6e97
 	jp z,06f18h		;6e99
+
 	ld hl,(0e0bfh)		;6e9c
 	ld a,(hl)		;6e9f
-	sub 006h		;6ea0
-	cp 002h			;6ea2
-	jp c,06f18h		;6ea4
+	sub 006h		;6ea0 A -= 0x06
+	cp 002h			;6ea2 Compute A - 0x02 and update C/NC flag.
+	jp c,06f18h		;6ea4 if (*(HL) == 0x06 || *(HL) == 0x07) jump
+
 	inc hl			;6ea7
 	ld (hl),001h		;6ea8
 	inc hl			;6eaa
@@ -16105,9 +16384,12 @@
 	pop af			;6f98
 	ld (0e0b0h),a		;6f99
 	push hl			;6f9c
-	ld c,004h		;6f9d
-	call 072f6h		;6f9f
-	ld c,(hl)			;6fa2
+
+	; A = ? of current rival car
+	ld c,004h		;6f9d C = 0x04
+	call 072f6h		;6f9f 72f6_set_A_to_current_rival_car_index_C
+
+	ld c,(hl)		;6fa2
 	ld a,(0e098h)		;6fa3
 	rra			;6fa6
 	rra			;6fa7
@@ -16139,15 +16421,18 @@
 	ld hl,(0e0bfh)		;6fc8
 	ld d,(hl)		;6fcb
 	ld a,(0e03bh_levelAB)	;6fcc
-	or a			;6fcf
+	or a			;6fcf Update Z/NZ flag.
 	jr nz,$+3		;6fd0 if (nz) jump to 0x6FD3
 	ld d,a			;6fd2 D = A
+
+	; HL = &vpos_of_current_rival_car
 	ld c,006h		;6fd3 C = 0x06
-	call 072f6h		;6fd5
-	ld a,d			;6fd8 A = D
-	cp 002h			;6fd9
-	ld (hl),0f0h		;6fdb
-	jr z,$+6		;6fdd if (z) jump to 0x6FE3
+	call 072f6h		;6fd5 72f6_set_A_to_current_rival_car_index_C
+
+	ld a,d			;6fd8 A = D (D is set at 0x6FD2)
+	cp 002h			;6fd9 A -= 2
+	ld (hl),0f0h		;6fdb Store vpos
+	jr z,$+6		;6fdd if (levelAB == 0x02) jump to 0x6FE3
 	cp 005h			;6fdf
 	jr nz,$+11		;6fe1 if (nz) jump to 0x6FEC
 
@@ -16352,11 +16637,13 @@
 	call 072feh		;70e5
 	call 07123h		;70e8
 	call 07154h		;70eb
-	ld c,006h		;70ee
-	call 072f6h		;70f0
-	sub 0c0h		;70f3
-	cp 040h			;70f5
-	ld a,000h		;70f7
+
+	ld c,006h		;70ee C = 0x06
+	call 072f6h		;70f0 72f6_set_A_to_current_rival_car_index_C
+
+	sub 0c0h		;70f3 A -= 0xC0
+	cp 040h			;70f5 Compute A - 0x40 and update C/NC flag.
+	ld a,000h		;70f7 A = 0
 	jr c,$+8		;70f9 if (c) jump to 0x7101
 	ld a,(hl)		;70fb
 	rra			;70fc
@@ -16367,8 +16654,10 @@
 	ld hl,0e098h		;7102
 	add hl,bc		;7105
 	ld d,(hl)		;7106
-	ld c,009h		;7107
-	call 072f6h		;7109
+
+	ld c,009h		;7107 C = 0x09
+	call 072f6h		;7109 72f6_set_A_to_current_rival_car_index_C
+
 	ld a,d			;710c
 	and 003h		;710d
 	ld c,a			;710f
@@ -16388,8 +16677,10 @@
 	and a			;712a
 	sbc hl,bc		;712b
 	ret nc			;712d
-	ld c,006h		;712e
-	call 072f6h		;7130
+
+	ld c,006h		;712e C = 0x06
+	call 072f6h		;7130 72f6_set_A_to_current_rival_car_index_C
+
 	call 06dc1h		;7133
 	ret nc			;7136
 	ld hl,(0e0bfh)		;7137
@@ -16408,10 +16699,16 @@
 	cpl			;714c
 	ld e,a			;714d
 	inc de			;714e
-	ld c,008h		;714f
+	ld c,008h		;714f C = 0x08
 	jp 072e7h		;7151
-	ld c,009h		;7154
-	call 072f6h		;7156
+
+
+
+; We can get here from:
+;   0x70EB (call)
+	ld c,009h		;7154 C = 0x09
+	call 072f6h		;7156 72f6_set_A_to_current_rival_car_index_C
+
 	ld e,(hl)		;7159
 	inc hl			;715a
 	ld d,(hl)		;715b
@@ -16424,8 +16721,11 @@
 	add hl,hl		;7165
 	add hl,hl		;7166
 	ex de,hl		;7167
-	ld c,006h		;7168
+	ld c,006h		;7168 C = 0x06
 	jp 072e7h		;716a
+
+
+
 	ld hl,(0e0bfh)		;716d
 	ld a,(hl)		;7170
 	cp 003h			;7171
@@ -16433,9 +16733,10 @@
 	ld bc,00006h		;7174
 	add hl,bc		;7177
 	ld a,(0e04ch)		;7178
-	sub 040h		;717b
-	cp (hl)			;717d
+	sub 040h		;717b A -= 0x40
+	cp (hl)			;717d Compute A - *(HL) and update C/NC flag.
 	ret c			;717e
+
 	ld b,a			;717f
 	ld a,(hl)		;7180
 	add a,020h		;7181
@@ -16472,11 +16773,14 @@
 ; We can get here from:
 ;   0x70C6 (jump) jump table, index 0x02
 	ld c,006h		;71a2 C = 0x06
-	call 072f6h		;71a4
+	call 072f6h		;71a4 72f6_set_A_to_current_rival_car_index_C
+
 	call 06dc1h		;71a7
 	jr c,$+24		;71aa if (c) jump to 0x71C2
-	ld c,00fh		;71ac
-	call 072f6h		;71ae
+
+	ld c,00fh		;71ac C = 0x0F
+	call 072f6h		;71ae 72f6_set_A_to_current_rival_car_index_C
+
 	dec (hl)		;71b1
 	jr z,$+16		;71b2 if (z) jump to 0x71C2
 	dec hl			;71b4
@@ -16499,7 +16803,8 @@
 ;   0x70DC (call)
 71c6_:
 	ld c,009h		;71c6 C = 0x09
-	call 072f6h		;71c8
+	call 072f6h		;71c8 72f6_set_A_to_current_rival_car_index_C
+
 	ex de,hl		;71cb
 	ld a,(de)		;71cc
 	cp 0d7h			;71cd
@@ -16636,11 +16941,13 @@
 ; We can get here from:
 ;   0x70C6 (jump) jump table, index 0x06
 	call 07229h		;728a
+
 	ld c,006h		;728d C = 0x06
-	call 072f6h		;728f
+	call 072f6h		;728f 72f6_set_A_to_current_rival_car_index_C
+
 	sub 0c3h		;7292 A -= 0xC3
-	cp 00ch			;7294
-	jr c,$+14		;7296 if (A < 0x0C) jump to 0x72A4
+	cp 00ch			;7294 Compute A - 0x0C and update C/NC flag.
+	jr c,$+14		;7296 if (0xC3 <= A_pre7292 <= 0xCE) jump to 0x72A4
 	
 	ld hl,0e0e4h		;7298 HL = 0xE0E4
 	inc (hl)		;729b
@@ -16692,8 +16999,14 @@
 	cp 090h			;72df
 	ret c			;72e1
 	ld a,009h		;72e2
-	jp 04b6eh		;72e4
-	call 072f6h		;72e7
+	jp 04b6eh		;72e4 4b6e_sound_something
+
+
+
+; We can get here from:
+;   0x7151 (jump) C == 0x08
+;   0x716A (jump) C == 0x06
+	call 072f6h		;72e7 72f6_set_A_to_current_rival_car_index_C
 	push hl			;72ea
 	ld a,(hl)		;72eb
 	dec hl			;72ec
@@ -16708,11 +17021,31 @@
 	ret			;72f5
 
 
-; C must be set by caller, probably 1-based.
-	ld b,000h		;72f6 b = 0
-	ld hl,(0e0bfh)		;72f8 hl = 0xe0bf (hl = 0xe0c0 is C is 0-based?)
-	add hl,bc		;72fb hl += bc
-	ld a,(hl)		;72fc a = *(hl)
+; Compute A = *(*(0xE0BF) + C)
+; 
+; Input:
+;   C: wanted offset to *(0xE0BF)
+; 
+; We can get here from:
+;   0x53F5 (call) C == 0x06
+;   0x6F9F (call) C == 0x04
+;   0x6FD5 (call) C == 0x06
+;   0x70F0 (call) C == 0x06
+;   0x7109 (call) C == 0x09
+;   0x7130 (call) C == 0x06
+;   0x7156 (call) C == 0x09
+;   0x71A4 (call) C == 0x06
+;   0x71AE (call) C == 0x0F
+;   0x71C8 (call) C == 0x09
+;   0x728F (call) C == 0x06
+;   0x72E7 (call) C == 0x08 (see 0x7151) or C == 0x06 (see 0x716A)
+;   0x7307 (call) C == 0x09
+;   0x7349 (call) C == 0x0E
+72f6_set_A_to_current_rival_car_index_C:
+	ld b,000h		;72f6 B = 0
+	ld hl,(0e0bfh)		;72f8 HL = *(0xE0BF)
+	add hl,bc		;72fb HL += BC
+	ld a,(hl)		;72fc A = *(HL)
 	ret			;72fd
 
 
@@ -16722,8 +17055,10 @@
 	ld a,(hl)		;7302
 	or a			;7303
 	ret z			;7304
-	ld c,009h		;7305
-	call 072f6h		;7307
+
+	ld c,009h		;7305 C = 0x09
+	call 072f6h		;7307 72f6_set_A_to_current_rival_car_index_C
+
 	cp 0d7h			;730a
 	ret c			;730c
 	dec hl			;730d
@@ -16764,8 +17099,10 @@
 	ld (hl),002h		;7342
 	xor 001h		;7344
 	push af			;7346
-	ld c,00eh		;7347
-	call 072f6h		;7349
+
+	ld c,00eh		;7347 C = 0x0E
+	call 072f6h		;7349 72f6_set_A_to_current_rival_car_index_C
+
 	pop af			;734c
 	ld (hl),a		;734d
 	inc hl			;734e
@@ -16773,19 +17110,22 @@
 	ret			;7351
 	ld b,a			;7352
 	dec hl			;7353
-	ld a,(hl)			;7354
-	sub 006h		;7355
-	cp 002h		;7357
+
+	ld a,(hl)		;7354
+	sub 006h		;7355 A -= 0x06
+	cp 002h			;7357 Compute A - 0x02 and update C/NC flag.
 	inc hl			;7359
 	ret c			;735a
-	ld a,(hl)			;735b
+
+	ld a,(hl)		;735b
 	or a			;735c
 	ret z			;735d
+
 	ld a,b			;735e
-	ld (hl),002h		;735f
-	ld bc,0000dh		;7361
-	add hl,bc			;7364
-	ld (hl),a			;7365
+	ld (hl),002h		;735f Store 0x02
+	ld bc,0000dh		;7361 BC = 0x000D
+	add hl,bc		;7364 HL += 0x0D
+	ld (hl),a		;7365
 	inc hl			;7366
 	ld (hl),00ch		;7367
 	inc a			;7369
@@ -17106,7 +17446,7 @@
 	or a			;743d
 	ret nz			;743e return if already emitting a sound/tune/bleep.
 	ld a,002h		;743f 0x02 means "sound of low fuel warning"
-	jp 04b6eh		;7441 4b6e_sound_something (returns)
+	jp 04b6eh		;7441 4b6e_sound_something
 
 
 
@@ -17121,7 +17461,7 @@
 
 
 ; We can get here from:
-;   0x4381 (call) [from=4373_game_state_08]
+;   0x4381 (call) [from=4373_state08]
 744c_draw_overview_of_stages:
 	; Copy patterns 0x80..0xB2 (inclusive) to VRAM (all three bands).
 	ld hl,02400h		;744c HL = 0x2400, VRAM destination (pattern table)
@@ -18334,7 +18674,7 @@
 	call 0447fh		;7789 447f_update_score_and_hiscore
 	
 	ld a,003h		;778c A = 3
-	jp 04b6eh		;778e
+	jp 04b6eh		;778e 4b6e_sound_something
 
 
 
@@ -18946,10 +19286,10 @@
 
 
 ; Stage 1, data pointer 1. See 0x5161.
-	defb 0x10		;78c4
+	defb 0x10		;78c4 ?2 lanes?
 	defb 0x19		;78c5
 	defb 0x11		;78c6
-	defb 0x21		;78c7
+	defb 0x21		;78c7 ?3 lanes?
 	defb 0x13		;78c8
 	defb 0x18		;78c9
 	defb 0x20		;78ca
