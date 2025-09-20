@@ -143,8 +143,8 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 0xE002
 		0x00 During demo
 		0x20 During demo
-		0x40 Level A, bit 7
-		0x60 Level B, bit 7 and bit 6
+		0x40 Level A, bit 6
+		0x60 Level B, bit 6 and bit 5
 		bit 5 (0x20):
 			0: Level A (also for demo)
 			1: Level B (also for demo)
@@ -153,7 +153,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			1: player is playing
 0xE003		Game state ticker, increments
 	
-0xE004		State related bits.
+0xE004		State related bits or state related counter/timer.
 		0x18 During game
 		0x80 After seeing "EMPTY" on screen.
 		
@@ -239,7 +239,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 				0x390A
 				0x38EA
 
-0xE010-0xE1A,0xE0B-0xE025,0xE026-0xE030	Uses IX to address memory. See 0x4C07.
+0xE010-0xE0A,0xE0B-0xE025,0xE026-0xE030	Uses IX to address memory. See 0x4C07.
 			A      B      C
 	IX+0	0xE010,0xE01B,0xE026		?Sound duration left?
 	IX+1	0xE011,0xE01C,0xE027		?Sound duration?
@@ -252,23 +252,24 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 		
 		     &0x3F
 		0x00  0x00 (1 channel) Silence
-		0x01  0x01 (1 channel) Special. 0x4C25.
-		0x02  0x02 (1 channel) Emit low fuel warning
-		0x03  0x03 (1 channel) Bleeps when both parts of red Road Fighter logo join.
-		0x03  0x03 (1 channel) Bleeps when player grabbed a fuel heart.
-		0x04  0x04 (1 channel) ?
+		0x01  0x01 (1 channel) [0x4DE2] Silence.
+		0x02  0x02 (1 channel) [0x4DE4] Emit low fuel warning
+		0x03  0x03 (1 channel) [0x4DE6] 1/2: Bleeps when both parts of red Road Fighter logo join.
+		0x03  0x03 (1 channel) [0x4DE6] 2/2: Bleeps when player grabbed a fuel heart.
+		0x04  0x04 (1 channel) [0x4DE8] Sound of 55 gallon oil-drum behind an 18-wheeler.
 		
-		0x05  0x05 (2 channels) Sound of yellow traffic light (player must wait for green)
-		0x07  0x07 (2 channels) Sound of green traffic light (player should start racing now)
-		0x09  0x09 (2 channels) Weird intermittent sound during a level
-		0x0A  0x0A (2 channels) ?Seen 0x4CA4?
-		0x0B  0x0B (2 channels) ?
-		0x0D  0x0D (2 channels) Skidding. Player bounced a car, but car is still controllable.
+		0x05  0x05 (2 channels) [0x4DEA] Sound of yellow traffic light (player must wait for green)
+		0x07  0x07 (2 channels) [0x4DEE] Sound of start (green traffic light in stage 1, just start in any other stage)
+		0x09  0x09 (2 channels) [0x4DF2] Weird intermittent sound during a level
+		0x0A  0x0A (2 channels) [0x4DF4] ??? Seen at 0x4CA4
+		0x0B  0x0B (2 channels) [0x4DF6] ??? Seen at 0x6C4A
+		0x0D  0x0D (2 channels) [0x4DFA] Skidding. Player bounced a car, but car is still controllable.
 		
-		0x4F  0x0F (3 channels) Player crashes
-		0x92  0x12 (3 channels) Victorious tune when player reaches check point
-		0x95  0x15 (3 channels) Game over
-		0x98  0x18 (3 channels) Tune after selecting either level A or B
+		0x4F  0x0F (3 channels) [0x4DFE] Player crashes
+		0x92  0x12 (3 channels) [0x4E04] Victorious tune when player reaches check point
+		0x95  0x15 (3 channels) [0x4E0A] Game over
+		0x98  0x18 (3 channels) [0x4E10] Tune after selecting either level A or B
+		      0x1B (3 channels) [0x4E16] Silenc
 	IX+3,4	0xE013-0xE014,0xE01E-0xE01F,0xE029-0xE02A	Address of where the current sound definition is
 	IX+5	0xE015,0xE02A,0xE02B Octave offset:
 			0x00: Octave 6, starts at frequency divider 0x0D6
@@ -302,6 +303,8 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 0xE036-0xE037	Engine humming frequency divider minus 0x0DEB or 0x0DEE
 		I.e.: Engine hummy frequency = *(0xE036) + 0x0DEB (or 0x0DEE)
 0xE038		?0x4C57
+0xE039		Seen at 0x46C1
+0xE03A		Seen at 0x43C6
 0xE03B		Level
 			0x00: Level A
 			0x01: Level B
@@ -316,8 +319,10 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 0xE044		Seen at 0x44A8
 0xE045		Seen at 0x6C36, 0x425E, 0x413D.
 0xE046-0xE047	Pointer to coarse pattern names (22 per line, not 32)
-
-
+0xE048		Seen at 0x6A75, 0x6E04. ?Stored if left or right is NEWLY pressed?
+			0x04 "Left"
+			0x08 "Right"
+			0x0C Both "Left" and "Right"
 
 0xE049-0xE053	Car data. Initial values are at 0x5219.
 0xE049		Car state?
@@ -339,16 +344,20 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			0x80: during start (on start grid)
 			0x9A: when driving at maximum speed
 			0xB0: maximum, lowest on screen
-0xE04D		0x6BFF
+0xE04D		Car: horizontal position: "decimals"
+			The word at 0xE04D is increased, and the high 
+			byte is used as the horizontal position.
 0xE04E		Car: horizontal position on screen
 			Pokeable!
 0xE04F		Car: speed
 			0x00-0x17	Seen at 0x6C96
 			0x18-0x4F	Seen at 0x6C9A
+			>= 0xB8		Seen at 0x6F2A
+			>= 0xC8		Seen at 0x6F54
 			0xD7		Maximum speed
 0xE050		?
-0xE051		?Shadow car speed?
-		Seen at 0x73AA
+0xE051		?Also car speed?
+		Seen at 0x6DEF, 0x73AA
 0xE052		?
 0xE053		Seen at 0x6E20. Sprite pattern. Car orientation:
 			0x00 North
@@ -413,25 +422,39 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 		0xE077 low byte
 		0xE078 middle byte
 		0xE079 high byte
-		Finished stage 1: 0x0F1255 (high=0x0F, mid=0x12, low=0x55)
+
+		0x0F1255 (high=0x0F, mid=0x12, low=0x55): Finished stage 1
+		0x0F09XX (high=0x0F, mid=0x09, low=0xXX): Draw checkpoint/goal (see 0x5944)
+		
 
 		0x738C: update distance travelled
 0xE07A		Seen at 0x5150, stage related
 			0xFE:
 				special value, see 0x56FA, 0x78E4.
+			Bit 0+1+2+3, see 0x5875:
+				0x02: Decrease 0xE07D, i.e move left side of the road 1 character to the left.
 			Bit 0+1+2+3, see 0x5704:
-				0x00: ?
-				0x01: ?
-				0x02: ?
-				0x03: ?
-				0x04: ?
+				0x00: call 5768_update_first_line_of_track_data_in_RAM
+				0x01: call 5810_fixme
+				0x02: call 5810_fixme
+				0x03: call 57a7_fixme
+				0x04: call 57a7_fixme
 			Bit 4+5, see 0x5786:
 				0x00: Copy 1 lane width of track
 				0x10: Copy 2 lane widths of track
 				0x20: Copy 3 lane widths of track
-0xE07B		Seen at 0x5768
+		The value in 0xE07A comes from:
+			Stage 1: 0x78C4 (see 0x5161)
+			Stage 2: 0x7AAA (see 0x5167)
+			Stage 3: 0x7AAA (see 0x516D)
+			Stage 4: 0x7E83 (see 0x5173)
+			Stage 5: 0x7E60 (see 0x5179)
+			Stage 6: 0x7EA8 (see 0x517F)
+0xE07B		Bitmask 0x07: offset for table at 0x5808 (vertical pattern of left side of straight track)
 0xE07D		Side of left road?
 0xE07F		Seen at 0x514A, 0x58AF
+0xE081		Bytes of track to copy to VRAM buffer. Max 9 (3 lanes).
+		See 0x58A5, value from array at 0x58AB.
 0xE083		Fuel left:
 		0xD7 means really full of fuel (see 0x7765)
 		0xD0 At start of stage ("full fuel")
@@ -460,7 +483,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 		0x50F2: set value to 0x7C85 (0x4092 or 0x9240)
 		0x557D: set value to 0x7C85 (0x4092 or 0x9240)
 		0x56C6: set value to 0x7FE4 (0x0000)
-0xE098		Seen at 0x6DD1.
+0xE098		Seen at 0x6DD1, 0x7102. ?table, 1 byte per element, with (max) 32 elements?
 0xE0AA		Seen at 0x52E4.
 0xE0AD		Side of the road?
 0xE0B0		Seen at 0x7004.
@@ -471,25 +494,69 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			otherwise: Does not contain oil
 0xE0B5 (word)	Pointer to correct oil tile.
 0xE0B7		?Horizonal offset of oil mark?
-0xE0B8		Play sound after grabbed fuel heart?
-			0x00
-			0x01 Grabbed a fuel heart (very very briefly, moves almost instantly to 0x02)
+0xE0B8		State for grabbed bonus fuel hearts.
+			0x00 Ungrabbed
+			0x01 Grabbed a fuel heart (very very briefly, moves almost instantly to 0x02, see 0x6F07)
 			0x02 Grabbed a fuel heart
-0xE0B9		Streak count of number of grabbed fuel hearts
-0xE0BF		Seen at 0x719C
-0xE0C1		Seen at 0x51E5 (init)
-0xE0E6		Seen at 0x6B80, rival car #01 is screen?
-
-0xE0F6		Opponent #02, 0x00: not in screen, 0x01 in screen. Seen at 0x6B85 (ldir).
-0xE0FA		Opponent #02, vertical position on screen, "decimals"
-0xE0FB		Opponent #02, vertical position on screen
-
-0xE105		Truck related
+0xE0B9		Streak count of number of grabbed fuel hearts.
+			0x01: Worth 300 points.
+			0x02: Worth 500 points.
+			0x03: Worth 800 points.
+			>= 0x04: Worth 1000 points.
+0xE0BA		Seen at 0x7796, ?Ticks remaining for playing fuel heart sound?
+0xE0BD (word)	Seen at 0x7020. Example value 0x53AB (seen in stage 3)
+0xE0BF (word)	Seen at 0x6E62, 0x719C, 0x72F8 ??pointer to one of the current rival cars??
+0xE0C1		Seen at 0x51E5 (init), 0x6F2B, 0x7019, 0x7055
+0xE0C2		Seen at 0x6F31
+0xE0C3-0xE0D2	Seen at 0x6F3C
+0xE0D3-0xE0E2	Seen as value in 0xE0BF
+0xE0E3		Seen at 0x6EE3, bonus fuel heart related
+0xE0E4		Seen at 0x7298, 0x70AC. ?rival car index?
+0xE0E5		Seen at 0x6E61 - ?rival cars, 16 bytes per car?
+0xE0E5-0xE0F4	Moving object #00 (16 bytes)
+		0xE0E5 +0 ?Rival car type?
+			0x00: Green car
+			0x01: Blue car (regular)
+			0x02: Blue car (overtaking player)
+			0x03: Purple car
+			0x08: Bonus fuel heart
+		0xE0E6 +1
+			0x00: This is NOT a VISIBLE moving object. I.e. don't draw it.
+			0x01: Moving object is visible in screen.
+			0x02: Colliding with other object. See 0x735F.
+		0xE0E7 +2 ?
+		0xE0E8 +3 ?
+		0xE0E9 +4 0x28: ?
+		0xE0EA +5 Vertical position on screen, "decimals"
+		0xE0EB +6 Vertical position on screen
+		0xE0EC +7 ?
+		0xE0ED +8 Horizontal position on screen
+		0xE0EE +9 ?
+		0xE0EF +A ?
+		0xE0F0 +B ?
+		0xE0F1 +C 0x03: ?
+		0xE0F2 +D ?
+		0xE0F3 +E 0x01: bounced against green car / purple car is moving sideways
+		0xE0F4 +F
+			0x0C: Seen at 0x7367
+0xE0F5-0xE104	Moving object #01 (16 bytes)
+		0xE0F5 +0 See 0xE0E5
+		0xE0F6 +1 See 0xE0E6
+		0xE0F9 +4 See 0xE0E9
+		0xE0FA +5 See 0xE0EA
+		0xE0FB +6 See 0xE0EB
+		0xE0FD +8 See 0xE0ED
+		0xE103 +E See 0xE0F3
+		0xE104 +F See 0xE0F4
+0xE105-0xE107
+		0xE105 ?0x00 == no truck, 0x01 == yes truck?
 			Stored at 0x5421
 			Seen at 0x5434
 			Stored at 0x54A3
-0xE106		Truck related
-0xE107		Truck related
+		0xE106 +1 ?Spinning oil drum: Vertical position on screen, "decimals"?
+		0xE107 +2 ?Spinning oil drum: Vertical position on screen?
+		0xE108 +1 ?Spinning oil drum: Horizontal position on screen, "decimals"?
+		0xE109 +2 ?Spinning oil drum: Horizontal position on screen?
 0xE10E-?	Sprite attributes
 		Sprite #00	0xE10E-0xE111	Minicar
 			0xE10E	vpos	Variable:
@@ -549,10 +616,10 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			0x68	?
 			0x6C	Either:
 					Car on minimap
-					Thingie from truck
-			0x70	Thingie from truck NE/SW
-			0x74	Thingie from truck E/W
-			0x78	Thingie from truck NW/SE
+					55-gallon oildrum N/S
+			0x70	55-gallon oildrum from truck NE/SW
+			0x74	55-gallon oildrum from truck E/W
+			0x78	55-gallon oildrum from truck NW/SE
 			0x7C	Green car (shadow)
 			0x80	Green car (regular)
 			0x84	Purple car (shadow)
@@ -584,6 +651,32 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			0xE127	hpos
 			0xE128	pat
 			0xE129	color
+
+		Sprite #07	0xE12A-0x12D	?
+			0xE12A
+			0xE12B
+			0xE12C
+			0xE12D
+		Sprite #08	0xE12E-0x131	?
+			0xE12E
+			0xE12F
+			0xE130
+			0xE131
+		Sprite #09	0xE132-0x135	?
+			0xE132
+			0xE133
+			0xE134
+			0xE135
+		Sprite #0A	0xE136-0x139	?
+			0xE136
+			0xE137
+			0xE138
+			0xE139
+		Sprite #0B	0xE13A-0x13D	Points scored for grabbing the bonus fuel heart.
+			0xE13A	vpos	Always 0x10 above player car (see 0x77A3).
+			0xE13B	hpos	Always the same as the player car (see 0x77A8).
+			0xE13C	pat	0x94 ("300"), 0x98 ("500"), 0x9C ("700"), 0xA0 ("1000")
+			0xE13D	color	Always 0x06 (transparent + dark red)
 
 0xE186-E395	Coarse pattern name table.
 		

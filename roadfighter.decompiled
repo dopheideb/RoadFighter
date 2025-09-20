@@ -243,7 +243,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 407f_jump_to_0x4B6E:
-	jp 04b6eh		;407f 4b6e_sound_something
+	jp 04b6eh		;407f 4b6e_sound_something_with_D_is_0
 
 
 ; We can get here from:
@@ -433,8 +433,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 04698h		;411a 4698_setup_VDP_registers
 	call 04584h		;411d 4584_clear_name_table_and_set_sprite_00_vpos_to_D0
 	
-	ld a,01bh		;4120 A = 0x1B
-	call 04b6eh		;4122 4b6e_sound_something
+	ld a,01bh		;4120 A = 0x1B (silence, on all 3 PSG channels)
+	call 04b6eh		;4122 4b6e_sound_something_with_D_is_0
 	call 04773h		;4125 4773_copy_symbols_to_VRAM
 	call 048bbh		;4128
 	jr $+63			;412b jump to 0x416A
@@ -455,7 +455,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	djnz $+35		;4137 if (--B != 0) jump to 0x415A
 4139_state02_substate01:
 	call 052d1h		;4139 52d1_fudge_currently_pressed_keys
-	call 05224h		;413c
+	call 05224h		;413c 5224_handle_race_substate
 	ld a,(0e045h)		;413f
 	or a			;4142
 	jr z,$+7		;4143 if (z) jump to 0x414A
@@ -569,12 +569,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   0x418C (DJNZ)
 	djnz $+26		;4195 if (--B != 0) jump to 0x41AF
 4197_state03_substate03:
-	call 04429h		;4197
+	call 04429h		;4197 4429_fixme
 	ret p			;419a
-	call 068aah		;419b
-	call 0504ch		;419e 504c_init_new_game()
-	call 044d0h		;41a1
-	call 042edh		;41a4
+	call 068aah		;419b 68aa_fixme
+	call 0504ch		;419e 504c_init_new_game
+	call 044d0h		;41a1 44d0_fixme
+	call 042edh		;41a4 42ed_show_state_something
 	ld a,078h		;41a7
 	ld (0e004h),a		;41a9
 	jp 0416ah		;41ac
@@ -652,7 +652,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x41F0 (jump) A == 0xC8 (0xC8 is outside the screen, so car "disappears")
 	;   0x41F2 (fall) A == 0x80 (start position on grid)
-	ld (0e04ch),a		;41f4 Set vertical position of car
+	ld (0e04ch_car_vpos),a	;41f4 Set vertical position of car.
 	call 06e1dh		;41f7 6e1d_store_car_sprite_attributes
 	
 	ld hl,0e003h		;41fa HL = 0xE003
@@ -678,7 +678,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x4210 (jump) A == 0x05 (sound ID of yellow traffic light)
 	;   0x4213 (fall) A == 0x07 (sound ID of green traffic light)
-	call 04b6eh		;4214 4b6e_sound_something
+	call 04b6eh		;4214 4b6e_sound_something_with_D_is_0
 	
 	ld a,(0e004h)		;4217
 	bit 0,a			;421a
@@ -746,7 +746,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (hl),049h		;4250 Pattern 0x49: right half of green traffic light
 	
 	ld a,080h		;4252 A = 0x80
-	ld (0e04ch),a		;4254 Set car vpos to 0x80 (=vpos on starting grid)
+	ld (0e04ch_car_vpos),a	;4254 Set car vpos to 0x80 (=vpos on starting grid)
 	call 06e1dh		;4257 6e1d_store_car_sprite_attributes
 	
 	ld hl,e000_game_state	;425a
@@ -761,7 +761,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x41E3 (jump)
 4266_state03_substate00:
 	ld a,098h		;4266 A = 0x98 Tune after selecting either level A or B
-	call 04b6eh		;4268 4b6e_sound_something
+	call 04b6eh		;4268 4b6e_sound_something_with_D_is_0
 	
 	ld a,050h		;426b A = 0x50
 	jp 04167h		;426d 4167_increase_substate_and_set_E004_to_regA
@@ -803,7 +803,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	bit 6,a			;42b3
 	jr z,$+7		;42b5 if (z) jump to 0x42BC
 	ld a,007h		;42b7 A = 0x07 Sound of green traffic light
-	call 04b6eh		;42b9 4b6e_sound_something
+	call 04b6eh		;42b9 4b6e_sound_something_with_D_is_0
 	ld a,048h		;42bc
 	jp 04167h		;42be
 	djnz $+20		;42c1 if (--B != 0) jump to 0x42D5
@@ -820,15 +820,22 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	; We can get here from:
 	;   0x42B5 (jump)
-	call 04429h		;42d5
+	call 04429h		;42d5 4429_fixme
 	ret p			;42d8
-	call 068aah		;42d9
-	call 044d0h		;42dc
-	call 042edh		;42df
+	call 068aah		;42d9 68aa_fixme
+	call 044d0h		;42dc 44d0_fixme
+	call 042edh		;42df 42ed_show_state_something
 	call 0526bh		;42e2 526b_copy_13_sprites_from_RAM_to_VRAM
 	ld a,078h		;42e5
 	ld (0e004h),a		;42e7
 	jp 0416ah		;42ea
+
+
+
+; We can get here from:
+;   0x42DF (call)
+;   0x41A4 (call)
+42ed_show_state_something:
 	ld de,0471fh		;42ed 471f_stage_letters
 	call 045f0h		;42f0 45f0_show_symbols
 	dec l			;42f3
@@ -868,7 +875,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	djnz $+28		;4306 if (--B != 0) jump to 0x4322
 
 4306_state05_substate01:
-	call 05224h		;4308
+	call 05224h		;4308 5224_handle_race_substate
 	ld a,(0e00dh)		;430b
 	and a			;430e
 	jp nz,04319h		;430f if () jump to 0x4319
@@ -911,7 +918,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x4329 (jump)
 4341_game_over:
 	ld a,095h		;4341 A = 0x95 Sound ID of "GAME OVER".
-	call 04b6eh		;4343 4b6e_sound_something
+	call 04b6eh		;4343 4b6e_sound_something_with_D_is_0
 	jr $-78			;4346 Jump to 0x42F8
 
 
@@ -932,7 +939,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	and 0bfh		;435e
 	ld (hl),a		;4360
 	jp 0414eh		;4361
-	call 04429h		;4364
+	call 04429h		;4364 4429_fixme
 	ret p			;4367
 	ld de,0475eh		;4368 475e_game_over_letters
 	call 045f0h		;436b 45f0_show_symbols
@@ -950,7 +957,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	djnz $+13		;437b if (--B != 0) jump to 0x4388
 
 	; Post: B == 0
-	call 04429h		;437d
+	call 04429h		;437d 4429_fixme
 	ret p			;4380
 	call 0744ch		;4381 744c_draw_overview_of_stages
 	xor a			;4384 A = 0
@@ -978,7 +985,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x439E (jump) C=0x04 (game state), B = 0x00 (game substate) [No stage number wraparound.]
 	;   0x43A7 (fall) C=0x03 (game state), B = 0x03 (game substate) [Stage number wraparound, but handled.]
-	call 0414fh		;43a8
+	call 0414fh		;43a8 414f_store_state_and_reset_timer
 	ld (e000_game_state),bc	;43ab Store game state and game sub state.
 	ld (0e00dh),a		;43af
 	call 0504ch		;43b2 504c_init_new_game()
@@ -1045,7 +1052,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 43f3_switch_to_state01:
 	ld (hl),001h		;43f3 game state = 0x01
 	ld a,01bh		;43f5 A = 0x1B (silence, on all 3 PSG channels)
-	call 04b6eh		;43f7 4b6e_sound_something
+	call 04b6eh		;43f7 4b6e_sound_something_with_D_is_0
 
 	ld a,007h		;43fa A = 0x07
 	ld (0e004h),a		;43fc *(0xE004) = 0x07
@@ -1119,63 +1126,107 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-	ld hl,0e004h		;4429
+; Returns:
+;   P flag
+; 
+; We can get here from:
+;   0x4197 (call)
+;   0x42D5 (call)
+;   0x4364 (call)
+;   0x437D (call)
+4429_fixme:
+	ld hl,0e004h		;4429 HL = 0xE004
 	dec (hl)		;442c
 	ret m			;442d
-	ld a,017h		;442e
-	sub (hl)		;4430
-	ld hl,001c0h		;4431
+	ld a,017h		;442e A = 0x17
+	sub (hl)		;4430 A -= *(HL)
+	
+	; HL = 0x3800 + 0x20 * A
+	; 
+	; Let HL point to row A (0 based) of the VDP name table.
+	;
+	; Note: 0x0 1C0 * 32 == 0x3800
+	ld hl,001c0h		;4431 HL = 0x01C0.
 	add a,l			;4434
-	ld l,a			;4435
+	ld l,a			;4435 HL += A
 	add hl,hl		;4436
 	add hl,hl		;4437
 	add hl,hl		;4438
 	add hl,hl		;4439
 	add hl,hl		;443a
+
 	ld a,(e000_game_state)	;443b
-	cp 003h			;443e
-	ld bc,0001fh		;4440
-	jr z,$+11		;4443 if (z) jump to 0x444E
+	cp 003h			;443e Compute A - 0x03 and update Z/NZ flag.
+	ld bc,0001fh		;4440 BC = 0x0001
+	jr z,$+11		;4443 if (game_state == 3) jump to 0x444E
 	ld a,(0e002h)		;4445
-	bit 6,a			;4448
-	jr z,$+4		;444a if (z) jump to 0x444E
-	ld c,017h		;444c
-	xor a			;444e
-	call 0056_FILVRM	;444f
-	ld hl,03b04h		;4452
-	call 0446ah		;4455
+	bit 6,a			;4448 Test demo/playing bit.
+	jr z,$+4		;444a if (is_demo) jump to 0x444E
+	ld c,017h		;444c BC = 0x0017
+	
+	; Make 1 coarse row black, or the first character.
+	;
+	; We can get here from:
+	;   0x4443 (jump) BC == 0x0001
+	;   0x444A (jump) BC == 0x0001
+	;   0x444C (fall) BC == 0x0017 (whole coarse row)
+	xor a			;444e A = 0 (all black character)
+	call 0056_FILVRM	;444f filvrm(start_address=HL, length=BC, data_byte=A)
+
+	ld hl,03b04h		;4452 HL = 0x3B04 (sprite #01, shadow of player car)
+	call 0446ah		;4455 446a_hide_sprite_XX
+	
 	ld a,(e000_game_state)	;4458
 	cp 003h			;445b
-	call z,04467h		;445d
-	ld b,01ch		;4460
-	ld hl,0e112h		;4462
+	call z,04467h		;445d if (game_state == 0x03) call 4467_hide_minicar_sprite
+	
+	ld b,01ch		;4460 BC = 0x1C
+	ld hl,0e112h		;4462 HL = 0xE112 (sprite #01)
 	jr $+17			;4465 jump to 0x4476
 
 
 
-4467_set_sprite_00_vpos_to_D0:
+; We can get here from:
+;   0x445D (call)
+;   0x4584 (call)
+4467_hide_minicar_sprite:
 	ld hl,03b00h		;4467 HL = 0x3B00 (sprite attribute table)
+
+; We can get here from:
+;   0x4467 (fall) HL == 0x3B00 (sprite #00)
+;   0x4455 (call) HL == 0x3B04 (sprite #01)
+446a_hide_sprite_XX:
+	; 0xD0 is outside the visible screen, so 0xD0 simply means: HIDE.
 	ld a,0d0h		;446a A = 0xD0 (value for vertical position)
-	call 004D_WRTVRM	;446c sprite_attribute[0].vpos = 0xD0
+	call 004D_WRTVRM	;446c sprite_attribute[XX].vpos = 0xD0
 	xor a			;446f A = 0x00
 	ret			;4470
 
 
 
-4771_unknown:
+; ?No callers?
+4471_hide_all_sprites:
 	ld b,01ch		;4471 B = 0x1C (loop count)
-	ld hl,e10e_mcar_vpos	;4473 HL = minicar vertical position
+	ld hl,0e10eh		;4473 HL = 0xE10E (minicar sprite)
+				;fall 4476_hide_sprite_djnz_loop
+
 	
-	; We can get here from:
-	;   0x4465 (jump) B = 0x1C, HL = 0xE112
-	;   0x4473 (fall) B = 0x1C, HL = 0xE10E
-	4476_start_of_djnz_loop:
-	ld (hl),0c8h		;4476 
+; We can get here from:
+;   0x4465 (jump) B == 0x1C, HL == 0xE112 (sprite: shadow of player car)
+;   0x4473 (fall) B == 0x1C, HL == 0xE10E (sprite: minicar)
+4476_hide_sprite_djnz_loop:
+	; The screen has 24 lines of 8 pixels each, i.e. the screen is 
+	; 192 (0xC0) pixels high. Setting the vpos to 0xC8 simply means: 
+	; hide.
+	ld (hl),0c8h		;4476 Set vpos of the sprite.
+	
+	; HL += 4, move to next sprite.
 	inc hl			;4478
 	inc hl			;4479
 	inc hl			;447a
 	inc hl			;447b
-	djnz $-6		;447c if (--B != 0) jump to 0x4776
+
+	djnz $-6		;447c if (--B != 0) jump to 0x4776 (4476_hide_sprite_djnz_loop)
 	ret			;447e
 
 
@@ -1279,40 +1330,62 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-	call 044f4h		;44d0
+; We can get here from:
+;   0x41A1 (call) [from=4197_state03_substate03]
+;   0x42DC (call) [from=4270_state04_demo]
+44d0_fixme:
+	call 044f4h		;44d0 44f4_draw_minimap_speed_fuel
 	ld de,0470dh		;44d3 470d_hiscore_letters
 	call 045f0h		;44d6 45f0_show_symbols
-	ld de,0e03eh		;44d9
-	ld hl,03838h		;44dc
-	call 044e6h		;44df
-	ld l,098h		;44e2
-	ld e,041h		;44e4
-	ld b,003h		;44e6
-	jr $+77			;44e8 jump to 0x4535
-	ld hl,03836h		;44ea
-	ld de,e043_stage	;44ed
-	ld b,001h		;44f0
-	jr $+67			;44f2 jump to 0x4535
+	; Fall to 44d9_fixme
+
+; We can get here from:
+;   0x44D6 (fall)
+;   0x6B5F (call)
+44d9_fixme:
+	ld de,0e03eh		;44d9 DE = 0xE03E
+	ld hl,03838h		;44dc HL = 0x3838 (name table, start of hiscore)
+	call 044e6h		;44df 44e6_fixme
+
+	ld l,098h		;44e2 HL = 0x3898 (name table, start of score)
+	ld e,041h		;44e4 DE = 0xE041
+	; Fall to 44e6_fixme
+
+; We can get here from:
+;   0x44E4 (fall)
+;   0x44DE (call)
+44e6_fixme:
+	ld b,003h		;44e6 B = 0x03
+	jr $+77			;44e8 jump to 0x4535 (4535_write_score_or_hiscore)
 
 
-	; 0x38B9  . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
-	;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
-        ;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
-	;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
-	;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
-	;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
-	;         x x x x x x x x   x x x x x x x x   x x x x x x x x   x x x x x x x x 
-	;         x x x x x x x x   x x x x x x x x   x x x x x x x x   x x x x x x x x 
+?No callers?
+44ea_fixme:
+	ld hl,03836h		;44ea HL = 0x3836
+	ld de,e043_stage	;44ed DE = 0xE043
+	ld b,001h		;44f0 B = 0x01
+	jr $+67			;44f2 jump to 0x4535 (4535_write_score_or_hiscore)
 
-	; 0x38D9  x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
-	;         x x . . . . . .   . . . . . . . .   . x x x x x . .   . . . . . . x x
-	;         x x . . . . . .   . . . . . . . .   . x x x x x x x   . . . . . . x x
-	;         x x . . . . . .   . . . . . . . .   . x x x x x . .   . . . . . . x x
-	;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
-	;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
-	;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
-	;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
 
+
+; 0x38B9  . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+;         . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+;         x x x x x x x x   x x x x x x x x   x x x x x x x x   x x x x x x x x 
+;         x x x x x x x x   x x x x x x x x   x x x x x x x x   x x x x x x x x 
+;
+; 0x38D9  x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
+;         x x . . . . . .   . . . . . . . .   . x x x x x . .   . . . . . . x x
+;         x x . . . . . .   . . . . . . . .   . x x x x x x x   . . . . . . x x
+;         x x . . . . . .   . . . . . . . .   . x x x x x . .   . . . . . . x x
+;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
+;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
+;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
+;         x x . . . . . .   . . . . . . . .   . x x . . . . .   . . . . . . x x
+44f4_draw_minimap_speed_fuel:
 	44f4_draw_minimap_row_00:
 	ld hl,038b9h		;44f4 HL = 0x38B9
 	ld a,06fh		;44f7 A = 0x6F
@@ -1321,17 +1394,17 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	44ff_draw_minimap_row_01:
 	ld l,0d9h		;44ff HL = 0x38D9
-	ld de,0452dh		;4501
+	ld de,0452dh		;4501 DE = 0x452D
 	ld bc,00004h		;4504 Copy count = 4
 	call 45a7_copy2vram	;4507 Copy 4 character IDs from 0x452D to name table at 0x38D9.
 	
 	450a_draw_minimap_8_lines:
 	ld l,0f9h		;450a HL = 0x38F9
-	ld b,008h		;450c
+	ld b,008h		;450c B = 0x08
 	push bc			;450e
-	ld de,04531h		;450f
-	ld bc,00104h		;4512
-	call 04575h		;4515
+		ld de,04531h	;450f DE = 0x4531
+		ld bc,00104h	;4512 BC = 0x0104
+		call 04575h	;4515 4575_copy2nametable_multiple_partial_rows(source_RAM=DE,destination_VRAM=HL, col_count=C, row_count=B)
 	pop bc			;4518
 	djnz $-11		;4519 if (--B != 0) jump to 0x450E
 
@@ -1376,50 +1449,83 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x01		;4533 #02 All ?black?/?transparent?
 	defb 0x71		;4534 #03 Right border
 
-	nop			;4536
+
+
+; Input:
+;   PO flag: return immediately if PO flag is set. ?I.e. if max score/hiscore?
+;   HL: destination VRAM address
+;   DE: pointer to byte value to write
+;   C: mask, either 0x00 or 0xFF
+;   B: loop count
+; 
+; We can get here from:
+;   0x44E8/0x44DF (jump) PO == ?, HL == 0x3838, DE == 0xE03E (hiscore BCD), B == 3, C == ?mask?
+;   0x44E8/0x44E4 (jump) PO == ?, HL == 0x3898, DE == 0xE041 (  score BCD), B == 3, C == ?mask?
+;   0x44F2 (jump) PO == ?, HL == 0x3836, DE == 0xE043 (stage), B == 1, C == ?mask?
+4535_write_score_or_hiscore:
+	ret po			;4535 if (parity or overflow) return
+	nop			;4536 Weird.
+	
+	; A = *(DE) >> 4, i.e. the high nybble of *(DE) of score (tens/thousands/hundredthousands).
 	ld a,(de)		;4537
 	rra			;4538
 	rra			;4539
 	rra			;453a
 	rra			;453b
 	and 00fh		;453c
-	jr z,$+4		;453e if (z) jump to 0x4542
-	ld c,0ffh		;4540
-	dec b			;4542
-	jr nz,$+4		;4543 if (nz) jump to 0x4547
-	ld c,0ffh		;4545
-	inc b			;4547
-	add a,010h		;4548
-	and c			;454a
-	call 004D_WRTVRM	;454b
-	inc hl			;454e
+
+	jr z,$+4		;453e if (A == 0) jump to 0x4542
+	ld c,0ffh		;4540 C = 0xFF
+	
+	; We can get here from:
+	;   0x453E (jump) C is caller defined
+	;   0x4540 (fall) C == 0xFF
+	dec b			;4542 --B
+	jr nz,$+4		;4543 if (B != 0) jump to 0x4547
+	ld c,0ffh		;4545 C = 0xFF
+	
+	; We can get here from:
+	;   0x4543 (jump)
+	;   0x4545 (fall) C == 0xFF
+	inc b			;4547 ++B, reverse the inc we did at 0x4542.
+	add a,010h		;4548 A += 0x10 (pattern '0' is at name table offset #10)
+	and c			;454a A &= C
+	call 004D_WRTVRM	;454b WRTVRM(VRAM_address=HL, value=A)
+	
+	inc hl			;454e Next name table entry.
+	; A = *(DE) & 0x0F, i.e. the low nybble of *(DE) of score (units/hundreds/tenthousands).
 	ld a,(de)		;454f
 	and 00fh		;4550
+
 	jr z,$+4		;4552 if (z) jump to 0x4556
-	ld c,0ffh		;4554
-	add a,010h		;4556
-	and c			;4558
-	call 004D_WRTVRM	;4559
-	dec de			;455c
-	inc hl			;455d
+	ld c,0ffh		;4554 C = 0xFF
+	add a,010h		;4556 A += 0x10 (pattern '0' is at name table offset #10)
+	and c			;4558 A &= C
+	call 004D_WRTVRM	;4559 WRTVRM(VRAM_address=HL, value=A)
+	dec de			;455c Next hiscore entry.
+	inc hl			;455d Next name table entry.
 	djnz $-39		;455e if (--B != 0) jump to 0x4537
+	
+	; Whole (hi)score written.
 	ret			;4560
 
 
 
+; Compute VDP address of coordinates in HL.
+; 
 ; Input: HL
-;   H: horizontal position of car minus 0x08
-;   L: vertical   position of car minus 0x10
+;   H: horizontal position (of whatever)
+;   L: vertical   position (of whatever)
 ; 
 ; We can get here from:
 ;   0x6B34 (call)
-;   0x6DA2 (call)
-4561_maybe_compute_draw_game_over:
+;   0x6DA2 (call) [from=6da2_fixme]
+4561_compute_vdp_address_of_HL_coordinates:
 	ld a,l			;4561 A = L
 	
 	; Computes:
-	;   A >>= 6 (i.e. divide by 64)
-	;   H >>= 3 (i.e. divide by 8)
+	;   A >>= 6 (i.e. divide by 64) (Each VDP band is 64 pixels high.)
+	;   H >>= 3 (i.e. divide by  8) (Each character is 8 pixels wide.)
 	;
 	; Carry is not of interest here, because of 0x456F.
 	rra			;4562 rotate right A through carry
@@ -1462,7 +1568,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,020h		;457c A = 0x20
 	call 0403bh		;457e HL += A
 
-	djnz $-12		;4581 if (--B != 0) jump to 0x4575
+	djnz $-12		;4581 if (--B != 0) jump to 0x4575 (4575_start_of_djnz_loop)
 	
 	ret			;4583
 
@@ -1472,7 +1578,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x411D (call)
 ;   0x49AB (call)
 4584_clear_name_table_and_set_sprite_00_vpos_to_D0:
-	call 04467h		;4584 4467_set_sprite_00_vpos_to_D0
+	call 04467h		;4584 4467_hide_minicar_sprite
 	ld hl,03800h		;4587 HL = 0x3800 (VRAM destination, name table)
 	ld bc,00300h		;458a B = 0x300 (fill count)
 	xor a			;458d A = 0
@@ -1774,7 +1880,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	and a			;4615 Set flags.
 	ret z			;4616 if (A == 0) return, end of sequence.
 	inc de			;4617 
-	ld b,a			;4618 DJNZ: set counter
+	ld b,a			;4618 DJNZ: loop count = A
 	and 07fh		;4619 A &= 0x7F (i.e. clear bit 7)
 	cp b			;461b Compute A - B and set flags.
 	jr z,$+16		;461c if (DE[0] & 0x80 == 0) jump to 0x462C
@@ -1804,28 +1910,97 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	exx			;4631
 	djnz $-4		;4632 if (--B != 0) jump to 0x462E
 	jr $-32			;4634 jump to 0x4614
+
+
+
+; Mirror sprites horizontally.
+; 
+; Input:
+;   HL: sprite pattern address in VRAM (source)
+;   DE: sprite pattern address in VRAM (destination)
+;   C: number of "sprite column patterns" to copy
+; 
+; Note: Road Fighter uses 16x16 sprites (single pixel), so each pattern 
+; is 0x20 bytes. If the 8x8 sprites patterns are A B C D, then the 
+; screen displays it as:
+; 
+;   A | C
+;   --+--
+;   B | D
+; 
+; So [A, B] form a column (not a row). Likewise, [C, D] form a column.
+; 
+; We want to horizontally mirror a 16x16 sprite, like this:
+; 
+;   Swap columns:             Reverse bits:
+;   
+;   } | {         { | }       76543210 | hgfedcba         01234567 | abcdefgh
+;   --+--   -->   --+--   ,   ---------+---------   -->   ---------+---------
+;   ] | [         [ | ]       ponmlkji | xwvutsrq         ijklmnop | qrstuvwx
+;
+; We can get here from:
+;   0x464F (jump) C != 0, so copy next "sprite column pattern"
+;   0x693C (call)
+;     HL == 0x1880
+;     DE == 0x1950
+;     C  == 0x06   (number of 16x16 sprites to mirror)
+;
+;     The following horizontal mirroring is done:
+;     
+;       C | Source | Pattern | Col | Description                    || Destination | Pattern | Col | Destination description
+;       --+--------+---------+-----+--------------------------------++-------------+---------+-------------------------------------
+;       6 | 0x1880 | #10/16  | 1st | Shadow of player car facing NE || 0x1950      | #28/40  | 2nd | Shadow of player car facing NW
+;       6 | 0x1890 | #10/16  | 2nd | Shadow of player car facing NE || 0x1940      | #28/40  | 1st | Shadow of player car facing NW
+;       --+--------+---------+-----+--------------------------------++-------------+---------+-------------------------------------
+;       5 | 0x18A0 | #14/20  | 1st |           player car facing NE || 0x1970      | #2C/44  | 2nd |           player car facing NW
+;       5 | 0x18B0 | #14/20  | 2nd |           player car facing NE || 0x1960      | #2C/44  | 1st |           player car facing NW
+;       --+--------+---------+-----+--------------------------------++-------------+---------+-------------------------------------
+;       4 | 0x18C0 | #18/24  | 1st | Shadow of player car facing  E || 0x1990      | #30/48  | 2nd | Shadow of player car facing  W
+;       4 | 0x18D0 | #18/24  | 2nd | Shadow of player car facing  E || 0x1980      | #30/48  | 1st | Shadow of player car facing  W
+;       --+--------+---------+-----+--------------------------------++-------------+---------+-------------------------------------
+;       3 | 0x18E0 | #1C/28  | 1st |           player car facing  E || 0x19B0      | #34/52  | 2nd |           player car facing  W
+;       3 | 0x18F0 | #1C/28  | 2nd |           player car facing  E || 0x19A0      | #34/52  | 1st |           player car facing  W
+;       --+--------+---------+-----+--------------------------------++-------------+---------+-------------------------------------
+;       2 | 0x1900 | #20/32  | 1st | Shadow of player car facing SE || 0x19D0      | #38/56  | 2nd | Shadow of player car facing SW
+;       2 | 0x1910 | #20/32  | 2nd | Shadow of player car facing SE || 0x19C0      | #38/56  | 1st | Shadow of player car facing SW
+;       --+--------+---------+-----+--------------------------------++-------------+---------+-------------------------------------
+;       1 | 0x1920 | #20/36  | 1st |           player car facing SE || 0x19F0      | #3C/60  | 2nd |           player car facing SW
+;       1 | 0x1930 | #20/36  | 2nd |           player car facing SE || 0x19E0      | #3C/60  | 1st |           player car facing SW
+
+4636_mirror_sprites_horizontally:
+	push de			;4636 Store DE, restore at 0x4648.
 	
-	
-	
-4636_unknown:
-	push de			;4636
-	ld b,010h		;4637 B = 0x10
+	; 1 "sprite column pattern" consists of 2 sprite pattern, hence 
+	; 0x10 bytes. So we need to mirror 0x10 bytes if we want to 
+	; mirror a whole column.
+	; 
+	; We can get here from:
+	;   0x4646 (jump)
+	ld b,010h		;4637 DJNZ: loop count == 0x10
 	
 	4639_start_of_djnz_loop:
-	call 04679h		;4639 4679_vram_copy_reverse_bits_to_vram_de
+	call 04679h		;4639 4679_vram_copy_reverse_bits_to_vram_de(vram_source=HL, vram_destination=DE)
 	inc hl			;463c
 	inc e			;463d
 	djnz $-5		;463e if (--B != 0) jump to 0x4639
+	
+	; DE -= 0x20, set destination to previous column.
 	ld a,e			;4640
-	sub 020h		;4641
+	sub 020h		;4641 A -= 0x20
 	ld e,a			;4643
-	bit 4,e			;4644
-	jr z,$-15		;4646 if (z) jump to 0x4637
-	pop de			;4648
-	ld a,020h		;4649
+
+	bit 4,e			;4644 Bit 4: mask 0x10
+	jr z,$-15		;4646 if (destination column == 1st) jump to 0x4637
+	; Post: destination column == 2nd. That means we mirrors the 
+	; whole 16x16 sprite.
+
+	pop de			;4648 Restore DE, stored at 0x4636.
+	; DE += 0x20
+	ld a,020h		;4649 A = 0x20
 	call 04040h		;464b DE += A
 	dec c			;464e
-	jr nz,$-25		;464f if (nz) jump to 0x4636
+	jr nz,$-25		;464f if (C ! = 0) jump to 0x4636
+
 	ret			;4651
 
 
@@ -1905,8 +2080,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,0b8h		;4685 A = 0xB8
 	call 04bf6h		;4687 4bf6_configure_and_store_PSG_sound_and_noise_generator_control_register
 	
-	ld a,01bh		;468a A = 0x1B
-	call 0407fh		;468c
+	ld a,01bh		;468a A = 0x1B (silence, on all 3 PSG channels)
+	call 0407fh		;468c jumps to 4b6e_sound_something_with_D_is_0
 	
 	; Clear whole 0x4000 (16KiB) of VRAM.
 	xor a			;468f A = 0x00
@@ -3846,26 +4021,25 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x407F (jump) A == 0x1B (see 0x468C) Silence (on all 3 channels)
-;   0x4122 (call) A == 0x1B Silence (on all 3 channels)
-;   0x4214 (call) A in [0x05, 0x07] yellow/green traffic light
-;   0x4268 (call) A == 0x98 Tune after selecting either level A or B
-;   0x42B9 (call) A == 0x07 Green traffic light
-;   0x4343 (call) A == 0x95 Tune of being GAME OVER
-;   0x43F7 (call) A == 0x1B Silence (on all 3 channels)
-;   0x468C (call) A == 0x1B [via 0x407f] (quite near the entry point)
-;   0x4B6D (fall) (but that seems to be data)
-;   0x5262 (call) A == 0x92, player reached checkpoint. A & 0x3F == 0x12
-;   0x5452 (call) A == 0x04
+;   0x407F (jump) A == 0x1B (see 0x468C) Silence (on all 3 channels).
+;   0x4122 (call) A == 0x1B Silence (on all 3 channels).
+;   0x4214 (call) A in [0x05, 0x07] yellow/green traffic light.
+;   0x4268 (call) A == 0x98 Tune after selecting either level A or B.
+;   0x42B9 (call) A == 0x07 Green traffic light.
+;   0x4343 (call) A == 0x95 Tune of being GAME OVER.
+;   0x43F7 (call) A == 0x1B Silence (on all 3 channels).
+;   0x468C (call) A == 0x1B Silence (on all 3 channels).
+;   0x5262 (call) A == 0x92 Player reached checkpoint. A & 0x3F == 0x12
+;   0x5452 (call) A == 0x04 55 gallon oil drum behind an 18-wheeler.
 ;   0x6AB1 (call) A == 0x01
-;   0x6AD9 (call) A == 0x4F Player crashes
-;   0x6B23 (call) A == 0x1B Silence (on all 3 channels)
+;   0x6AD9 (call) A == 0x4F Player crashes. A & 0x3F == 0x0F
+;   0x6B23 (call) A == 0x1B Silence (on all 3 channels).
 ;   0x6BC7 (call) A == 0x0D Player bounced against a car, but car is still controllable.
-;   0x6C4A (call) A == 0x0B
-;   0x72E4 (jump) A == 0x09 Weird intermittent sound during a level
-;   0x7441 (jump) A == 0x02 Emit low fuel warning
+;   0x6C4A (call) A == 0x0B ???
+;   0x72E4 (jump) A == 0x09 Weird intermittent sound during a level.
+;   0x7441 (jump) A == 0x02 Emit low fuel warning.
 ;   0x778E (jump) A == 0x03 Bleep for both grabbing a fuel heart and for when both parts of Road Fighter logo join.
-4b6e_sound_something:
+4b6e_sound_something_with_D_is_0:
 	di			;4b6e Disable interrupts
 	ld d,000h		;4b6f D = 0
 	call 04b76h		;4b71 4b76_sound_something
@@ -3874,32 +4048,37 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Register A: tune ID
+; Input:
+;   A: Sound ID, including flags
 ;
 ; We can get here from
 ;   0x4B71 (call) D == 0
 ;   0x4BD8 (call) D == 1
 4b76_sound_something:
-	ld c,a			;4b76 C = sound ID (a copy, so we can modify A)
-	ld b,001h		;4b77 B = 1, default number of channels
+	ld c,a			;4b76 Save sound ID.
+	ld b,001h		;4b77 B = 0x01, default number of channels
 	ld hl,0e012h		;4b79 HL = 0xE012
 	
-	and 03fh		;4b7c A &= 0x3F (?remove flags?)
+	and 03fh		;4b7c A &= 0x3F (remove flag 0x80 and 0x40)
 	cp 001h			;4b7e
 	jr z,$+35		;4b80 if (sound_ID & 0x3F == 1) jump to 0x4BA3
 	
 	cp 005h			;4b82
-	jr c,$+16		;4b84 if (sound_ID & 0x3F < 5) jump to 0x4B94
+	jr c,$+16		;4b84 if (sound_ID & 0x3F < 0x05) jump to 0x4B94
 	
 	cp 00fh			;4b86
-	jr c,$+6		;4b88 if (sound_ID & 0x3F < 0xF) jump to 0x4B8E
+	jr c,$+6		;4b88 if (sound_ID & 0x3F < 0x0F) jump to 0x4B8E
 	
+	; Sound IDs: 0xF, 0x12, 0x15, 0x18. These sound IDs use 3 PSG 
+	; channels, so update the number of channels to use to 3.
 	inc b			;4b8a ++B (B == 2)
 	inc b			;4b8b ++B (B == 3)
 	jr $+11			;4b8c jump to 0x4B97
-	
+
+
+
 	; We can get here from:
-	;   0x4B88 (jump) tuneID & 0x3F in [5,6,7,8,9,0xA,0xB,0xC,0xD,0xE]
+	;   0x4B88 (jump) tuneID & 0x3F in [5,7,9,0xA,0xB,0xD]
 	4b8e_:
 	ld hl,0e01dh		;4b8e HL = 0xE01D
 	inc b			;4b91 ++B (B == 2)
@@ -3911,32 +4090,31 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,E028_soundID_B	;4b94 HL = 0xE028
 	
 	; We can get here from:
-	;   0x4B8C (jump) B=3, HL=0xE012, tuneID&0x3F >= 0x0F
-	;   0x4B92 (jump) B=2, HL=0xE01D, tuneID&0x3F in [5,6,7,8,9,0xA,0xB,0xC,0xD,0xE]
-	;   0x4B94 (fall) B=1, HL=0xE028, tuneID&0x3F in [2,3,4]
-	4b97_:
+	;   0x4B8C (jump) B == 3 channels, HL == 0xE012, sound_ID&0x3F >= 0x0F
+	;   0x4B92 (jump) B == 2 channels, HL == 0xE01D, sound_ID&0x3F in [5,7,9,0xA,0xB,0xD]
+	;   0x4B94 (fall) B == 1 channel,  HL == 0xE028, sound_ID&0x3F in [2,3,4]
+	4b97_fixme:
 	dec d			;4b97 --D
-	jr z,$+11		;4b98 if (D == 0) jump to 0x4BA3
+	jr z,$+11		;4b98 if (D_pre_4b97 == 1) jump to 0x4BA3
 	
-	; D was > 0, was probably 1 due to 0x4BD8.
-	4b9a_:
+	; D_pre_4b97 != 1, i.e. D_pre_4b97 == 0.
 	ld a,(hl)		;4b9a A = sound_ID of channel X
 	and 03fh		;4b9b A &= 0x3F
 	ld e,a			;4b9d E = A
 	ld a,c			;4b9e A = original sound_ID
 	and 03fh		;4b9f A &= 0x3F
-	cp e			;4ba1 Compute A - 0x0E and set flags.
-	ret c			;4ba2 if (A < 0x0E) return
+	cp e			;4ba1 Compute A - E and update C/NC flag.
+	ret c			;4ba2 if (A < E) return
 	
 	
 	; We can get here from:
-	;   0x4B80 (jump) (sound_ID & 0x3F) == 1
-	;   0x4B98 (jump)
-	;   0x4BA2 (fall) (sound_ID & 0x3F) >= 0x0E
+	;   0x4B80 (jump) (sound_ID & 0x3F) == 0x01 (silence)
+	;   0x4B98 (jump) D_pre_4b97 == 1
+	;   0x4BA2 (fall)
 	4ba3_:
 	and 03fh		;4ba3 A &= 0x3F
 	add a,a			;4ba5 A *= 2, since data in table at 0x4DE2 contains pointers which are 2 bytes.
-	ld de,04de0h		;4ba6 DE = 0x4DE0, but this 1-based table starts at 0x4DE2
+	ld de,04de0h		;4ba6 DE = 0x4DE0, but this 1-based table starts at 0x4DE2.
 	call 04040h		;4ba9 DE += A
 	
 	; Set HL to start of sound struct.
@@ -3956,29 +4134,48 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,0ee0dh		;4bb5 HL = 0xEE0D
 	ld (0e034h),hl		;4bb8 *(0xE034) = 0xEE0D
 	pop hl			;4bbb
-	
-	; 1 loop is for 1 sound channel.
-	;
-	; HL[0] = 1
-	; HL[1] = 1
-	; HL[2] = sound_ID
-	; HL[3..4] = start address of sound
-	4bbc_start_of_djnz_4bcf:
-	ld (hl),001h		;4bbc
-	inc hl			;4bbe offset = 1
-	ld (hl),001h		;4bbf
-	inc hl			;4bc1 offset = 2
-	ld (hl),c		;4bc2 Store sound ID.
-	inc hl			;4bc3 offset = 3
+				;fall to 4bbc_start_of_djnz_4bcf
+
+
+
+; Initialize the first five bytes of the RAM sound struct(s).
+; 
+; Input:
+;   B:  The number of PSG channels to initialize.
+;   C:  Sound ID
+;   DE: B addresses of the sound definitions.
+;   HL: Address of the destination RAM sound structs.
+; 
+;   +----------+-----------+-----------+----------------+
+;   | input HL | HL[0] = 1 | HL[0] = 2 | HL[3..4]       |
+;   +----------+-----------+-----------+----------------+
+;   |  0xE011  |   0xE011  |   0xE012  | 0xE013..0xE014 |
+;   +----------+-----------+-----------+----------------+
+;   |  0xE01C  |   0xE01C  |   0xE01D  | 0xE01E..0xE01F |
+;   +----------+-----------+-----------+----------------+
+;   |  0xE027  |   0xE027  |   0xE028  | 0xE029..0xE02A |
+;   +----------+-----------+-----------+----------------+
+;
+; 1 loop is for 1 PSG channel.
+4bbc_start_of_djnz_4bcf:
+	ld (hl),001h		;4bbc sound_struct[0] = 0x01
+	inc hl			;4bbe
+	ld (hl),001h		;4bbf sound_struct[1] = 0x01
+	inc hl			;4bc1 
+	ld (hl),c		;4bc2 sound_struct[2] = sound_ID
+	inc hl			;4bc3
 	ld a,(de)		;4bc4
-	ld (hl),a		;4bc5 Store start address of sound, low byte.
-	inc hl			;4bc6 offset = 4
+	ld (hl),a		;4bc5 sound_struct[3] = start address of sound, low byte.
+	inc hl			;4bc6
 	inc de			;4bc7 ++DE
 	ld a,(de)		;4bc8
-	ld (hl),a		;4bc9 Store start address of sound, high byte.
-	ld a,007h		;4bca A = 7
-	add a,l			;4bcc Add offset for next channel
+	ld (hl),a		;4bc9 sound_struct[4] = Store start address of sound, high byte.
+	
+	; HL += 0x07 (sound struct is 11 bytes, we are at offset 4, so add 7)
+	ld a,007h		;4bca
+	add a,l			;4bcc
 	ld l,a			;4bcd
+
 	inc de			;4bce ++DE
 	djnz $-19		;4bcf if (--B != 0) jump to 0x4BBC
 	
@@ -3987,13 +4184,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 4bd2_:
-	ld a,(ix+002h)		;4bd2
+	ld a,(ix+002h)		;4bd2 A = IX[2]
 	push bc			;4bd5
 	ld d,001h		;4bd6 D = 1
-	call 04b76h		;4bd8
+	call 04b76h		;4bd8 4b76_sound_something
 	pop bc			;4bdb
 	ex af,af'		;4bdc
-	ld (ix+009h),a		;4bdd
+	ld (ix+009h),a		;4bdd IX[9] = A
 	ret			;4be0
 
 
@@ -4488,7 +4685,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	and 0f0h		;4d60 A &= 0xF0
 	cp 0d0h			;4d62 Compute A - 0xD0 and set flags.
 	ld a,(hl)		;4d64 A = sound_opcode
-	jr nz,$+9		;4d65 if (sound_opcode >= 0xE0) jump to 0x4D6E
+	jr nz,$+9		;4d65 if (sound_opcode >= 0xD0) jump to 0x4D6E
 	
 	; Store.
 	and 00fh		;4d67 A &= 0x0F
@@ -4502,10 +4699,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x4D65 (jump)
 	;   0x4D6D (fall)
-	cp 0f0h			;4d6e Compute sound_opcode - 0xF0 and set flags.
+	cp 0f0h			;4d6e Compute sound_opcode - 0xF0 and update C/NC flag.
 	jr c,$+9		;4d70 if (sound_opcode < 0xF0) jump to 0x4D79
-	and 00fh		;4d72
-	ld (ix+006h),a		;4d74
+	and 00fh		;4d72 A &= 0x0F
+	ld (ix+006h),a		;4d74 IX[0x06] = sound_opcode & 0x0F (low nybble)
 	inc hl			;4d77 ++HL, HL points to new sound opcode
 	ld a,(hl)		;4d78 A = sound_opcode
 	
@@ -4652,14 +4849,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 4de6_sound_id_0x03_fuel_heart_and_logo:
 	defw 0x4E2F		;4de6 0x03
 
-4de8_sound_id_0x04_FIXME:
+4de8_sound_id_0x04_55_gallon_oil_drum_behind_18_wheeler:
 	defw 0x4E47		;4de8 0x04
 	
 4dea_sound_id_0x05_yellow_traffic_light:
 	defw 0x4E5B		;4dea 0x05 Channel 1
 	defw 0x4E71		;4dec 0x06 Channel 2
 	
-4dea_sound_id_0x07_green_traffic_light:
+4dee_sound_id_0x07_green_traffic_light:
 	defw 0x4E87		;4dee 0x07 Channel 1
 	defw 0x4E9D		;4df0 0x08 Channel 2
 
@@ -4776,27 +4973,47 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; Sound of spinning 55 gallon drum behind an 18 wheeler.
 4e47_sound_id_0x04:
-	defb 0x21		;4e47
+	defb 0x21		;4e47 0x20 | 0x01: set sound duration to 0x01.
+	
+	; [A2-ish] Volume == 0xC, divider == 0x400
 	defb 0xC4		;4e48
 	defb 0x00		;4e49
+
+	; [A2-ish] Volume == 0xD, divider == 0x403
 	defb 0xD4		;4e4a
 	defb 0x03		;4e4b
+
+	; [F2] Volume == 0xE, divider == 0x500
 	defb 0xE5		;4e4c
 	defb 0x00		;4e4d
+
+	; [A2-ish] Volume == 0xE, divider == 0x403
 	defb 0xE4		;4e4e
 	defb 0x03		;4e4f
+
+	; [A2-ish] Volume == 0xF, divider == 0x400
 	defb 0xF4		;4e50
 	defb 0x00		;4e51
+
+	; [A2-ish] Volume == 0xF, divider == 0x400
 	defb 0xF4		;4e52
 	defb 0x00		;4e53
+
+	; [A2-ish] Volume == 0xE, divider == 0x403
 	defb 0xE4		;4e54
 	defb 0x03		;4e55
+
+	; [A2-ish] Volume == 0xD, divider == 0x400
 	defb 0xD4		;4e56
 	defb 0x00		;4e57
+
+	; [A2-ish] Volume == 0xC, divider == 0x403
 	defb 0xC4		;4e58
 	defb 0x03		;4e59
-	defb 0xFF		;4e5a
+
+	defb 0xFF		;4e5a END
 
 
 
@@ -5418,14 +5635,18 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,0d0h		;5089 A = 0xD0
 	ld (E083_fuel),a	;508b Set fuel to 0xD0, i.e. (almost) full fuel!
 	
-	ld a,(e043_stage)	;508e
-	dec a			;5091 Make stage 0-based instead of 1-based.
+	; A = stage - 1, make stage 0-based.
+	ld a,(e043_stage)	;508e A = stage
+	dec a			;5091 A = stage - 1
+
 	ld hl,05191h		;5092
 	call 0403bh		;5095 HL += A
 	ld a,(hl)		;5098
 	ld (0e089h),a		;5099
-	ld a,(e043_stage)	;509c
-	dec a			;509f Make stage 0-based instead of 1-based.
+	
+	; A = stage - 1, make stage 0-based.
+	ld a,(e043_stage)	;509c A = stage
+	dec a			;509f A = stage - 1
 	
 	; HL = stage_0based * 16
 	ld l,a			;50a0
@@ -5641,7 +5862,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Data. See 0x51A8
 	defb 0x00		;51c1
 
-51c2_:
+51c2_fixme:
 	ld bc,00404h		;51c2
 	call 051ffh		;51c5 51ff_initialize_variables
 	call 051f3h		;51c8 51f3_something_about_car_horizontal_pos_on_screen
@@ -5718,21 +5939,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x413C (call) [from=4139_state02_substate01]
 ;   0x4308 (call) [from=4306_state05_substate01]
-5224_fixme:
+5224_handle_race_substate:
 	call 0526bh		;5224 526b_copy_13_sprites_from_RAM_to_VRAM
 	call 0597dh		;5227 597d_update_minicar_vpos_and_color
-	call 070a8h		;522a
-	call 05434h		;522d
-	call 07755h		;5230 contains code about fuel heart (+0x20 fuel)
-	call 06a70h		;5233
+	call 070a8h		;522a 70a8_fixme
+	call 05434h		;522d 5434_truck_something
+	call 07755h		;5230 7755_handle_grabbed_fuel_heart_state
+	call 06a70h		;5233 6a70_fixme
 	call 07374h		;5236 7374_increment_fuel_used
 	call 0738ch		;5239
 	call 05251h		;523c 5251_check_if_checkpoint_reached
-	call 06e4ah		;523f
+	call 06e4ah		;523f 6e4a_handling_moving_objects_something_if_not_crashed
 	call 05501h		;5242
 	call 07411h		;5245 7411_decrement_fuel
 	call 06ca1h		;5248
-	call 06f25h		;524b
+	call 06f25h		;524b 6f25_fixme
 	jp 044d9h		;524e
 
 
@@ -5750,7 +5971,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(0e002h)		;525b Bit 6 (mask 0x40) means: 0==demo, 1==player is playing
 	bit 6,a			;525e Check if player if playing.
 	ld a,092h		;5260 Set tune ID to 0x92: Victorious tune when player reaches checkpoint
-	call nz,04b6eh		;5262 if (player is playing) call 4b6e_sound_something
+	call nz,04b6eh		;5262 if (player is playing) call 4b6e_sound_something_with_D_is_0
 	
 	ld a,003h		;5265 A = 3
 	ld (e049_car_state),a	;5267 Store car state as 3: reached checkpoint
@@ -5763,7 +5984,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x42E2 (call) [from=4270_state04_demo]
 ;   0x4349 (call) [from=4348_state07_out_of_fuel]
 ;   0x4374 (call) [from=4373_state08]
-;   0x5224 (call) [from=5224_fixme]
+;   0x5224 (call) [from=5224_handle_race_substate]
 526b_copy_13_sprites_from_RAM_to_VRAM:
 	ld bc,00034h		;526b BC = 0x0034, number of bytes to copy to VRAM.
 	jr $+5			;526e jump to 0x5273
@@ -5793,7 +6014,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x4322 (jump) [from=4306_state05_substate02]
 527d_fixme:
 	call 05270h		;527d
-	call 06a70h		;5280
+	call 06a70h		;5280 6a70_fixme
 	call 06ca1h		;5283
 	call 0738ch		;5286
 	call 05501h		;5289
@@ -6057,7 +6278,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Data, see 0x50A7.
+; Data, see 0x50A7, 0x7036.
 ; 
 ; Stage 01.
 	defb 0x01		;537d
@@ -6193,7 +6414,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld c,006h		;53f3 C = 0x06
 	call 072f6h		;53f5 72f6_set_A_to_current_rival_car_index_C
 
-	ld a,(0e04ch)		;53f8
+	ld a,(0e04ch_car_vpos)	;53f8
 	sub 010h		;53fb
 	sub (hl)		;53fd
 	sub 0b8h		;53fe
@@ -6240,10 +6461,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; We can get here from:
+;   0x522D (call) [from=5224_handle_race_substate]
+5434_truck_something:
 	ld hl,0e105h		;5434 HL = 0xE105
 	ld a,(hl)		;5437 A = *(0xE105)
 	or a			;5438
-	ret z			;5439 if (a == 0) return ?no truck?
+	ret z			;5439 if (A == 0) return ?no truck?
 	
 	inc hl			;543a HL = 0xE106
 	inc hl			;543b HL = 0xE107
@@ -6255,25 +6479,23 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	bit 6,a			;5444 bit 6: Mask == 0x40, 0==demo, 1==player is playing
 	jr z,$+16		;5446 if (demo) jump to 0x5456
 	
-	push hl			;5448
+	push hl			;5448 Store HL, restore at 0x5455.
 	ld a,(0e003h)		;5449
 	and 007h		;544c A &= 0x07 (keep lower 3 bits)
 	jr nz,$+7		;544e if (A != 0x00) jump to 0x5455
 	
-	ld a,004h		;5450 A = 0x04
-	call 04b6eh		;5452 4b6e_sound_something
+	ld a,004h		;5450 A = 0x04 (55 gallon oil drum behind an 18-wheeler)
+	call 04b6eh		;5452 4b6e_sound_something_with_D_is_0
 	
 	; We can here here from:
 	;   0x544E (jump)
 	;   0x5452 (fall)
-	;
-	; Pops value of HL stored at 0x5448.
-	pop hl			;5455
+	pop hl			;5455 Restore HL, stored at 0x5448.
 	
 	; We can get here from:
 	;   0x5456 (jump)
 	;   0x5455 (fall)
-	ld a,(0e04ch)		;5456 A = car_vpos
+	ld a,(0e04ch_car_vpos)	;5456 A = car_vpos
 	sub (hl)		;5459 pc_of_caller -= car_vpos
 	sub 008h		;545a A -= 8
 	add a,018h		;545c
@@ -15048,7 +15270,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x419B (call)
 ;   0x42D9 (call)
-68aa_:
+68aa_fixme:
 	ld de,05dech		;68aa DE = 0x5DEC, pattern source
 	ld hl,02200h		;68ad HL = 0x2200, VRAM destination
 	call 45e0_copy2VRAM_3x	;68b0
@@ -15116,30 +15338,30 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; data starting at 0x5A73.
 	call 0460bh		;6931 460b_hl=*de_and_inc_de_twice_and_decompress_and_copy_to_VRAM
 	
-	ld hl,01880h		;6934
-	ld de,01950h		;6937
-	ld c,006h		;693a
-	call 04636h		;693c
+	ld hl,01880h		;6934 HL = 0x1880 (inside sprite pattern table)
+	ld de,01950h		;6937 DE = 0x1950 (inside sprite pattern table)
+	ld c,006h		;693a Mirror 6 sprites
+	call 04636h		;693c 4636_mirror_sprites_horizontally(source=HL, destination=DE, count=C)
 	
-	ld de,05b95h		;693f DE = 0x5B95
+	ld de,05b95h		;693f DE = 0x5B95 (sprite patterns 0x40-0xA3, "crash" to "1000")
 	; HL = *DE, so HL == 0x1A00
 	; DE += 2,  so DE == 0x5B97
 	call 0460bh		;6942 460b_hl=*de_and_inc_de_twice_and_decompress_and_copy_to_VRAM
 	
-	call 06a06h		;6945
+	call 06a06h		;6945 6a06_fixme
 	ld a,(e043_stage)	;6948
 	dec a			;694b
-	jp z,06a30h		;694c if (stage == 1) jump to 0x6A30
+	jp z,06a30h		;694c if (stage == 1) jump to 0x6A30 (6a30_fixme)
 	dec a			;694f
 	jr z,$+57		;6950 if (stage == 2) jump to 0x6989
 	dec a			;6952
-	jp z,06a30h		;6953 if (stage == 3) jump to 0x6A30
+	jp z,06a30h		;6953 if (stage == 3) jump to 0x6A30 (6a30_fixme)
 	dec a			;6956
-	jp z,06995h		;6957 if (stage == 4) jump to 0x6995
+	jp z,06995h		;6957 if (stage == 4) jump to 0x6995 (6995_stage_4_and_5)
 	dec a			;695a
-	jp z,06995h		;695b if (stage == 5) jump to 0x6995
+	jp z,06995h		;695b if (stage == 5) jump to 0x6995 (6995_stage_4_and_5)
 	; stage == 6
-	call 06a30h		;695e
+	call 06a30h		;695e 6a30_fixme
 	
 	ld hl,006c8h		;6961 HL = 0x06C8, address to read with RDVRM
 	ld bc,00100h		;6964 BC = 0x0100
@@ -15167,11 +15389,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr nz,$-31		;6986 if (nz) jump to 0x6967
 	ret			;6988
 
-	call 06a30h		;6989
+	call 06a30h		;6989 6a30_fixme
 	ld de,063ach		;698c DE = 0x63AC, pattern source
 	ld hl,02588h		;698f HL = 0x2588, VRAM destination
-	jp 045e0h		;6992
+	jp 045e0h		;6992 45e0_copy2VRAM_3x
 
+
+
+6995_stage_4_and_5:
 	ld de,063ach		;6995 DE = 0x63AC, pattern source
 	ld hl,02400h		;6998 HL = 0x2400, VRAM destination
 	call 45e0_copy2VRAM_3x	;699b
@@ -15226,6 +15451,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; We can get here from:
+;   0x6945 (call) [from=68aa_fixme]
+6a06_fixme:
 	ld a,(e043_stage)	;6a06
 	ld hl,06a69h		;6a09
 	call 0403bh		;6a0c HL += A
@@ -15256,7 +15484,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x6953 (jump)
 ;   0x695E (call)
 ;   0x6989 (call)
-6a30_unknown:
+6a30_fixme:
 	ld a,(e043_stage)	;6a30
 	dec a			;6a33 --A, so it becomes 0 based instead of 1 based.
 	add a,a			;6a34 A *= 2
@@ -15299,25 +15527,35 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defw 0x67D5		;6a65 Stage 06: patterns
 	defw 0x6885		;6a67 Stage 06: colors
 	
-;data
-	ld l,b			;6a68
-	nop			;6a69
-	jr nz,$-78		;6a6a if (nz) jump to 0x6A1C
-	nop			;6a6c
-	ld h,b			;6a6d
-	sub b			;6a6e
-	ret p			;6a6f
+
+
+6a68_data:
+	defb 0x68		;6a68
+	defb 0x00		;6a69
+	defb 0x20		;6a6a
+	defb 0xB0		;6a6b
+	defb 0x00		;6a6c
+	defb 0x60		;6a6d
+	defb 0x90		;6a6e
+	defb 0xF0		;6a6f
+
+
+
+; We can get here from:
+;   0x5233 (call) [from=5224_handle_race_substate]
+;   0x5280 (call) [from=527d_fixme]
+6a70_fixme:
 	ld a,(0e008h)		;6a70 Get newly pressed keys.
-	and 00ch		;6a73 Select only "Left" and "Right".
-	ld hl,0e048h		;6a75
-	jr z,$+3		;6a78 if (a == 0) jump to 0x6A7B
-	ld (hl),a		;6a7a
+	and 00ch		;6a73 Select only "Left" and "Right". 0x0C = (0x08 | 0x04)
+	ld hl,0e048h		;6a75 HL = 0xE048 (it is read at 0x6E04).
+	jr z,$+3		;6a78 if (A == 0) jump to 0x6A7B
+	ld (hl),a		;6a7a "Left" and/or "Right" is pressed and wasn't pressed in previous frame. Store.
 	
 	; We can get here from:
 	;   0x6A78 (jump)
 	;   0x6A7A (fall)
-	inc hl			;6a7b HL = 0xE049
-	ld a,(hl)		;6a7c
+	inc hl			;6a7b HL = 0xE049 (== &car_state)
+	ld a,(hl)		;6a7c A = car_state
 	call 04045h		;6a7d PC = PC[2 * A]
 	defw 0x6A90		;6a80 car state #00 (all okay)
 	defw 0x6ABB		;6a82 car state #01 (crashed)
@@ -15340,14 +15578,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(0e009h)		;6a9b A = *(0xE009)
 	and 00ch		;6a9e
 	and c			;6aa0
-	call nz,06dech		;6aa1
+	call nz,06dech		;6aa1 6dec_fixme
 	ld a,(0e002h)		;6aa4
 	bit 6,a			;6aa7
 	jr z,$+11		;6aa9 if (z) jump to 0x6AB4
 	ld a,(0e010h)		;6aab
 	or a			;6aae
 	ld a,001h		;6aaf
-	call z,04b6eh		;6ab1 4b6e_sound_something
+	call z,04b6eh		;6ab1 4b6e_sound_something_with_D_is_0
 	xor a			;6ab4 A = 0
 
 	; We can get here from:
@@ -15386,41 +15624,42 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   0x6ACD (jump)
 	push af			;6ad6 Store A (0x08)
 	ld a,04fh		;6ad7
-	call 04b6eh		;6ad9 4b6e_sound_something
+	call 04b6eh		;6ad9 4b6e_sound_something_with_D_is_0
 	pop af			;6adc Restore A (0x08)
 	jr $-40			;6add jump to 0x6AB5
 
 	; We can get here from:
 	;   0x6AC6 (jump)
-	call 06af4h		;6adf ?Subtract 0x20 fuel?
-	ld a,006h		;6ae2 A = 6
+	call 06af4h		;6adf 6af4_subtract_0x20_fuel_and_draw_speed_and_fuel_gauge
+	ld a,006h		;6ae2 A = 0x06
 	ld (e049_car_state),a	;6ae4
-	ld a,010h		;6ae7
+	ld a,010h		;6ae7 A = 0x10
 	ld (0e004h),a		;6ae9
 	ld a,(E083_fuel)	;6aec A = *(0xE083), load fuel
 	or a			;6aef
 	jr z,$+44		;6af0 if (fuel == 0) jump to 6b1c_out_of_fuel_and_no_more_speed (GAME OVER)
 	; Still some fuel left.
-	pop hl			;6af2 ?Remove return address? ?Return to grand parent?
+	pop hl			;6af2 Remove return address, return to grandparent.
 	ret			;6af3
 
-; ?CRASHED? 0x20 fuel is subtracted.
+
+
 ; We can get here from:
-;   0x6ADF (call)
-6af4_:
+;   0x6ADF (call) [from=6abb_car_state_01]
+6af4_subtract_0x20_fuel_and_draw_speed_and_fuel_gauge:
 	ld hl,E083_fuel		;6af4
-	ld a,(hl)		;6af7 A = *(0xE083), load fuel
+	ld a,(hl)		;6af7 A = fuel
 	sub 014h		;6af8 A -= 20
 	jr nc,$+3		;6afa if (*E083_fuel >= 20) jump to 0x6AFD
 	xor a			;6afc A = 0
 	ld (hl),a		;6afd *(0xE083) = A, store fuel
 
 ; We can get here from:
-;   0x6AFD (fall)
+;   0x6AFD (fall) [from=6af4_subtract_0x20_fuel_and_draw_speed_and_fuel_gauge]
 ;   0x6F22 (jump)
-6afe:
+6afe_fixme:
 	xor a			;6afe A = 0
-	ld (0e0b8h),a		;6aff Stop playing fuel heart tune
+	ld (0e0b8h),a		;6aff Set state of grabbed bonus fuel hearts to UNGRABBED, so bonus fuel heart sounds stops playing.
 	jp 0452ah		;6b02 452a_jump_to_draw_speed_and_fuel_gauge
 
 
@@ -15458,8 +15697,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(E028_soundID_B)	;6b1c A = current sound/tune/bleep
 	or a			;6b1f
 	ret nz			;6b20 if (some sound/tune/bleep is playing) return
-	ld a,01bh		;6b21 A = 0x1B
-	call 04b6eh		;6b23 4b6e_sound_something
+
+	ld a,01bh		;6b21 A = 0x1B (silence, on all 3 channels)
+	call 04b6eh		;6b23 4b6e_sound_something_with_D_is_0
+
 	ld hl,0e04eh		;6b26 HL = 0xE04E
 	ld b,(hl)		;6b29 B = horizontal position of car
 	dec hl			;6b2a HL = 0xE04D
@@ -15470,43 +15711,51 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,b			;6b30 A = B
 	sub 008h		;6b31 A -= 0x08
 	ld h,a			;6b33 H = A
-	call 04561h		;6b34 Munge HL into ???
-	ld a,l			;6b37 A = l
+	call 04561h		;6b34 4561_compute_vdp_address_of_HL_coordinates
+	ld a,l			;6b37 A = L
 	and 01fh		;6b38 A &= 0x1F
 	cp 012h			;6b3a Compute A - 0x12 and set flags.
-	jr c,$+8		;6b3c if (A < 0x12) jump to 0x6b44
+	jr c,$+8		;6b3c if (A < 0x12) jump to 0x6B44
 
 	ld a,l			;6b3e A = L
 	and 0e0h		;6b3f A &= 0xE0
 	or 012h			;6b41 A |= 0x12
 	ld l,a			;6b43 L = A
 
-	ld de,06b59h		;6b44 DE = 0x6b59 (source, "EMPTY")
+	ld de,06b59h		;6b44 DE = 0x6B59 (source, 6b59_empty, the pattern IDs that make up "EMPTY")
 	ld bc,00005h		;6b47 BC = 0x0005 (number of bytes to copy)
 	call 45a7_copy2vram	;6b4a
 	
-	ld a,080h		;6b4d A= 0x80
+	ld a,080h		;6b4d A = 0x80
 	ld (0e004h),a		;6b4f *(0xE004) = 0x80
 	ld a,006h		;6b52 A = 0x06
-	ld (e049_car_state),a	;6b54 *(0xE049) = 0x06
-	pop hl			;6b57
+	ld (e049_car_state),a	;6b54 *(0xE049) = 0x06, game over
+	pop hl			;6b57 Remove return address, return to grandparent.
 	ret			;6b58
 
 
 
 6b59_empty:
-	defb 0x25		;6b59 E
-	defb 0x2D		;6b5a M
-	defb 0x30		;6b5b P
-	defb 0x34		;6b5c T
-	defb 0x39		;6b5d Y
+;   . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .   . . . . . . . .
+;   . x x x x x x x   . x x . . . x x   . x x x x x x .   . x x x x x x .   . x x . . x x .
+;   . x x . . . . .   . x x x . x x x   . x x . . . x x   . . . x x . . .   . x x . . x x .
+;   . x x . . . . .   . x x x x x x x   . x x . . . x x   . . . x x . . .   . x x x x x x .
+;   . x x x x x x .   . x x x x x x x   . x x . . . x x   . . . x x . . .   . . x x x x . .
+;   . x x . . . . .   . x x . x . x x   . x x x x x x .   . . . x x . . .   . . . x x . . .
+;   . x x . . . . .   . x x . . . x x   . x x . . . . .   . . . x x . . .   . . . x x . . .
+;   . x x x x x x x   . x x . . . x x   . x x . . . . .   . . . x x . . .   . . . x x . . .
+	defb 0x25		;6b59 E, see 0x4812.
+	defb 0x2D		;6b5a M, see 0x4848.
+	defb 0x30		;6b5b P, see 0x485E.
+	defb 0x34		;6b5c T, see 0x4879.
+	defb 0x39		;6b5d Y, see 0x488E.
 
 
 
-## Reached check point?
+; Reached check point?
 6b5e_car_state_03:
 	pop hl			;6b5e Removes caller PC from stack, routine will return to grandparent.
-	call 044d9h		;6b5f
+	call 044d9h		;6b5f 44d9_fixme
 	ld a,080h		;6b62 A = 0x80
 	ld (0e0eeh),a		;6b64
 	ld (0e0feh),a		;6b67
@@ -15517,7 +15766,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (e04fh_speed),a	;6b6e Store speed (0)
 	
 	; Test if car is outside screen.
-	ld hl,0e04ch		;6b71
+	ld hl,0e04ch_car_vpos	;6b71
 	ld a,(hl)		;6b74 Load car vertical position on screen.
 	sub 0c8h		;6b75 A -= 0xC8
 	cp 008h			;6b77 Compute A - 0x08 and update C/NC flag.
@@ -15588,7 +15837,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(0e003h)		;6bc0
 	and 003h		;6bc3
 	ld a,00dh		;6bc5 A = 0x0D (sound ID for skidding)
-	call z,04b6eh		;6bc7 if (game state ticker & 0x03 == 0) call 4b6e_sound_something
+	call z,04b6eh		;6bc7 if (game state ticker & 0x03 == 0) call 4b6e_sound_something_with_D_is_0
 
 	; We can get here from:
 	;   0x6BBE (jump) demo
@@ -15596,30 +15845,35 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(0e054h)		;6bca Car orientation during skidding (0x00: north-west, 0x01: north-east)
 	and a			;6bcd Set flags.
 	ld a,(0e008h)		;6bce Get newly pressed keys.
-	jr z,$+7		;6bd1 if (*(0xE054) == 0) jump to 0x6BD8
+	jr z,$+7		;6bd1 if (*(0xE054) == 0) jump to 0x6BD8 (6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00)
 	
 	; Skidding north-east. Recoverable by pressing to the left.
 	and 004h		;6bd3 A &= 0x04
 	ret z			;6bd5 if (not pressed left) return
-	jr $+5			;6bd6 Jump to 0x6BDB
+	jr $+5			;6bd6 Jump to 0x6BDB (6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00)
 	
 	; We can get here from:
 	;   0x6BD1 (jump) Skidding north-west. Recoverable by pressing to the right.
 	and 008h		;6bd8
 	ret z			;6bda if (not pressed right) return
+
+
 	                 
-	; We can get here from:
-	;   0x6BD6 (jump) Recovered from skidding, north-east.
-	;   0x6BDA (fall) Recovered from skidding, north-west.
+; We can get here from:
+;   0x6BD6 (jump) Recovered from skidding, north-east.
+;   0x6BDA (fall) Recovered from skidding, north-west.
+;   0x6EE7 (call)
+6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00:
 	xor a			;6bdb Car state #00: All okay, nothing special.
 	ld (e049_car_state),a	;6bdc Save car state.
-	jp 06ab5h		;6bdf Jump to end of car state #00.
+	jp 06ab5h		;6bdf Jump to end of car state #00 (which indirectly returns).
 
 
 
 ; We can get here from:
 ;   0x6BB0 (call) Car state == 0x04 (skidding)
 ;   0x6C3A (call) Car state == 0x07 (spinning)
+6be2_car_is_skidding_or_spinning:
 	ld a,007h		;6be2 A = 0x07
 	ld (0e053h),a		;6be4
 	ld a,(0e051h)		;6be7
@@ -15637,7 +15891,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld e,a			;6bfd E = A
 	inc de			;6bfe ++DE
 	ld hl,(0e04dh)		;6bff
-	jp 06e18h		;6c02
+	jp 06e18h		;6c02 6e18_compute_and_store_new_horizontal_position
 
 
 
@@ -15673,6 +15927,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Respawn? Game over?
+; 
+; We can get here from:
+;   0x6A7D (jump table entry #06)
 6c31_car_state_06:
 	pop hl			;6c31
 	call 0440ch		;6c32 440c_decrement_timer_and_do_return_magic
@@ -15691,8 +15948,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,0e0b1h		;6c42
 	jr nz,$+18		;6c45 if (nz) jump to 0x6C57
 	push hl			;6c47
-	ld a,00bh		;6c48
-	call 04b6eh		;6c4a 4b6e_sound_something
+	ld a,00bh		;6c48 A = 0x0B
+	call 04b6eh		;6c4a 4b6e_sound_something_with_D_is_0
 	pop hl			;6c4d
 	ld a,(0e054h)		;6c4e
 	dec (hl)		;6c51
@@ -15703,7 +15960,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;6c57
 	and 007h		;6c58
 	call 06ab5h		;6c5a
-	ld hl,0e04ch		;6c5d
+	ld hl,0e04ch_car_vpos	;6c5d
 	call 06dc1h		;6c60
 	ret nc			;6c63
 	jp 06f18h		;6c64
@@ -15816,7 +16073,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x6A90 (call)
 ;   0x6BB3 (call)
 6cd1_side_bounce_checker_and_actioner:
-	ld hl,0e04ch		;6cd1
+	ld hl,0e04ch_car_vpos	;6cd1
 	call 06dc1h		;6cd4
 	ld hl,0e055h		;6cd7 HL = 0xE055
 	ld (hl),0ffh		;6cda
@@ -15904,7 +16161,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr nz,$-7		;6d50 if (nz) jump to 0x6D49
 	ld b,0e0h		;6d52
 	jr $-25			;6d54 jump to 0x6D3B
-	ld b,004h		;6d56
+
+
+
+; We can get here from:
+;   0x6DE6 (jump) [from=6dc1_fixme]
+6d56_fixme:
+	ld b,004h		;6d56 B = 0x04
 	call 06d8bh		;6d58
 	ret nc			;6d5b
 	ld a,b			;6d5c A = B
@@ -15972,11 +16235,19 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld c,a			;6d9f
 	add a,b			;6da0
 	ld h,a			;6da1
-	call 04561h		;6da2 4561_maybe_compute_draw_game_over
+				;fall to 6da2_fixme
+
+
+
+; We can get here from:
+;   0x6DA1 (fall) [from=6d8b_fixme]
+;   0x6DE9 (jump) [from=6dc1_fixme]
+6da2_fixme:
+	call 04561h		;6da2 4561_compute_vdp_address_of_HL_coordinates
 	call 0050_SETRD		;6da5
 	ld a,(00007h)		;6da8 A = 0x98 (VDP writing port #0)
 	
-	; Read from VDP.
+	; Read 1 byte from VDP into register A.
 	exx			;6dab
 	ld c,a			;6dac
 	in a,(c)		;6dad
@@ -16004,20 +16275,20 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x6FB8 (call) HL == ??????
 ;   0x7133 (call) HL == ??????
 ;   0x71A7 (call) HL == ??????
-6dc1_:
+6dc1_fixme:
 	push hl			;6dc1 Store HL (restored at 0x6DE5).
-	ld a,(hl)		;6dc2
+	ld a,(hl)		;6dc2 A = car's vertical position on screen
 	ld b,a			;6dc3 B = A
 	sub 0c0h		;6dc4 A -= 0xC0
 	jr c,$+10		;6dc6 if (c) jump to 0x6DD0
-	ld b,000h		;6dc8
-	cp 010h			;6dca
+	ld b,000h		;6dc8 B = 0x00
+	cp 010h			;6dca Compute A - 0x10 and update C/NC flag.
 	jr nc,$+4		;6dcc if (nc) jump to 0x6DD0
-	ld b,0b8h		;6dce
+	ld b,0b8h		;6dce B = 0xB8
 	
 	; We can get here from:
 	;   0x6DC6 (jump) B == *(HL)
-	;   0x6dCC (jump) B == 0x00
+	;   0x6DCC (jump) B == 0x00
 	;   0x6DCE (fall) B == 0xB8
 	ld a,b			;6dd0 A = B
 	ld de,0e098h		;6dd1 DE = 0x0E098
@@ -16035,45 +16306,80 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,020h		;6de0 A += 0x20
 	inc hl			;6de2 ++HL
 	inc hl			;6de3 ++HL
-	cp (hl)			;6de4 Compute A - *(HL).
+	cp (hl)			;6de4 Compute A - *(HL) and update C/NC flag.
 	pop hl			;6de5 Restore HL (stored at 0x6DC1).
-	jp nc,06d56h		;6de6
-	jp 06d2ah		;6de9
+	jp nc,06d56h		;6de6 6d56_fixme
+	jp 06d2ah		;6de9 6da2_fixme
 
 
-
-	ld hl,(0e04dh)		;6dec
-	ld a,(0e051h)		;6def
-	or a			;6df2
-	jr z,$+6		;6df3 if (z) jump to 0x6DF9
-	srl a			;6df5
-	add a,008h		;6df7
-	ld e,a			;6df9
-	ld a,(0e009h)		;6dfa
-	ld b,a			;6dfd
-	and 00ch		;6dfe
-	cp 00ch			;6e00
-	jr nz,$+6		;6e02 if (nz) jump to 0x6E08
-	ld a,(0e048h)		;6e04
-	and b			;6e07
-	rra			;6e08
-	rra			;6e09
-	rra			;6e0a
-	ld d,000h		;6e0b
-	jr nc,$+7		;6e0d if (nc) jump to 0x6E14
-	dec d			;6e0f
-	ld a,e			;6e10
-	cpl			;6e11
-	ld e,a			;6e12
-	inc de			;6e13
-	sla e			;6e14
-	rl d			;6e16
 
 ; We can get here from:
-;   0x6C02 (jump) Car state in [0x04, 0x07]
-;   0x6E16 (fall)
-	add hl,de		;6e18
-	ld (0e04dh),hl		;6e19
+;   0x6AA1 (call) [from=6a90_car_state_00__all_okay]
+6dec_fixme:
+	ld hl,(0e04dh)		;6dec HL = *(0xE04D)
+	ld a,(0e051h)		;6def A = *(0xE051) ?car speed?
+	or a			;6df2 Update Z/NZ flag.
+	jr z,$+6		;6df3 if (car speed == 0) jump to 0x6DF9
+	
+	; Compute absolute horizontal displacement.
+	srl a			;6df5 A >>= 1
+	add a,008h		;6df7 A += 0x08
+	
+	; We can get here from:
+	;   0x6DF3 (jump) A == 0
+	;   0x6DF7 (fall) A == (*(0xE051) >> 1) & 0x08
+	ld e,a			;6df9 E = absolute_horizontal_displacement (used at 0x6E10)
+	ld a,(0e009h)		;6dfa A = currently_pressed_keys
+	ld b,a			;6dfd B = currently_pressed_keys
+	and 00ch		;6dfe A &= 0x0C, get "Left" (0x04) and "Right" (0x08).
+	cp 00ch			;6e00 Test for BOTH left and right.
+	jr nz,$+6		;6e02 if (left and right are NOT BOTH currently pressed) jump to 0x6E08
+	; Post: BOTH left and right are currently pressed.
+	ld a,(0e048h)		;6e04 A = newly_pressed_left_and_or_right
+	and b			;6e07
+	
+	; We can get here from:
+	;   0x6E02 (jump) A in [0x00,0x04,0x08]
+	;   0x6E07 (fall) Both left and right are currently pressed.
+	rra			;6e08 Also updates C/NC flag. carry = bit 0 (mask 0x01) of A_pre_6e08 
+	rra			;6e09 Also updates C/NC flag. carry = bit 1 (mask 0x02) of A_pre_6e08
+	rra			;6e0a Also updates C/NC flag. carry = bit 2 (mask 0x04) of A_pre_6e08, i.e. if "left" is pressed
+	ld d,000h		;6e0b D = 0
+	jr nc,$+7		;6e0d if (left is not pressed) jump to 0x6E14
+
+	; Left is pressed, horizontal displacement is NEGATIVE.
+	; 
+	;   speed | absolute_horizontal_displacement | DE             | Remark(s)
+	;   ------+----------------------------------+----------------+--------------
+	;    0x01 |                             0x08 | 0xFFF8 (-0x08) | Minimal speed
+	;    0xD7 |                             0x73 | 0xFF8D (-0x73) | Maximum speed
+	;   ------+----------------------------------+----------------+--------------
+	dec d			;6e0f D = 0xFF
+	ld a,e			;6e10 A = absolute_horizontal_displacement
+	cpl			;6e11 A = ~A (flip all bits)
+	ld e,a			;6e12 E = A
+	inc de			;6e13 ++E
+	
+	; We can get here from:
+	;   0x6E0D (jump) D == 0x00, DE == +absolute_horizontal_displacement (i.e. steering to the right)
+	;   0x6E13 (fall) D == 0xFF, DE == -absolute_horizontal_displacement (i.e. steering to the left)
+	sla e			;6e14 E <<= 1
+	rl d			;6e16 D: rotate left, but why???
+				;fall to 6e18_compute_and_store_new_horizontal_position
+
+
+; Compute and store new horizontal position.
+; 
+; Input:
+;   DE: horizontal movement this frame
+;   HL: car's current horizontal position (word value in 0xE04D)
+; 
+; We can get here from:
+;   0x6C02 (jump) [from=6be2_car_is_skidding_or_spinning] Car state in [0x04, 0x07]
+;   0x6E16 (fall) HL == *(0xE04D)
+6e18_compute_and_store_new_horizontal_position:
+	add hl,de		;6e18 Compute new horizontal position.
+	ld (0e04dh),hl		;6e19 Store new horizontal position.
 	ret			;6e1c
 
 
@@ -16101,7 +16407,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld c,a			;6e25 C = *0xE053
 	add hl,bc		;6e26 HL += *0xE053
 	ld a,(hl)		;6e27
-	ld hl,0e04ch		;6e28 HL = 0xE04C
+	ld hl,0e04ch_car_vpos	;6e28 HL = 0xE04C
 	ld c,(hl)		;6e2b C = vpos of car
 	
 	inc hl			;6e2c
@@ -16151,20 +16457,24 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x523F (call)
-6e4a_:
+6e4a_handling_moving_objects_something_if_not_crashed:
+	; if (car_state == CRASHED) return
 	ld a,(e049_car_state)	;6e4a
 	dec a			;6e4d
-	ret z			;6e4e if (car_state == 1) return
+	ret z			;6e4e
 	
 	; Not crashed.
 	ld hl,0e0e4h		;6e4f HL = 0xE0E4
 	xor a			;6e52 A = 0
 	ld (hl),a		;6e53 *(0xE0E4) = 0
+				;fall 6e54_handling_moving_objects_something
+
+
 
 ; We can get here from:
 ;   0x6E53 (fall) *(0xE0E4) == 0	
 ;   0x6F11 (jump)
-6e54_:
+6e54_handling_moving_objects_something:
 	ld hl,0e0e4h		;6e54 HL = 0xE0E4
 	ld a,(hl)		;6e57 A = *(0xE0E4)
 	
@@ -16193,7 +16503,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jp z,06f0ah		;6e6d if (A == 0) jump to 0x6F0A
 	ld a,b			;6e70 A = *(0xE0E4)
 	call 0736bh		;6e71 736b_set_HL_to_0xE11A_plus_8_times_A
-	ld a,(0e04ch)		;6e74 A = car_vertical_position
+	ld a,(0e04ch_car_vpos)	;6e74 A = car_vertical_position
 	sub (hl)		;6e77 A -= *HL
 	sub 010h		;6e78 A -= 0x10
 	add a,020h		;6e7a A += 0x20 and update C/NC flag.
@@ -16231,46 +16541,64 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (hl),003h		;6eb5
 	jr nz,$+4		;6eb7 if (nz) jump to 0x6EBB
 	ld (hl),0fdh		;6eb9
+
 	ld hl,e049_car_state	;6ebb
 	ld a,(hl)		;6ebe
 	cp 007h			;6ebf
-	jr z,$+84		;6ec1 if (z) jump to 0x6F15
-	ld a,(0e054h)		;6ec3
-	xor 001h		;6ec6
-	ld hl,(0e0bfh)		;6ec8
-	inc hl			;6ecb
-	call 07352h		;6ecc
-	ld a,020h		;6ecf
-	ld (0e0b1h),a		;6ed1
+	jr z,$+84		;6ec1 if (car_state == 0x07) jump to 0x6F15
+
+	ld a,(0e054h)		;6ec3 A = skid_turning_direction
+	xor 001h		;6ec6 A ^= 0x01 (flip bit 0)
+	ld hl,(0e0bfh)		;6ec8 HL = current_moving_object
+	inc hl			;6ecb HL = current_moving_object + 1
+	call 07352h		;6ecc 7352_update_bounce_something
+	ld a,020h		;6ecf A = 0x20
+	ld (0e0b1h),a		;6ed1 Store skid ticks remaining for recoverability by steering.
 	
-	ld a,004h		;6ed4 Car state #04: skidding (recoverable)
+	ld a,004h		;6ed4 Car state #04: skidding (recoverable by steering)
 	ld (e049_car_state),a	;6ed6 Save car state.
 	call 06e1dh		;6ed9 6e1d_store_car_sprite_attributes
-	ld hl,(0e0bfh)		;6edc
-	ld a,(hl)		;6edf
-	cp 008h			;6ee0
-	ret nz			;6ee2
-	ld hl,0e0e3h		;6ee3
+
+
+	
+	; Bonus fuel heart (type == 0x08).
+	ld hl,(0e0bfh)		;6edc HL = current_moving_object
+	ld a,(hl)		;6edf A = current_moving_object[TYPE]
+	cp 008h			;6ee0 Type 0x08: bonus fuel heart
+	ret nz			;6ee2 if (is not bonus fuel heart) return
+	ld hl,0e0e3h		;6ee3 HL = 0xE0E3
 	dec (hl)		;6ee6
-	call 06bdbh		;6ee7
-	ld hl,(0e0bfh)		;6eea
-	inc hl			;6eed
-	ld (hl),000h		;6eee
-	ld a,(0e0e4h)		;6ef0
-	add a,a			;6ef3
-	add a,a			;6ef4
-	add a,a			;6ef5
-	ld hl,0e11ah		;6ef6
+	call 06bdbh		;6ee7 6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00 (does return)
+	ld hl,(0e0bfh)		;6eea HL = current_moving_object
+	inc hl			;6eed HL = current_moving_object + 1
+	ld (hl),000h		;6eee current_moving_object[VISIBLE] = 0x00
+	
+	; A = *(0xE0E4) * 8
+	;
+	; Each set of sprite attributes is 4 bytes, and each moving 
+	; object is made up of 2 sprites.
+	ld a,(0e0e4h)		;6ef0 A = current_moving_object_index
+	add a,a			;6ef3 A *= 2
+	add a,a			;6ef4 A *= 2
+	add a,a			;6ef5 A *= 2
+	
+	; HL = start_of_sprite_attributes_of_current_moving_object
+	ld hl,0e11ah		;6ef6 HL = 0xE11A, start of sprite attributes of moving objects.
 	call 0403bh		;6ef9 HL += A
-	ld (hl),0e0h		;6efc
+	
+	; Hide fuel heart.
+	ld (hl),0e0h		;6efc vpos = 0xE0 (don't show "B" in bonus fuel heart)
 	inc hl			;6efe
 	inc hl			;6eff
 	inc hl			;6f00
 	inc hl			;6f01
-	ld (hl),0e0h		;6f02
+	ld (hl),0e0h		;6f02 vpos = 0xE0 (don't show the bonus fuel heart)
+
 	ld hl,0e0b8h		;6f04
-	ld (hl),001h		;6f07
+	ld (hl),001h		;6f07 ?Request to play sound of grabbing a bonus fuel heart.?
+
 	ret			;6f09
+
 
 
 	; We can get here from:
@@ -16281,11 +16609,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc (hl)		;6f0d
 	ld a,(hl)		;6f0e
 	cp 003h			;6f0f
-	jp nz,06e54h		;6f11
-	ret			;6f14
+	jp nz,06e54h		;6f11 jump to 0x6E54 (6e54_handling_moving_objects_something)
+	ret			;6f14 Handled all moving objects.
 
-; ??? data ??? old code ???
-	ld (hl),000h		;6f15
+	; We can get here from:
+	;   0x6EC1 (jump) car_state == 0x07
+	ld (hl),000h		;6f15 car_state = 0x00: all okay
 	ret			;6f17
 
 
@@ -16295,7 +16624,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x6C64 (jump)
 ;   0x6E99 (jump)
 ;   0x6EA4 (jump)
-6f18_:
+6f18_fixme:
 	; Set car state to 0x01.
 	; Set car ?substate? to 0x0C.
 	ld hl,00c01h		;6f18 HL = 0x0C01
@@ -16309,78 +16638,120 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; We can get here from:
+;   0x524B (call) [from=5224_handle_race_substate]
+6f25_fixme:
 	ld a,(e04fh_speed)	;6f25
 	cp 0b8h			;6f28
-	ret c			;6f2a
-	ld hl,0e0c1h		;6f2b
+	ret c			;6f2a if (speed < 0xB8) return
+	; Post: speed >= 0xB8
+	
+	; if (*(0xE0C1) == 0) return.
+	ld hl,0e0c1h		;6f2b HL = 0xE0C1
 	ld a,(hl)		;6f2e
 	and a			;6f2f
 	ret z			;6f30
-	inc hl			;6f31
+
+	inc hl			;6f31 HL = 0xE0C2
 	ld (hl),000h		;6f32
-	ld hl,0e0c2h		;6f34
+
+
+	
+; We can get here from:
+;   0x6F32 (fall)
+;   0x6F64 (jump)
+6f34_fixme:
+	; A = *(0xE0C2) * 16
+	ld hl,0e0c2h		;6f34 HL = 0xE0C2
 	ld a,(hl)		;6f37
 	add a,a			;6f38
 	add a,a			;6f39
 	add a,a			;6f3a
 	add a,a			;6f3b
-	inc hl			;6f3c
-	ld b,000h		;6f3d
-	ld c,a			;6f3f
-	add hl,bc		;6f40
+	
+	; HL = 0xE0C3 + *(0xE0C2) * 16
+	inc hl			;6f3c HL = 0xE0C3
+	ld b,000h		;6f3d B = 0
+	ld c,a			;6f3f C = A
+	add hl,bc		;6f40 HL += A
+
 	ld (0e0bfh),hl		;6f41
-	inc hl			;6f44
-	ld a,(hl)			;6f45
+	inc hl			;6f44 Point to offset #01.
+	ld a,(hl)		;6f45
 	and a			;6f46
 	jr z,$+22		;6f47 if (z) jump to 0x6F5D
-	inc hl			;6f49
-	inc hl			;6f4a
-	ld a,(hl)			;6f4b
+	inc hl			;6f49 Point to offset #02.
+	inc hl			;6f4a Point to offset #03.
+	ld a,(hl)		;6f4b
 	and a			;6f4c
 	jr z,$+26		;6f4d if (z) jump to 0x6F67
-	ld a,(e04fh_speed)		;6f4f
-	cp 0c8h		;6f52
-	jr nc,$+8		;6f54 if (nc) jump to 0x6F5C
+	ld a,(e04fh_speed)	;6f4f
+	cp 0c8h			;6f52
+	jr nc,$+8		;6f54 if (speed >= 0xC8) jump to 0x6F5C
 	ld a,(0e003h)		;6f56
-	rra			;6f59
+	rra			;6f59 carry flag = *(0xE003) & 0x01
 	jr nc,$+3		;6f5a if (nc) jump to 0x6F5D
-	dec (hl)			;6f5c
-	ld hl,0e0c2h		;6f5d
-	inc (hl)			;6f60
-	ld a,002h		;6f61
+
+	; We can get here from:
+	;   0x6F54 (jump)
+	;   0x6F5A (fall)
+	dec (hl)		;6f5c
+	
+	
+	
+	; We can get here from:
+	;   0x6F47 (jump)
+	;   0x6F5A (jump)
+	;   0x6F5C (fall)
+	;   0x6F96 (jump)
+	ld hl,0e0c2h		;6f5d HL = 0xE0C2
+	inc (hl)		;6f60
+	ld a,002h		;6f61 A = 2
 	cp (hl)			;6f63
-	jr nz,$-48		;6f64 if (nz) jump to 0x6F34
-	ret			;6f66
+	jr nz,$-48		;6f64 if (nz) jump to 0x6F34 (6f34_fixme)
+	ret			;6f66 ?Done with all moving objects?
+	
+	
+	; We can get here from:
+	;   0x6F4D (jump)
 	ld a,(0e0c2h)		;6f67
 	or a			;6f6a
-	ld hl,0e0c6h		;6f6b
+	ld hl,0e0c6h		;6f6b HL = 0xE0C6
 	jr nz,$+4		;6f6e if (nz) jump to 0x6F72
-	ld l,0d6h		;6f70
+	ld l,0d6h		;6f70 HL = 0xE0D6
 	ld a,(0e03bh_levelAB)	;6f72
 	dec a			;6f75
-	ld a,007h		;6f76
-	jr z,$+4		;6f78 if (z) jump to 0x6F7C
-	ld a,00ch		;6f7a
-	ld (hl),a			;6f7c
-	xor a			;6f7d
+	ld a,007h		;6f76 A = 0x07
+	jr z,$+4		;6f78 if (playing at level B) jump to 0x6F7C
+	ld a,00ch		;6f7a A = 0x0C
+	ld (hl),a		;6f7c
+	xor a			;6f7d A = 0
+	
+	; We can get here from:
+	;   0x6F7D (fall) Entering loop.
+	;   0x6F94 (jump) Next loop.
 	push af			;6f7e
-	ld hl,0e0e5h		;6f7f
+	ld hl,0e0e5h		;6f7f HL = 0xE0E5
 	add a,a			;6f82
 	add a,a			;6f83
 	add a,a			;6f84
 	add a,a			;6f85
-	ld b,000h		;6f86
-	add a,001h		;6f88
-	ld c,a			;6f8a
-	add hl,bc			;6f8b
-	ld a,(hl)			;6f8c
+	ld b,000h		;6f86 B = 0
+	add a,001h		;6f88 A += 1 ?WHY NOT "inc a"?
+	ld c,a			;6f8a C = A
+	add hl,bc		;6f8b HL = 0xE0E5 + A
+	ld a,(hl)		;6f8c
 	and a			;6f8d
 	jr z,$+10		;6f8e if (z) jump to 0x6F98
 	pop af			;6f90
 	inc a			;6f91
-	cp 002h		;6f92
+	cp 002h			;6f92
 	jr nz,$-22		;6f94 if (nz) jump to 0x6F7E
 	jr $-57			;6f96 jump to 0x6F5D
+	
+	; We can get here from:
+	;   0x6F96 (fall) End of loop.
+	;   0x6F8E (jump) ?Bail out of loop?
 	pop af			;6f98
 	ld (0e0b0h),a		;6f99
 	push hl			;6f9c
@@ -16390,6 +16761,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 072f6h		;6f9f 72f6_set_A_to_current_rival_car_index_C
 
 	ld c,(hl)		;6fa2
+
+	; A = 8 * (*(0xE098) / 4) + C
 	ld a,(0e098h)		;6fa3
 	rra			;6fa6
 	rra			;6fa7
@@ -16398,6 +16771,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,a			;6fab
 	add a,a			;6fac
 	add a,c			;6fad
+
 	inc hl			;6fae
 	inc hl			;6faf
 	ld (hl),000h		;6fb0
@@ -16407,22 +16781,26 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	dec hl			;6fb5
 	dec hl			;6fb6
 	push hl			;6fb7
-	call 06dc1h		;6fb8
+	call 06dc1h		;6fb8 6dc1_fixme
 	pop hl			;6fbb
 	jr nc,$+12		;6fbc if (nc) jump to 0x6FC8
 	inc hl			;6fbe
 	inc hl			;6fbf
 	ld a,(hl)		;6fc0
 	sub 008h		;6fc1
-	ld (hl),a		;6fc3
+	ld (hl),a		;6fc3.
 	dec hl			;6fc4
 	dec hl			;6fc5
 	jr $-15			;6fc6 jump to 0x6FB7
+
+
+	; We can get here from:
+	;   0x6FBC (jump)
 	ld hl,(0e0bfh)		;6fc8
 	ld d,(hl)		;6fcb
 	ld a,(0e03bh_levelAB)	;6fcc
 	or a			;6fcf Update Z/NZ flag.
-	jr nz,$+3		;6fd0 if (nz) jump to 0x6FD3
+	jr nz,$+3		;6fd0 if (playing at level B) jump to 0x6FD3
 	ld d,a			;6fd2 D = A
 
 	; HL = &vpos_of_current_rival_car
@@ -16442,11 +16820,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (hl),0bfh		;6fea
 
 	ld hl,(0e0bfh)		;6fec
-	pop de			;6fef
+	pop de			;6fef Restore. Stored at 0x6FB7.
 	dec de			;6ff0
 	ld bc,00010h		;6ff1 BC = 0x0010 (copy 16 bytes with ldir)  
-	ldir			;6ff4
-
+	ldir			;6ff4 Copy HL to DE, 0x10 times.
+	
+	; HL = 0x536B + 2 * FIXME
 	ld hl,(0e0bfh)		;6ff6
 	ld a,(hl)		;6ff9
 	inc hl			;6ffa
@@ -16456,28 +16835,36 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 0403bh		;7001 HL += A
 	
 	; A = 3 + *(0xE0B0) * 8
+	; 
+	; Every moving object consists of 2 sprites, each sprite is 4 
+	; bytes. That explains the multiple of eight.
+	; 
+	; Offset 3 is the pattern (of the shadow/1st sprite).
 	ld a,(0e0b0h)		;7004
 	add a,a			;7007 A *= 2
 	add a,a			;7008 A *= 2
 	add a,a			;7009 A *= 2
 	add a,003h		;700a A += 3
 
-	ld de,0e11ah		;700c DE = 0xE11A
-	call 04040h		;700f DE += A
+	ld de,0e11ah		;700c DE = 0xE11A (start of sprite #03)
+	call 04040h		;700f DE += A, DE now points to the sprite pattern
 	ldi			;7012 *(DE++) = *(HL++), --BC
-	inc de			;7014
-	inc de			;7015
-	inc de			;7016
+	inc de			;7014 ++DE, offset 4->5
+	inc de			;7015 ++DE, offset 5->6
+	inc de			;7016 ++DE, offset 6->7 (sprite pattern)
 	ldi			;7017 *(DE++) = *(HL++), --BC
 
 	ld hl,0e0c1h		;7019 HL = 0xE0C1
 	dec (hl)		;701c
 	jp nz,06f5dh		;701d
 
+
+
 ; We can get here from:
-;   0x50AE (call)
-;   0x51D5 (jump)
-;   0x701D (fall)
+;   0x50AE (call) [from=504c_init_new_game]
+;   0x51D5 (jump) [from=51c2_fixme]
+;   0x701D (fall) [from=6f18_fixme]
+7020_fixme:
 	ld hl,(0e0bdh)		;7020
 	inc hl			;7023
 	ld (0e0bdh),hl		;7024
@@ -16487,8 +16874,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc a			;7028
 	jr nz,$+20		;7029 if (nz) jump to 0x703D
 	
-	ld a,(e043_stage)	;702b
-	dec a			;702e Make stage 0-based instead of 1-based.
+	; A = stage - 1 (makes stage 0-based).
+	ld a,(e043_stage)	;702b A = stage
+	dec a			;702e A = stage - 1
 	
 	; HL = stage_0based * 16
 	ld l,a			;702f
@@ -16505,7 +16893,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (0e0bdh),hl		;703a
 	ld a,(0e03bh_levelAB)	;703d A == 0: Level A, A == 1: Level B
 	
-	or a			;7040 Set flags for 0x7042.
+	or a			;7040 Update Z/NZ flag.
 	ld a,(hl)		;7041 A = *(HL)
 	jr nz,$+7		;7042 if (levelB) jump to 0x7049
 	
@@ -16515,9 +16903,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	dec a			;7048 A = 0x09
 	
 	; We can get here from:
-	;   0x7042 (jump)
-	;   0x7046 (jump)
-	;   0x7048 (fall) A == 0x09
+	;   0x7042 (jump) A = *(HL), and playing on level B
+	;   0x7046 (jump) A != 0x0A, and playing on level A
+	;   0x7048 (fall) A == 0x09, and playing on level A
 	dec a			;7049 --A
 	
 	; A *= 6
@@ -16527,91 +16915,104 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,b			;704d A += B
 
 	ld hl,05311h		;704e HL = 0x5311
-	call 0403bh		;7051 HL += A
-	ex de,hl		;7054
-	ld hl,0e0c1h		;7055
-	ld (hl),002h		;7058
-	inc hl			;705a
-	ld (hl),000h		;705b
-	inc hl			;705d
-	ex de,hl		;705e
-	ex af,af'		;705f
-	ld a,(hl)		;7060
-	ex af,af'		;7061
+	call 0403bh		;7051 HL = 0x5311 + A
+	ex de,hl		;7054 DE = HL
+	ld hl,0e0c1h		;7055 HL = 0xE0C1
+	ld (hl),002h		;7058 *(0xE0C1) = 0x02
+	inc hl			;705a HL = 0xE0C2
+	ld (hl),000h		;705b *(0xE0C2) = 0x00
+	inc hl			;705d HL = 0xE0C3
+	ex de,hl		;705e DE = 0xE0C3, HL = 0x5311 + A
+
+; We can get here from:
+;   0x705E (fall)
+;   0x70A5 (jump)
+705f_fixme:
+	ex af,af'		;705f Store A, restored at 0x7061.
+	ld a,(hl)		;7060 Store A, restored at 0x707B.
+	ex af,af'		;7061 Restore A, stored at 0x705F.
 	ldi			;7062 *(DE++) = *(HL++), --BC
 	ld a,001h		;7064 A = 0x01
-	ld (de),a		;7066
-	inc de			;7067
-	inc de			;7068
+	ld (de),a		;7066 *(0xE0C4) = 0x01
+	inc de			;7067 DE = 0xE0C5
+	inc de			;7068 DE = 0xE0C6
 	ld a,(0e03bh_levelAB)	;7069 A == 0: Level A, A == 1: Level B
-	dec a			;706c
-	ld a,(hl)		;706d
-	jr z,$+3		;706e if (z) jump to 0x7071
-	add a,a			;7070
-	ld (de),a		;7071
-	inc de			;7072
-	inc hl			;7073
+	dec a			;706c A == -1: Level A, A == 0: Level B
+	ld a,(hl)		;706d A = *(HL)
+	jr z,$+3		;706e if (playing at level B) jump to 0x7071
+	add a,a			;7070 A *= 2
+	
+	; We can get here from:
+	;   0x706E (jump) Playing at level B. A == ?
+	;   0x7070 (fall) Playing at level A. A == ?
+	ld (de),a		;7071 *(0xE0C6) = A
+	inc de			;7072 DE = 0xE0C7
+	inc hl			;7073 ++HL
 	ldi			;7074 *(DE++) = *(HL++), --BC
-	ex de,hl		;7076
-	ld bc,00004h		;7077
-	add hl,bc		;707a
-	ex af,af'		;707b
-	ld b,a			;707c
-	ld a,(e043_stage)	;707d
-	cp 003h			;7080
-	ld (hl),080h		;7082
-	jr nz,$+4		;7084 if (nz) jump to 0x7088
+	ex de,hl		;7076 HL = 0xE0C8, DE = ?
+	ld bc,00004h		;7077 BC = 0x0004
+	add hl,bc		;707a HL += 0x0004
+	ex af,af'		;707b Restore A. Stored at 0x7060.
+	ld b,a			;707c B = A
+	ld a,(e043_stage)	;707d A = stage
+	cp 003h			;7080 Compute A - 0x03 and update Z/NZ flag.
+	ld (hl),080h		;7082 *(0xE0C8) = 0x80
+	jr nz,$+4		;7084 if (stage != 0x03) jump to 0x7088
+	; Only for stage 3.
 	ld (hl),06ch		;7086
-	ld a,b			;7088
-	cp 002h			;7089
+
+	ld a,b			;7088 A = B
+	cp 002h			;7089 Compute A - 0x02 and update Z/NZ flag.
 	jr z,$+6		;708b if (z) jump to 0x7091
-	cp 005h			;708d
+	cp 005h			;708d Compute A - 0x05 and update Z/NZ flag.
 	jr nz,$+4		;708f if (nz) jump to 0x7093
-	ld (hl),0e4h		;7091
+	ld (hl),0e4h		;7091 *(HL) = 0xE4
+
 	ex af,af'		;7093
-	inc hl			;7094
-	ld (hl),000h		;7095
-	ld bc,00006h		;7097
-	add hl,bc		;709a
+	inc hl			;7094 ++HL
+	ld (hl),000h		;7095 *(HL) = 0x00
+	ld bc,00006h		;7097 BC = 0x0006
+	add hl,bc		;709a HL += 0x0006
 	ex de,hl		;709b
-	exx			;709c
-	ld hl,0e0c2h		;709d
-	inc (hl)		;70a0
-	ld a,002h		;70a1
-	cp (hl)			;70a3
-	exx			;70a4
-	jr nz,$-70		;70a5 if (nz) jump to 0x705F
+	exx			;709c Exchange BC, DE, HL with shadow registers.
+		ld hl,0e0c2h	;709d HL = 0xE0C2
+		inc (hl)	;70a0
+		ld a,002	;70a1 A = 0x02
+		cp (hl)		;70a3 Compute A - *(0xE0C2) and update Z/NZ flag.
+	exx			;70a4 Exchange BC, DE, HL with shadow registers.
+	jr nz,$-70		;70a5 if (*(0xE0C2) != 0x02) jump to 0x705F
 	ret			;70a7
 
 
 
 ; We can get here from:
-;   0x522A (call)
-70a8_:
+;   0x522A (call) [from=5224_handle_race_substate]
+70a8_fixme:
 	xor a			;70a8 A = 0
 	ld (0e0e4h),a		;70a9 *(0xE0E4) = 0
 
 ; We can get here from:
 ;   0x70A9 (fall) *(0xE0E4) == 0
 ;   0x72a0 (jump)
+70ac_fixme:
 	ld hl,0e0e4h		;70ac HL = 0xE0E4
-	ld a,(hl)		;70af
-	inc hl			;70b0
+	ld a,(hl)		;70af A = *(0xE0E4)
+	inc hl			;70b0 ++HL
+	
+	; HL += *(0xE0E4) * 16
 	add a,a			;70b1
 	add a,a			;70b2
 	add a,a			;70b3
 	add a,a			;70b4
-	
-	; BC = A
 	ld c,a			;70b5
-	ld b,000h		;70b6
-	
+	ld b,000h		;70b6	
 	add hl,bc		;70b8
+
 	ld (0e0bfh),hl		;70b9
 	inc hl			;70bc
 	ld a,(hl)		;70bd
-	and a			;70be
-	jp z,07298h		;70bf
+	and a			;70be Update Z/NZ flag.
+	jp z,07298h		;70bf if (null pointer) jump to 0x7298 (7298_fixme)
 	ld hl,0728ah		;70c2
 	push hl			;70c5
 	call 04045h		;70c6 PC = PC[2 * A]
@@ -16630,15 +17031,16 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x70C6 (jump) jump table, index 0x01
 ;   0x70C6 (jump) jump table, index 0x04
+70d9_unknown_state_01_or_04:
 	call 072b8h		;70d9
 	call 071c6h		;70dc
 	call 053ddh		;70df
-	call 0716dh		;70e2
+	call 0716dh		;70e2 716d_fixme
 	call 072feh		;70e5
-	call 07123h		;70e8
+	call 07123h		;70e8 7123_fixme
 	call 07154h		;70eb
 
-	ld c,006h		;70ee C = 0x06
+	ld c,006h		;70ee C = 0x06 (vpos)
 	call 072f6h		;70f0 72f6_set_A_to_current_rival_car_index_C
 
 	sub 0c0h		;70f3 A -= 0xC0
@@ -16646,34 +17048,48 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,000h		;70f7 A = 0
 	jr c,$+8		;70f9 if (c) jump to 0x7101
 	ld a,(hl)		;70fb
+	
+	; C = A >> 3
 	rra			;70fc
 	rra			;70fd
 	rra			;70fe
 	and 01fh		;70ff
 	ld c,a			;7101
-	ld hl,0e098h		;7102
-	add hl,bc		;7105
-	ld d,(hl)		;7106
+	
+	; D = *(0xE098 + BC)
+	ld hl,0e098h		;7102 HL = 0xE098
+	add hl,bc		;7105 HL = 0xE098 + BC
+	ld d,(hl)		;7106 D = *(0xE098 + BC)
 
 	ld c,009h		;7107 C = 0x09
 	call 072f6h		;7109 72f6_set_A_to_current_rival_car_index_C
 
 	ld a,d			;710c
-	and 003h		;710d
-	ld c,a			;710f
-	jp z,07289h		;7110
-	ld a,(e04fh_speed)	;7113
-	sub (hl)		;7116
+	and 003h		;710d A &= 0x03, and update Z/NZ flag.
+	ld c,a			;710f C = A
+	jp z,07289h		;7110 ?collision detection?
+
+	ld a,(e04fh_speed)	;7113 A = speed
+	sub (hl)		;7116 A -= ?rival car speed?
+	
+	; Make speed difference absolute/positive.
 	jr nc,$+4		;7117 if (nc) jump to 0x711B
 	neg			;7119
-	add a,a			;711b
-	ld e,a			;711c
-	ld d,000h		;711d
+
+	add a,a			;711b A *= 2
+	ld e,a			;711c E = A
+	ld d,000h		;711d D = 0x00
 	ld a,c			;711f
 	jp 07145h		;7120
-	ld hl,(0e078h)		;7123
+
+
+
+; We can get here from:
+;   0x70E8 (call)
+7123_fixme:
+	ld hl,(0e078h)		;7123 HL = distance_travelled (middle and high byte)
 	and a			;7126
-	ld bc,00f09h		;7127
+	ld bc,00f09h		;7127 BC = 0x0F09
 	and a			;712a
 	sbc hl,bc		;712b
 	ret nc			;712d
@@ -16684,12 +17100,16 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 06dc1h		;7133
 	ret nc			;7136
 	ld hl,(0e0bfh)		;7137
-	ld de,0000fh		;713a
-	add hl,de		;713d
+	ld de,0000fh		;713a DE = 0x000F
+	add hl,de		;713d HL = *(0xE0BF) + 0x000F, pointer to last byte of rival car struct.
 	ld (hl),000h		;713e
-	ld e,0f0h		;7140
-	ld d,002h		;7142
-	ld a,b			;7144
+	ld e,0f0h		;7140 E = 0xF0
+	ld d,002h		;7142 D = 0x02
+	ld a,b			;7144 A = B
+
+; We can get here from:
+;   0x7120 (jump) D == 0x00, E == 2 * abs(own speed - rival car speed)
+;   0x7144 (fall) D == 0x02, E == 0xF0
 	dec a			;7145
 	jr nz,$+9		;7146 if (nz) jump to 0x714F
 	ld a,d			;7148
@@ -16726,13 +17146,16 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; We can get here from:
+;   0x70E2 (call)
+716d_fixme:
 	ld hl,(0e0bfh)		;716d
 	ld a,(hl)		;7170
-	cp 003h			;7171
+	cp 003h			;7171 0x03 == purple car
 	ret nz			;7173
 	ld bc,00006h		;7174
 	add hl,bc		;7177
-	ld a,(0e04ch)		;7178
+	ld a,(0e04ch_car_vpos)	;7178
 	sub 040h		;717b A -= 0x40
 	cp (hl)			;717d Compute A - *(HL) and update C/NC flag.
 	ret c			;717e
@@ -16757,12 +17180,16 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;7197
 	ld (hl),020h		;7198
 	ld a,005h		;719a A = 0x05
+				;fall to 719c_set_current_rival_car_offset_00_something_to_regA
+
 
 ; We can get here from:
 ;   0x719A (fall) A == 0x05
-;   0x71C4 (jump)
-;   0x7207 (jump)
-;   0x72A7 (call)
+;   0x71C4 (jump) A == 0x01
+;   0x7207 (jump) A == 0x07
+;   0x72A7 (call) A == 0x00
+719c_set_current_rival_car_offset_00_something_to_regA:
+	; *(*(0xE0BF) + 1) = A
 	ld hl,(0e0bfh)		;719c
 	inc hl			;719f
 	ld (hl),a		;71a0
@@ -16794,7 +17221,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x71AA (jump)
 ;   0x71B2 (jump)
 	ld a,001h		;71c2 A = 1
-	jr $-40			;71c4 jump to 0x719C
+	jr $-40			;71c4 jump to 0x719C (719c_set_current_rival_car_offset_00_something_to_regA)
 
 
 
@@ -16846,7 +17273,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;7202
 	ld (hl),018h		;7203
 	ld a,007h		;7205
-	jr $-107		;7207 jump to 0x719C
+	jr $-107		;7207 jump to 0x719C (719c_set_current_rival_car_offset_00_something_to_regA)
 
 
 
@@ -16947,59 +17374,81 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	sub 0c3h		;7292 A -= 0xC3
 	cp 00ch			;7294 Compute A - 0x0C and update C/NC flag.
-	jr c,$+14		;7296 if (0xC3 <= A_pre7292 <= 0xCE) jump to 0x72A4
-	
+	jr c,$+14		;7296 if (0xC3 <= A_pre7292 <= 0xCE) jump to 0x72A4 (72a4_fixme)
+
+; We can get here from:
+;   0x70BF (jump)
+;   0x7296 (fall)
+;   0x72AD (jump)
+7298_fixme:
 	ld hl,0e0e4h		;7298 HL = 0xE0E4
 	inc (hl)		;729b
 	ld a,(hl)		;729c
-	dec hl			;729d
+	dec hl			;729d HL = 0xE0E3
 	cp 002h			;729e
-	jp nz,070ach		;72a0 if (A != 2) jump to 0x70AC
+	jp nz,070ach		;72a0 if (A != 2) jump to 0x70AC (70ac_fixme)
 	ret			;72a3
 
 
 ; We can get here from:
-;   0x7296 (jump)
-	ld (hl),0dfh		;72a4
-	xor a			;72a6
-	call 0719ch		;72a7
+;   0x7296 (jump) HL == ?
+72a4_fixme:
+	ld (hl),0dfh		;72a4 *(HL) = 0xDF
+	xor a			;72a6 A = 0
+	call 0719ch		;72a7 719c_set_current_rival_car_offset_00_something_to_regA
 	call 07229h		;72aa
 	jr $-21			;72ad jump to 0x7298
-	ld a,h			;72af
-	nop			;72b0
-	nop			;72b1
-	add a,h			;72b2
-	adc a,h			;72b3
-	adc a,h			;72b4
-	ld d,b			;72b5
-	ld d,b			;72b6
-	ld h,b			;72b7
+
+
+
+; Data, see 0x7276.
+	defb 0x7C		;72af #00
+	defb 0x00		;72b0 #01
+	defb 0x00		;72b1 #02
+	defb 0x84		;72b2 #03
+	defb 0x8C		;72b3 #04
+	defb 0x8C		;72b4 #05
+	defb 0x50		;72b5 #06
+	defb 0x50		;72b6 #07
+	defb 0x60		;72b7 #08
+
+
+
+; We can get here from:
+;   0x70D9 (call) [from=70d9_unknown_state_01_or_04]
+72b8_fixme:
+	; if (demo) return
 	ld a,(0e002h)		;72b8
 	bit 6,a			;72bb
 	ret z			;72bd
+	
+	; if (car_state == CRASHED) return
 	ld a,(e049_car_state)	;72be
 	dec a			;72c1
 	ret z			;72c2
+	
+	if (car_state == REACHED_CHECKPOINT) return
 	dec a			;72c3
 	dec a			;72c4
 	ret z			;72c5
+
 	ld hl,(0e0bfh)		;72c6
 	ld a,(hl)		;72c9
 	dec a			;72ca
 	ret nz			;72cb
 	ld a,006h		;72cc
-	call 0403bh		;72ce HL += A
-	ld a,(0e04ch)		;72d1
-	sub 034h		;72d4
+	call 0403bh		;72ce HL += 6, ?&vpos?
+	ld a,(0e04ch_car_vpos)	;72d1
+	sub 034h		;72d4 A -= 0x34
 	sub (hl)		;72d6
-	sub 008h		;72d7
+	sub 008h		;72d7 A -= 0x08
 	add a,008h		;72d9
 	ret nc			;72db
 	ld a,(e04fh_speed)	;72dc
 	cp 090h			;72df
 	ret c			;72e1
 	ld a,009h		;72e2
-	jp 04b6eh		;72e4 4b6e_sound_something
+	jp 04b6eh		;72e4 4b6e_sound_something_with_D_is_0
 
 
 
@@ -17049,7 +17498,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ret			;72fd
 
 
-
+; We can get here from:
+;   0x70E5 (call)
+72fe_fixme:
+	; Return if current rival car is not in screen.
 	ld hl,(0e0bfh)		;72fe
 	inc hl			;7301
 	ld a,(hl)		;7302
@@ -17059,76 +17511,101 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld c,009h		;7305 C = 0x09
 	call 072f6h		;7307 72f6_set_A_to_current_rival_car_index_C
 
-	cp 0d7h			;730a
+	cp 0d7h			;730a Compute A - 0xD7 and update C/NC flag.
 	ret c			;730c
 	dec hl			;730d
 	dec hl			;730e
 	dec hl			;730f
-	ld a,(0e0e4h)		;7310
-	ld de,0e0ebh		;7313
+	ld a,(0e0e4h)		;7310 A = index_of_current_rival_car
+	ld de,0e0ebh		;7313 DE = 0xE0EB (address of vpos of rival car #00)
 	or a			;7316
 	jr nz,$+4		;7317 if (nz) jump to 0x731B
-	ld e,0fbh		;7319
-	ld a,(de)		;731b
+	ld e,0fbh		;7319 DE = 0xE0FB (address of vpos of rival car #01)
+	
+	; We can get here from:
+	;   0x7317 (jump) DE == 0xE0EB (address of vpos of rival car #00)
+	;   0x7319 (fall) DE == 0xE0FB (address of vpos of rival car #01)
+	ld a,(de)		;731b A = vpos of current rival car
 	sub (hl)		;731c
-	sub 010h		;731d
-	add a,020h		;731f
+	sub 010h		;731d A -= 0x10
+	add a,020h		;731f A += 0x20
 	ret nc			;7321
 	inc hl			;7322
 	inc hl			;7323
 	inc de			;7324
 	inc de			;7325
 	ld a,(de)		;7326
-	sub (hl)		;7327
-	sub 00ah		;7328
-	add a,014h		;732a
+	sub (hl)		;7327 A -= *(HL)
+	sub 00ah		;7328 A -= 0x0A
+	add a,014h		;732a A += 0x13
 	ret nc			;732c
 	ld a,(de)		;732d
-	sub (hl)		;732e
-	ld a,001h		;732f
+	sub (hl)		;732e A -= *(HL) and update C/NC flag.
+	ld a,001h		;732f A = 0x01
 	jr c,$+3		;7331 if (c) jump to 0x7334
-	xor a			;7333
+	xor a			;7333 A = 0x00
+	
+	; We can get here from:
+	;   0x7331 (jump) A == 0x01 Clockwise, must steer left to stop skidding.
+	;   0x7333 (fall) A == 0x00 Counter clockwise, must steer right to stop skidding.
 	ex de,hl		;7334
-	ld bc,0fff9h		;7335
-	add hl,bc		;7338
-	call 07352h		;7339
+	ld bc,0fff9h		;7335 BC = 0xFFF9
+	add hl,bc		;7338 HL -= 7
+	call 07352h		;7339 7352_update_bounce_something
 	ret z			;733c
 	dec a			;733d
 	ld hl,(0e0bfh)		;733e
 	inc hl			;7341
 	ld (hl),002h		;7342
-	xor 001h		;7344
-	push af			;7346
+	xor 001h		;7344 A ^= 0x01, flip bit 0
 
+	push af			;7346 ?why?
 	ld c,00eh		;7347 C = 0x0E
 	call 072f6h		;7349 72f6_set_A_to_current_rival_car_index_C
+	pop af			;734c ?why?
 
-	pop af			;734c
 	ld (hl),a		;734d
 	inc hl			;734e
 	ld (hl),010h		;734f
 	ret			;7351
-	ld b,a			;7352
-	dec hl			;7353
 
-	ld a,(hl)		;7354
+
+
+; ?Bounce of 2 moving object (not necessarily involving the player car)?
+; 
+; Input:
+;   A:
+;     0x00: Start skidding to ?left/right?
+;     0x01: Start skidding to ?right/left?
+;   HL: moving_object+1
+;     0xE0E6 Moving object #00, offset #01 (NOT offset #00)
+;     0xE0F6 Moving object #01, offset #01 (NOT offset #00)
+; 
+; We can get here from:
+;   0x6ECC (call) A == *(0xE054) ^ 0x01 (flipped skid turning direction), HL == *(0xE0BF) + 1
+;   0x7339 (call) A == 0x00 or 0x01
+7352_update_bounce_something:
+	ld b,a			;7352 B = A, store input, restore at 0x735E.
+	dec hl			;7353 HL = moving_object + 0x00
+
+	ld a,(hl)		;7354 Load moving object type.
 	sub 006h		;7355 A -= 0x06
 	cp 002h			;7357 Compute A - 0x02 and update C/NC flag.
-	inc hl			;7359
-	ret c			;735a
+	inc hl			;7359 HL = moving_object + 0x01
+	ret c			;735a if (moving_object[0] in [6, 7]) return
 
-	ld a,(hl)		;735b
-	or a			;735c
-	ret z			;735d
+	ld a,(hl)		;735b A = (bool) moving_object_is_visible
+	or a			;735c Update Z/NZ flag.
+	ret z			;735d if (moving object is not visible) return
 
-	ld a,b			;735e
-	ld (hl),002h		;735f Store 0x02
+	ld a,b			;735e B = A, restore input stored at 0x7352: skidding direction.
+	ld (hl),002h		;735f Store 0x02. ?Bounce flag?
 	ld bc,0000dh		;7361 BC = 0x000D
-	add hl,bc		;7364 HL += 0x0D
-	ld (hl),a		;7365
-	inc hl			;7366
-	ld (hl),00ch		;7367
-	inc a			;7369
+	add hl,bc		;7364 HL += 0x0D, so HL == moving_object + 0x0E
+	ld (hl),a		;7365 ?Moving object is moving sideways, because of bounce or because of being purple?
+	inc hl			;7366 HL = moving_object + 0x0F
+	ld (hl),00ch		;7367 moving_object[0x0F] = 0x0C
+	inc a			;7369 ++A
 	ret			;736a
 
 
@@ -17446,7 +17923,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	or a			;743d
 	ret nz			;743e return if already emitting a sound/tune/bleep.
 	ld a,002h		;743f 0x02 means "sound of low fuel warning"
-	jp 04b6eh		;7441 4b6e_sound_something
+	jp 04b6eh		;7441 4b6e_sound_something_with_D_is_0
 
 
 
@@ -17477,7 +17954,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,0382bh		;745e Destination: 0x382B. Part of VRAM pattern name table: Upper left corner of overview map of all stages.
 	ld de,076ech		;7461 Source: 0x76EC.
 	ld bc,01505h		;7464 B == 0x15 (21 rows), C == 0x05 (5 columns)
-	call 04575h		;7467 45a7_copy2vram
+	call 04575h		;7467 4575_copy2nametable_multiple_partial_rows(source_RAM=DE,destination_VRAM=HL, col_count=C, row_count=B)
 	
 	; Update/reinit car substate by copying static data.
 	ld hl,07475h		;746a HL = 0x7475
@@ -17509,7 +17986,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,074b6h		;7484
 	call 04040h		;7487 DE += A
 	ld a,(de)		;748a
-	ld hl,0e04ch		;748b
+	ld hl,0e04ch_car_vpos	;748b
 	dec (hl)		;748e
 	cp (hl)			;748f
 	ret nz			;7490
@@ -17527,7 +18004,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,074b6h		;74a8
 	call 04040h		;74ab DE += A
 	ld a,(de)		;74ae
-	ld (0e04ch),a		;74af
+	ld (0e04ch_car_vpos),a	;74af
 	ret			;74b2
 	
 	; We can get here from:
@@ -18627,24 +19104,26 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x5230 (call)
+7755_handle_grabbed_fuel_heart_state:
 	ld a,(0e0b8h)		;7755 A = *(0xE0B8)
 	dec a			;7758 --A
-	jr z,$+6		;7759 if (A == 0) jump to 775f_grabbed_fuel_heart
+	jr z,$+6		;7759 if (*(0xE0B8) == 1) jump to 0x775F (775f_grabbed_fuel_heart)
 	dec a			;775b --A
-	jr z,$+58		;775c if (A == 0) jump to 0x7796
+	jr z,$+58		;775c if (*(0xE0B8) == 2) jump to 0x7796 (7796_set_sprite_attributes_for_bonus_score_and_decrement_the_show_timer)
 	ret			;775e
 
 
+
 ; We can get here from:
-;   0x7759 (jump)
+;   0x7759 (jump) [from=7755_handle_grabbed_fuel_heart_state]
 775f_grabbed_fuel_heart:
 	ld hl,E083_fuel		;775f
 	ld a,(hl)		;7762 A = fuel
 	add a,020h		;7763 A = fuel + 0x20
 	ld b,0d7h		;7765 B = max fuel possible
-	cp b			;7767 Compute a - 0xD7 and set flags
+	cp b			;7767 Compute A - 0xD7 and update C/NC flag.
 	jr c,$+3		;7768 if (fuel < max fuel) jump to 0x776B
-	ld a,b			;776a A = 0xD7, cap fuel to maximum
+	ld a,b			;776a A = 0xD7, cap fuel to maximum of 0xD7.
 	
 	; We can get here:
 	;   0x7768 (jump) Fuel below 0xD7
@@ -18673,8 +19152,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld e,000h		;7787 E = 0
 	call 0447fh		;7789 447f_update_score_and_hiscore
 	
-	ld a,003h		;778c A = 3
-	jp 04b6eh		;778e 4b6e_sound_something
+	ld a,003h		;778c A = 3, sound ID of grabbing a bonus fuel heart.
+	jp 04b6eh		;778e 4b6e_sound_something_with_D_is_0
 
 
 
@@ -18686,42 +19165,68 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x03		;7792 1 consecutive fuel hearts:  300 points
 	defb 0x05		;7793 2 consecutive fuel hearts:  500 points
 	defb 0x08		;7794 3 consecutive fuel hearts:  800 points
-	defb 0x10		;7795 4 consecutive fuel hearts: 1000 points
+	defb 0x10		;7795 4+ consecutive fuel hearts: 1000 points
 
 
 	
 ; We can get here from:
-;   0x775C (jump)
-	ld hl,0e0bah		;7796
+;   0x775C (jump) [from=7755_handle_grabbed_fuel_heart_state]
+7796_set_sprite_attributes_for_bonus_score_and_decrement_the_show_timer:
+	ld hl,0e0bah		;7796 HL = 0xE0BA
 	dec (hl)		;7799
-	jr z,$+36		;779a if () jump to 0x77BE
-	ld de,0e13ah		;779c
-	ld hl,0e112h		;779f
-	ld a,(hl)		;77a2
-	sub 010h		;77a3
+	jr z,$+36		;779a if (z) jump to 0x77BE (77be_stop_showing_bonus_score)
+
+	ld de,0e13ah		;779c DE = 0xE13A (start of sprite 0x0B: bonus points for grabbed bonus fuel heart)
+	ld hl,0e112h		;779f HL = 0xE112 (start of sprite 0x02: shadow of player car)
+	
+	; Set bonus score sprite vpos.
+	ld a,(hl)		;77a2 A = vpos
+	sub 010h		;77a3 A = vpos - 0x10
 	ld (de),a		;77a5
-	inc de			;77a6
-	inc hl			;77a7
-	ldi			;77a8
-	ld a,(0e0b9h)		;77aa
-	dec a			;77ad
-	cp 004h			;77ae
-	jr c,$+4		;77b0 if (c) jump to 0x77B4
-	ld a,003h		;77b2
-	add a,a			;77b4
-	add a,a			;77b5
-	add a,094h		;77b6
-	ld (de),a			;77b8
+	
+	; Set bonus score sprite hpos.
+	inc de			;77a6 Point to hpos.
+	inc hl			;77a7 Point to hpos.
+	ldi			;77a8 *(DE++) = *(HL++), --BC (copy hpos)
+
+	; Set bonus score sprite pattern.
+	;
+	;   pattern = 0x94 + 4 * (bonus_fuel_heart_streak_count - 1)
+	; 
+	;   Sprite pattern 0x94: "300"
+	;   Sprite pattern 0x98: "500"
+	;   Sprite pattern 0x9C: "800"
+	;   Sprite pattern 0xA0: "1000"
+	ld a,(0e0b9h)		;77aa A = bonus_fuel_heart_streak_count
+	dec a			;77ad --A, make it 0-based
+	cp 004h			;77ae Compute A - 0x04 and update C/NC flag.
+	jr c,$+4		;77b0 if (bonus_fuel_heart_streak_count <= 4) jump to 0x77B4
+	ld a,003h		;77b2 A = 0x03, there is no higher bonus than "1000".
+	add a,a			;77b4 A *= 2
+	add a,a			;77b5 A *= 2
+	add a,094h		;77b6 A += 0x94
+	ld (de),a		;77b8
+	
+	; Set bonus score sprite color
 	inc de			;77b9
-	ld a,006h		;77ba
-	ld (de),a			;77bc
+	ld a,006h		;77ba Transparent for zeroes and dark red for ones.
+	ld (de),a		;77bc
+
 	ret			;77bd
 
-	dec hl			;77be
-	dec hl			;77bf
+
+
+; We can get here from:
+;   0x779A (jump) [from=7796_set_sprite_attributes_for_bonus_score_and_decrement_the_show_timer] HL == 0xE0BA
+77be_stop_showing_bonus_score:
+	dec hl			;77be HL = 0xE0B9
+	dec hl			;77bf HL = 0xE0B8
 	ld (hl),000h		;77c0
+	
+	; Hide bonus score sprite.
 	ld hl,0e13ah		;77c2
-	ld (hl),0e0h		;77c5
+	ld (hl),0e0h		;77c5 Set vpos to 0xE0.
+
 	ret			;77c7
 
 
