@@ -452,6 +452,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			Stage 6: 0x7EA8 (see 0x517F)
 0xE07B		Bitmask 0x07: offset for table at 0x5808 (vertical pattern of left side of straight track)
 0xE07D		Side of left road?
+0xE07E		0xE078_of_previous_frame&1. Distance travelled, middle byte. Seen at 0x550D.
 0xE07F		Seen at 0x514A, 0x58AF
 0xE081		Bytes of track to copy to VRAM buffer. Max 9 (3 lanes).
 		See 0x58A5, value from array at 0x58AB.
@@ -476,6 +477,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			0x20 ?
 0xE089		Default coarse pattern name, see 0x592A.
 			Stage 04: pattern 0x06 (completely dark red)
+0xE08A-0xE095	Seen at 0x510D.
 0xE08D		Number of rows of 0xE08E
 0xE08E (word)	Pointer to some coarse data, probably scenery on the left. See 0x5639.
 0xE090 (word)	Seen at 0x56CE
