@@ -6818,13 +6818,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x5523 (jump) stage == 1
 ;   0x56C9 (jump) stage == 6
-	call 058afh		;5534
+	call 058afh		;5534 58af_fixme
 
 ; We can get here from:
 ;   0x5534 (fall) [stage 1+6]
 ;   0x5560 (jump) [stage 2]
 ;   0x55FD (jump) [stage 4]
-5537_:
+5537_fixme:
 	call 056f7h		;5537 56f7_fixme
 
 ; We can get here from:
@@ -6832,17 +6832,17 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x55D9 (jump) [stage 3]
 ;   0x55E1 (jump) [stage 3]
 ;   0x5699 (jump) [stage 5]
-553a_:
+553a_fixme:
 	call 05944h		;553a 5944_if_finish_in_sight_then_write_checkpoint_or_goal_to_RAM_buffer
 	call 054afh		;553d 54af_oil_something
-	call 05716h		;5540
+	call 05716h		;5540 5716_fixme
 	pop hl			;5543 ?Don't return to caller?
 	ret			;5544
 
 
 
 ; Stage 2
-	call 058afh		;5545
+	call 058afh		;5545 58af_fixme
 	ld hl,(0e08ah)		;5548
 	ld a,(hl)		;554b
 	inc a			;554c
@@ -7172,7 +7172,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x56FC (jump) *(0xE07A) != 0xFE (call to 0x50BF is SKIPPED)
 	;   0x56FE (fall) *(0xE07A) == 0xFE (call to 0x50BF is DONE)
-	call 0590eh		;5701
+	call 0590eh		;5701 590e_fixme
 
 	ld a,(0e07ah)		;5704 A = *(0xE07A)
 	and 00fh		;5707 A &= 0x0F (extract low nybble)
@@ -7189,7 +7189,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x5540 (call)
-5716_:
+5716_fixme:
 	ld hl,(0e046h)		;5716 HL = *(0xE046)
 	ld bc,0ffeah		;5719 BC = -0x16
 	add hl,bc		;571c HL -= 0x16 (22)
@@ -7201,7 +7201,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; Reset *0xE046 to value 0xE380: the last row of coarse pattern 
 	; name table.
-   	ld hl,0e380h		;5728 HL = 0xE380
+	ld hl,0e380h		;5728 HL = 0xE380
 	ld (0e046h),hl		;572b
 	
 	; Copy 1 line of new coarse to current coarse.
@@ -7287,6 +7287,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,e			;5782
 	ld e,a			;5783
 	
+
+
+; We can get here from:
+;   0x584B (call)
+5784_copy_track_something:
 	; Copy left border of track.
 	ldi			;5784 *(DE++) = *(HL++), --BC
 	
@@ -7471,7 +7476,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,e			;5847
 	ld e,a			;5848
 	ldi			;5849
-	call 05784h		;584b
+	call 05784h		;584b 5784_copy_track_something
 	ld (0e06fh),hl		;584e
 	ret			;5851
 	
@@ -7548,6 +7553,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x5534 (call) Stage 1
+;   0x5545 (call) Stage 2
+58af_fixme:
 	ld hl,0e07fh		;58af HL = 0xE07F
 	dec (hl)		;58b2
 	jr z,$+12		;58b3 if (z) jump to 0x58BF
@@ -7613,7 +7620,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x5701 (call)
-590e_:
+590e_fixme:
 	ld hl,0e0aeh		;590e LDDR: source
 	ld de,0e0afh		;5911 LDDR: destination
 	ld bc,00017h		;5914 LDDR: count
@@ -15688,17 +15695,20 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;6a7b HL = 0xE049 (== &car_state)
 	ld a,(hl)		;6a7c A = car_state
 	call 04045h		;6a7d PC = PC[2 * A]
-	defw 0x6A90		;6a80 car state #00 (all okay)
-	defw 0x6ABB		;6a82 car state #01 (crashed)
-	defw 0x6B05		;6a84 car state #02 (low on fuel)
-	defw 0x6B5E		;6a86 car state #03 (out of fuel)
-	defw 0x6B90		;6a88 car state #04 (skidding, recoverable)
-	defw 0x6C05		;6a8a car state #05 (bounce against side of the road, no crash)
-	defw 0x6C31		;6a8c car state #06 (respawn? game over?)
-	defw 0x6C4A		;6a8e car state #07 (spinning out of control)
+	defw 0x6A90		;6a80 #00: 6a90_car_state_00__all_okay
+	defw 0x6ABB		;6a82 #01: 6abb_car_state_01__crashed
+	defw 0x6B05		;6a84 #02: 6b05_car_state_02__out_of_fuel
+	defw 0x6B5E		;6a86 #03: 6b5e_car_state_03__reached_checkpoint
+	defw 0x6B90		;6a88 #04: 6b90_car_state_04__skidding, recoverable by steering
+	defw 0x6C05		;6a8a #05: 6c05_car_state_05__bounce_against_side_of_road
+	defw 0x6C31		;6a8c #06: 6c31_car_state_06__respawn
+	defw 0x6C3A		;6a8e #07: 6c3a_car_state_07__spinning, recoverable by lowering speed
 
 
 
+; We can get here from:
+;   0x6A7D (jump table entry #00) [from=6a70_fixme]
+;   0x6B0C (call)                 [from=6b05_car_state_02__out_of_fuel]
 6a90_car_state_00__all_okay:
 	call 06cd1h		;6a90 6cd1_side_bounce_checker_and_actioner
 	ld a,(0e055h)		;6a93
@@ -15717,21 +15727,30 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	or a			;6aae
 	ld a,001h		;6aaf
 	call z,04b6eh		;6ab1 4b6e_sound_something_with_D_is_0
+
+; We can get here from:
+;   0x6AB1 (fall)
+;   0x6B6A (call)
+6ab4_fixme:
 	xor a			;6ab4 A = 0
 
-	; We can get here from:
-	;   0x6AB4 (fall)
-	;   0x6AD4 (jump) A == 0x09, From car state #01 (crashed)
-	;   0x6ADD (jump) A == 0x08, From car state #01 (crashed)
-	;   0x6BDF (jump) A == 0x00, From car state #04 (skidding, just recovered)
-	;   0x6C5A (call) A == ????, From car state #07 (spinning out of control)
+; We can get here from:
+;   0x6AB4 (fall) A == 0x00, from car state #00 (all okay), or #02 (out of fuel)
+;   0x6AD4 (jump) A == 0x09, from car state #01 (crashed)
+;   0x6ADD (jump) A == 0x08, from car state #01 (crashed)
+;   0x6BDF (jump) A == 0x00, from car state #04 (skidding, just recovered)
+;   0x6C5A (call) A == ????, from car state #07 (spinning)
+6ab5_set_car_orientation_to_regA:
 	ld (0e053h),a		;6ab5
 	jp 06e1dh		;6ab8 6e1d_store_car_sprite_attributes
 
 
 
-; Crashed??
-6abb_car_state_01:
+; Player car has crashed.
+; 
+; We can get here from:
+;   0x6A7D (jump table entry #01) [from=6a70_fixme]
+6abb_car_state_01__crashed:
 	pop hl			;6abb ?Remove return address? ?Return to grand parent?
 	ld a,(0e003h)		;6abc A = *(0xE003)
 	and 007h		;6abf A &= 0x07
@@ -15749,7 +15768,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	cp (hl)			;6ad0
 	ret nz			;6ad1
 	ld a,009h		;6ad2 A = 0x09
-	jr $-31			;6ad4 jump to 0x6AB5
+	jr $-31			;6ad4 jump to 0x6AB5 (6ab5_set_car_orientation_to_regA)
 
 	; We can get here from:
 	;   0x6ACD (jump)
@@ -15757,7 +15776,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,04fh		;6ad7
 	call 04b6eh		;6ad9 4b6e_sound_something_with_D_is_0
 	pop af			;6adc Restore A (0x08)
-	jr $-40			;6add jump to 0x6AB5
+	jr $-40			;6add jump to 0x6AB5 (6ab5_set_car_orientation_to_regA)
 
 	; We can get here from:
 	;   0x6AC6 (jump)
@@ -15776,7 +15795,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x6ADF (call) [from=6abb_car_state_01]
+;   0x6ADF (call) [from=6abb_car_state_01__crashed]
 6af4_subtract_0x20_fuel_and_draw_speed_and_fuel_gauge:
 	ld hl,E083_fuel		;6af4
 	ld a,(hl)		;6af7 A = fuel
@@ -15795,20 +15814,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Low fuel?
-6b05_car_state_02:
+; We can get here from:
+;   0x6A7D (jump table entry #02) [from=6a70_fixme]
+6b05_car_state_02__out_of_fuel:
 	ld a,(E083_fuel)	;6b05
 	or a			;6b08
-	jp nz,06c2ch		;6b09 if (fuel) jump to 0x6C2C)
+	jp nz,06c2ch		;6b09 if (fuel) jump to 0x6C2C (6c2c_set_car_state_to_0)
 	; Post: no fuel left
 
-
-
-; Two purposes:
-;   1. Reached checkpoint (see 0x6C5A)
-;   2. Out of fuel (see 0x0B09)
-6b0c_car_state_03:
-	call 06a90h		;6b0c
+	call 06a90h		;6b0c 6a90_car_state_00__all_okay
 	ld hl,e04fh_speed	;6b0f 
 	ld a,(hl)		;6b12 A = speed
 	
@@ -15817,13 +15831,17 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	cp 0f0h			;6b14
 	
 	jr nc,$+6		;6b16 if (speed >= 0xF0) jump to 0x6b1C
-6b18_out_of_fuel_but_still_some_speed:
+	
+	; Still some speed.
 	ld (hl),a		;6b18 Save speed
-	jp 06c73h		;6b19
+	jp 06c73h		;6b19 6c73_fixme
 
 
 
 ; GAME OVER
+; 
+; We can get here from:
+;   0x6AF0 (jump) [from=6abb_car_state_01__crashed]
 6b1c_out_of_fuel_and_no_more_speed:
 	ld a,(E028_soundID_B)	;6b1c A = current sound/tune/bleep
 	or a			;6b1f
@@ -15883,8 +15901,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Reached check point?
-6b5e_car_state_03:
+; We can get here from:
+;   0x6A7D (jump table entry #03) [from=6a70_fixme]
+6b5e_car_state_03__reached_checkpoint:
 	pop hl			;6b5e Removes caller PC from stack, routine will return to grandparent.
 	call 044d9h		;6b5f 44d9_fixme
 	ld a,080h		;6b62 A = 0x80
@@ -15929,8 +15948,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Skidding, recoverable. Ticks left is at 0xE0B1.
-6b90_car_state_04:
+; Skidding, recoverable by steering. Ticks left is at 0xE0B1.
+; 
+; We can get here from:
+;   0x6A7D (jump table entry #04) [from=6a70_fixme]
+6b90_car_state_04__skidding:
 	ld hl,0e0b1h		;6b90
 	dec (hl)		;6b93 Decrement skid ticks left.
 	jr nz,$+28		;6b94 if (nz) jump to 0x6BB0
@@ -15958,8 +15980,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ret			;6baf
 
 	; We can get here from:
-	;   0x6B94 (skidding, recoverable, timer hasn't ran out yet)
-	call 06be2h		;6bb0
+	;   0x6B94 (skidding, not yet spinning, timer hasn't ran out yet)
+	call 06be2h		;6bb0 6be2_car_is_skidding_or_spinning
 	call 06cd1h		;6bb3 6cd1_side_bounce_checker_and_actioner
 	call 06e1dh		;6bb6 6e1d_store_car_sprite_attributes
 	ld a,(0e002h)		;6bb9
@@ -15997,71 +16019,100 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00:
 	xor a			;6bdb Car state #00: All okay, nothing special.
 	ld (e049_car_state),a	;6bdc Save car state.
-	jp 06ab5h		;6bdf Jump to end of car state #00 (which indirectly returns).
+	jp 06ab5h		;6bdf 6ab5_set_car_orientation_to_regA(sprite_pattern_id=0x00)
 
 
 
 ; We can get here from:
 ;   0x6BB0 (call) Car state == 0x04 (skidding)
-;   0x6C3A (call) Car state == 0x07 (spinning)
+;   0x6C3A (call) [from=6c3a_car_state_07__spinning]
 6be2_car_is_skidding_or_spinning:
 	ld a,007h		;6be2 A = 0x07
-	ld (0e053h),a		;6be4
-	ld a,(0e051h)		;6be7
+	ld (0e053h),a		;6be4 Set car orientation to NW.
+	
+	; DE = alt_car_speed - 0x0C, the horizontal movement.
+	ld a,(0e051h)		;6be7 A = ?alt car speed?
 	sub 00ch		;6bea A -= 0x0C
 	ld e,a			;6bec E = A
 	ld d,000h		;6bed D = 0x00
+
 	ld a,(0e054h)		;6bef
-	and a			;6bf2
-	jr z,$+12		;6bf3 if (z) jump to 0x6BFF
+	and a			;6bf2 Update Z/NZ flag.
+	jr z,$+12		;6bf3 if (skidding/spinning towards right boundary) jump to 0x6BFF
 	ld a,001h		;6bf5 A = 0x01
-	ld (0e053h),a		;6bf7
-	dec d			;6bfa --D
+	ld (0e053h),a		;6bf7 Set car orientation to NE.
+	
+	; DE = 0x0000 - A, i.e. D == 0xFF, E == -A.
+	dec d			;6bfa --D, so D == 0xFF
 	ld a,e			;6bfb A = E
 	cpl			;6bfc A = ~A
 	ld e,a			;6bfd E = A
 	inc de			;6bfe ++DE
-	ld hl,(0e04dh)		;6bff
-	jp 06e18h		;6c02 6e18_compute_and_store_new_horizontal_position
+	
+	; We can get here from:
+	;   0x6BF3 (jump) Skidding/spinning towards right boundary, DE is positive
+	;   0x6BFD (fall) Skidding/spinning towards left  boundary, DE is negative
+	ld hl,(e04d_hpos_dec)	;6bff HL = &car.hpos.decimals
+	jp 06e18h		;6c02 6e18_compute_and_store_new_horizontal_position(HL=car.hpos.decimals, DE=horizontal_movement_this_frame)
 
 
 
 ; Bounce against the side of the road. Low speed, so bounce instead of 
 ; crash.
-6c05_car_state_05:
+; 
+; We can gete here from:
+;   0x6A7D (jump table entry #05) [from=6a70_fixme]
+6c05_car_state_05__bounce_against_side_of_road:
 	ld hl,0e004h		;6c05
 	dec (hl)		;6c08
-	jr z,$+27		;6c09 if (timer == 0) jump to 0x6c24
-	ld hl,0e051h		;6c0b
-	ld a,(hl)		;6c0e
+	jr z,$+27		;6c09 if (timer == 0) jump to 0x6c24 (6c24_set_car_state_2_if_out_of_fuel_else_car_state_0)
+
+	ld hl,0e051h		;6c0b HL = 0xE051
+	ld a,(hl)		;6c0e A = ?alt car speed?
 	and a			;6c0f
-	jr z,$+3		;6c10 if (z) jump to 0x6C13
-	dec (hl)		;6c12
-	ld a,(hl)		;6c13
-	ld hl,(0e04dh)		;6c14
-	srl a			;6c17
+	jr z,$+3		;6c10 if (?alt car speed? == 0) jump to 0x6C13
+	dec (hl)		;6c12 Decrease ?alt car speed?
+
+	ld a,(hl)		;6c13 A = ?updated alt car speed?
+	ld hl,(0e04dh)		;6c14 HL = &car_hpos.decimals
+	srl a			;6c17 A /= 2
 	ld e,a			;6c19
-	ld a,(0e055h)		;6c1a
-	rra			;6c1d
-	call 06e0bh		;6c1e
+	ld a,(0e055h)		;6c1a A = *(0xE055)
+	rra			;6c1d Update C/NC flag, for call to 0x6E0B.
+	call 06e0bh		;6c1e 6e0b_compute_horizontal_displacement_and_update_horizontal_position
+	
 	jp 06e1dh		;6c21 6e1d_store_car_sprite_attributes
-6c24:
+
+
+
+6c24_set_car_state_2_if_out_of_fuel_else_car_state_0:
 	ld a,(E083_fuel)	;6c24
 	and a			;6c27
 	ld a,002h		;6c28 A = 2 (car state for out of fuel)
-	jr z,$+3		;6c2a if (fuel is empty) jump to 0x6c2d
-	xor a			;6c2c A = 0 (car state for all ok)
-6c2d:
+	jr z,$+3		;6c2a if (fuel is empty) jump to 0x6c2d (6c2d_set_car_state_to_regA)
+	; Fall to 6c2c_set_car_state_to_0.
+
+; We can get here from:
+;   0x6C2A (fall) Fuel is not empty.
+;   0x6B09 (jump) Fuel is not empty.
+6c2c_set_car_state_to_0:
+	xor a			;6c2c A = 0 (car state for all okay)
+	; Fall to 6c2d_set_car_state_to_regA
+
+; We can get here from:
+;   0x6C2A (jump) A == 2 (car state for out of fuel)
+;   0x6C2C (fall) A == 0 (car state for all okay)
+6c2d_set_car_state_to_regA:
 	ld (e049_car_state),a	;6c2d Store car state.
 	ret			;6c30
 
 
 
-; Respawn? Game over?
+; Respawn player car (after crash).
 ; 
 ; We can get here from:
-;   0x6A7D (jump table entry #06)
-6c31_car_state_06:
+;   0x6A7D (jump table entry #06) [from=6a70_fixme]
+6c31_car_state_06__respawn:
 	pop hl			;6c31
 	call 0440ch		;6c32 440c_decrement_timer_and_do_return_magic
 	; Post: timer ran out.
@@ -16071,8 +16122,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; ?Spinning out of control?
-6c3a_car_state_07:
+; Player car is spinning.
+; 
+; We can get here from:
+;   0x6A7D (jump table entry #07) [from=6a70_fixme]
+6c3a_car_state_07__spinning:
 	call 06be2h		;6c3a
 	ld a,(0e003h)		;6c3d
 	and 003h		;6c40
@@ -16107,16 +16161,20 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ret z			;6c70 if (speed == 0) return
 	dec a			;6c71 Decrease speed
 	ld (hl),a		;6c72 Store speed
+	; Fall to 6c73_fixme.
 
-	; We can get from:
-	;   0x6B19 (jump)
-	;   0x6C72 (fall)
+
+
+; We can get from:
+;   0x6B19 (jump)
+;   0x6C72 (fall)
+6c73_fixme:
 	xor a			;6c73 A = 0
 	ld (0e038h),a		;6c74
 	ld hl,(e04bh_car_vpos)	;6c77 Load car vertical position
 	ld a,h			;6c7a A = vertical position on screen
 	cp 0f8h			;6c7b
-	jp nc,06e1dh		;6c7d 6e1d_store_car_sprite_attributes
+	jp nc,06e1dh		;6c7d if (car_vpos >= 0xF8) jump to 6e1d_store_car_sprite_attributes
 	call 6c93_speed_test	;6c80 Set carry or not, depending on speed.
 	ret nc			;6c83
 	ld bc,0ffb8h		;6c84 BC = 0xFFB8
@@ -16204,7 +16262,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x6A90 (call)
+;   0x6A90 (call) [from=6a90_car_state_00__all_okay]
 ;   0x6BB3 (call)
 6cd1_side_bounce_checker_and_actioner:
 	ld hl,0e04ch_car_vpos	;6cd1
@@ -16470,7 +16528,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr nz,$+6		;6e02 if (left and right are NOT BOTH currently pressed) jump to 0x6E08
 	; Post: BOTH left and right are currently pressed.
 	ld a,(0e048h)		;6e04 A = newly_pressed_left_and_or_right
-	and b			;6e07
+	and b			;6e07 A &= currently_pressed_keys
 	
 	; We can get here from:
 	;   0x6E02 (jump) A in [0x00,0x04,0x08]
@@ -16478,8 +16536,20 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	rra			;6e08 Also updates C/NC flag. carry = bit 0 (mask 0x01) of A_pre_6e08 
 	rra			;6e09 Also updates C/NC flag. carry = bit 1 (mask 0x02) of A_pre_6e08
 	rra			;6e0a Also updates C/NC flag. carry = bit 2 (mask 0x04) of A_pre_6e08, i.e. if "left" is pressed
+	; Fall to 6e0b_compute_horizontal_displacement_and_update_horizontal_position.
+
+
+; Input:
+;   C/NC flag:
+;     C  == Moving to the left.
+;     NC == Moving to the right, or not moving sideways at all.
+; 
+; We can get here from:
+;   0x6E0A (fall) [from=6dec_fixme]
+;   0x6C1E (call) [from=6c05_car_state_05__bounce_against_side_of_road]
+6e0b_compute_horizontal_displacement_and_update_horizontal_position:
 	ld d,000h		;6e0b D = 0
-	jr nc,$+7		;6e0d if (left is not pressed) jump to 0x6E14
+	jr nc,$+7		;6e0d if (not moving sideways to the left) jump to 0x6E14
 
 	; Left is pressed, horizontal displacement is NEGATIVE.
 	; 
@@ -16497,9 +16567,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x6E0D (jump) D == 0x00, DE == +absolute_horizontal_displacement (i.e. steering to the right)
 	;   0x6E13 (fall) D == 0xFF, DE == -absolute_horizontal_displacement (i.e. steering to the left)
-	sla e			;6e14 E <<= 1
-	rl d			;6e16 D: rotate left, but why???
+	; 
+	; DE *= 2, but why?
+	sla e			;6e14
+	rl d			;6e16
 				;fall to 6e18_compute_and_store_new_horizontal_position
+
 
 
 ; Compute and store new horizontal position.
@@ -16509,15 +16582,32 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   HL: car's current horizontal position (word value in 0xE04D)
 ; 
 ; We can get here from:
-;   0x6C02 (jump) [from=6be2_car_is_skidding_or_spinning] Car state in [0x04, 0x07]
-;   0x6E16 (fall) HL == *(0xE04D)
+;   0x6C02 (jump) [from=6be2_car_is_skidding_or_spinning]                                    HL == *(0xE04D), &car.hpos.decimals
+;   0x6E16 (fall) [from=6e0b_compute_horizontal_displacement_and_update_horizontal_position] HL == *(0xE04D), &car.hpos.decimals
 6e18_compute_and_store_new_horizontal_position:
 	add hl,de		;6e18 Compute new horizontal position.
 	ld (0e04dh),hl		;6e19 Store new horizontal position.
 	ret			;6e1c
 
 
-; Car related.
+
+; Store 3 attributes of the player car sprite (both shadow and regular):
+; 
+;   Sprite attribute     | Source address     | Destination address
+;   ---------------------+--------------------+--------------------
+;   Vertical position    | 0xE04C             | 0xE112 (shadow), 0xE116 (regular)
+;   Horizontal position  | 0xE04E             | 0xE113 (shadow), 0xE117 (regular)
+;   Pattern              | 0x6E3F + *(0xE053) | 0xE114 (shadow), 0xE118 (regular)
+;   ---------------------+--------------------+--------------------
+;   Color                | N/A                | N/A, color is NOT updated
+;   ---------------------+--------------------+--------------------
+; 
+; Input:
+;   (none)
+; 
+; Implicit input:
+;   0xE053 must contain the car's orientation (i.e. offset for table 
+;   0x6E3F).
 ; 
 ; We can get here from:
 ;   0x41F7 (call)
@@ -16535,21 +16625,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x747D (call)
 ;   0x7495 (call)
 6e1d_store_car_sprite_attributes:
-	ld hl,06e3fh		;6e1d HL = 0x6E3F
+	ld hl,06e3fh		;6e1d HL = 0x6E3F (table of sprite pattern IDs)
 	ld a,(0e053h)		;6e20 A = *0xE053
 	ld b,000h		;6e23 B = 0
 	ld c,a			;6e25 C = *0xE053
-	add hl,bc		;6e26 HL += *0xE053
-	ld a,(hl)		;6e27
+	add hl,bc		;6e26 HL = 0x6E3F + *(0xE053)
+	ld a,(hl)		;6e27 A = sprite_pattern_id
 	ld hl,0e04ch_car_vpos	;6e28 HL = 0xE04C
 	ld c,(hl)		;6e2b C = vpos of car
 	
-	inc hl			;6e2c
-	inc hl			;6e2d
+	inc hl			;6e2c HL = 0xE04D
+	inc hl			;6e2d HL = 0xE04E
 	ld b,(hl)		;6e2e B = hpos of car
 	
 	ld hl,0e112h		;6e2f HL = 0xE112
-	call 06e37h		;6e32 6e37_store_sprite_attributes(start=HL, vpos=C, hpos=B, pattern=A)
+	call 06e37h		;6e32 6e37_store_sprite_attributes_and_advance_to_next_sprite_address(start=HL, vpos=C, hpos=B, pattern=A)
 	; Post: HL == 0xE116
 
 	; Sprites in Road Fighter are 16x16, so it takes 4 byte per 
@@ -16561,13 +16651,25 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; sprite for black.
 	add a,004h		;6e35 A += 4
 
-; Store sprite attributes.
-6e37_store_sprite_attributes:
-	ld (hl),c		;6e37
+
+
+; Store sprite attributes, and advance to next sprite address.
+; 
+; Input:
+;   HL: start address of sprite to change
+;   C: new vertical position
+;   B: new horizontal position
+;   A: new pattern ID
+; 
+; We can get here from:
+;   0x6E32 (call) HL == 0xE112, update sprite of player's car (not regular, but shadow)
+;   0x6E35 (fall) HL == 0xE116, update sprite of player's car (not shadow, but regular)
+6e37_store_sprite_attributes_and_advance_to_next_sprite_address:
+	ld (hl),c		;6e37 HL[0] = C
 	inc hl			;6e38
-	ld (hl),b		;6e39
+	ld (hl),b		;6e39 HL[1] = B
 	inc hl			;6e3a
-	ld (hl),a		;6e3b
+	ld (hl),a		;6e3b HL[2] = A
 	inc hl			;6e3c
 	inc hl			;6e3d
 	ret			;6e3e

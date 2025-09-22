@@ -302,7 +302,7 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 0xE034-0xE035	?
 0xE036-0xE037	Engine humming frequency divider minus 0x0DEB or 0x0DEE
 		I.e.: Engine hummy frequency = *(0xE036) + 0x0DEB (or 0x0DEE)
-0xE038		?0x4C57
+0xE038		Seen at 0x4C57, 0x6C74
 0xE039		Seen at 0x46C1
 0xE03A		Seen at 0x43C6
 0xE03B		Level
@@ -328,11 +328,11 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 0xE049		Car state?
 			0x00 All okay
 			0x01 Crashed
-			0x02 Low on fuel 
+			0x02 Out of fuel (but with speed)
 			0x03 Reached checkpoint, see 0x5265
 			0x04 Skidding (player can escape this by steering in correct direction)
 			0x05 Bounced against side of the road. (Not crashed since speed is too low.)
-			0x06 ?Respawn after crash? ?Game over
+			0x06 Respawn after crash.
 			0x07 Spinning out of control (speed below threshold stops the spinning)
 0xE04A		Car substate? Seen at 0x6F1B (as part of a word)
 0xE04B-0xE04C	Car: vertical position
@@ -359,24 +359,24 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 0xE051		?Also car speed?
 		Seen at 0x6DEF, 0x73AA
 0xE052		?
-0xE053		Seen at 0x6E20. Sprite pattern. Car orientation:
+0xE053		Seen at 0x6E20. Sprite pattern ID. Car orientation:
 			0x00 North
-			0x01 North/east?
-			0x02
-			0x03
-			0x04
-			0x05
-			0x06
-			0x07
+			0x01 North/east
+			0x02 East
+			0x03 South/east
+			0x04 South
+			0x05 South/west
+			0x06 West
+			0x07 North/west
 			0x08 Crashed (stage 1)
 			0x09 Crashed (stage 2)
-			0x0A Seen at 0x747C
+			0x0A ?minicar? Seen at 0x747C
 
 
 
 0xE054		Car state #04: Skid turning direction.
-			0x00 Counter clockwise, must steer right to stop skidding.
-			0x01 Clockwise, must steer left to stop skidding.
+			0x00 Counter clockwise, must steer right to stop skidding. Moving sideways to the RIGHT.
+			0x01 Clockwise, must steer left to stop skidding. Moving sideways to the LEFT.
 		Car state #07: Orientation of car:
 			0x00, 0xF8, 0xF0: North (i.e. straight ahead)
 			0x01, 0xF9, 0xF1: North-east
@@ -386,7 +386,8 @@ Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 1
 			0x05, 0xFD, 0xF5: South-west
 			0x06, 0xFE, 0xF6: West
 			0x07, 0xFF, 0xF7: North-west
-0xE055
+0xE055		Seen at 0x6C1A.
+			bit 0, mask 0x01: ?left is pressed? See 0x6E0B.
 0xE056-0xE057	Fuel used/consumed. Wraps around.
 0xE056		Low byte, necessary because level A and B have different fuel consumption rates.
 0xE057		Fuel ticker (or fuel used/consumed)
