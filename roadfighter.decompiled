@@ -352,7 +352,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; We can get here from:
 	;   0x40D6 (djnz)
-	call 0778ch		;40de
+	call 0778ch		;40de 778c_play_sound_03__grabbed_bonus_fuel_heart
 	ld a,020h		;40e1 A = 0x20
 	jp 04167h		;40e3
 
@@ -468,26 +468,31 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   0x4149 (fall) *(0xE045) != 0, *(0xE00D) != 0
 	xor a			;414a A = 0
 	ld (0e00dh),a		;414b
+	; Fall to 414e_set_gamestate_to_0_and_reset_timer.
+
+414e_set_gamestate_to_0_and_reset_timer:
 	xor a			;414e A = 0
+	; Fall to 414f_set_game_state_to_regA_and_reset_timer.
+
 	
 ; We can get here from:
 ;   0x414E (fall) A == 0 (not playing)
 ;   0x4162 (jump) A == 4 (demo)
 ;   0x431B (call) A == 8 (checkpoint)
 ;   0x43A8 (call) A == 1 (level select)
-414f_store_state_and_reset_timer:
+414f_set_game_state_to_regA_and_reset_timer:
 	ld (e000_game_state),a	;414f Store game state manually (i.e. do not use 0x42F8).
 	ld a,018h		;4152 A = 0x18
 	ld (0e004h),a		;4154 Set state specific value.
-	jp 04301h		;4157 4301_reset_substate
+	jp 04301h		;4157 4301_set_game_substate_to_0
 
 
 
 415a_state02_substate02:
-	call 052b8h		;415a 52b8_fixme
-	call 0504ch		;415d 504c_init_new_game
+	call 052b8h		;415a 52b8_set_demo_stage_pseudo_randomly
+	call 0504ch		;415d 504c_init_stage
 	ld a,004h		;4160 A = 0x04 (demo state)
-	jp 0414f		;4162 414f_store_state_and_reset_timer
+	jp 0414f		;4162 414f_set_game_state_to_regA_and_reset_timer
 
 
 
@@ -568,11 +573,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x418C (DJNZ)
 	djnz $+26		;4195 if (--B != 0) jump to 0x41AF
-4197_state03_substate03:
+4197_game_state_03_substate_03:
 	call 04429h		;4197 4429_fixme
 	ret p			;419a
 	call 068aah		;419b 68aa_fixme
-	call 0504ch		;419e 504c_init_new_game
+	call 0504ch		;419e 504c_init_stage
 	call 044d0h		;41a1 44d0_fixme
 	call 042edh		;41a4 42ed_show_state_something
 	ld a,078h		;41a7
@@ -834,7 +839,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-4294_state04_substate06:
+4294_game_state_04_substate_06:
 	call 04429h		;42d5 4429_fixme
 	ret p			;42d8
 	call 068aah		;42d9 68aa_fixme
@@ -874,11 +879,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (0e004h),a		;42fa
 	ld hl,e000_game_state	;42fd
 	inc (hl)		;4300 Increase game state
+	; Fall to 4301_set_game_substate_to_0.
+
 	
-	; We can get here from:
-	;   0x4157 (jump)
-	;   0x4300 (fall)
-	4301_reset_substate:
+; We can get here from:
+;   0x4157 (jump)
+;   0x4300 (fall)
+4301_set_game_substate_to_0:
 	xor a				;4301 A = 0
 	ld (e001_game_substate),a	;4302 Store game substate (0x00)
 	ret				;4305
@@ -902,7 +909,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x430F (jump)
 	ld a,008h		;4319 A = 8 (playing)
-	call 414f_store_state_and_reset_timer	;431b
+	call 414f_set_game_state_to_regA_and_reset_timer	;431b
 	ld (0e004h),a		;431e Store timer
 	ret			;4321
 	
@@ -939,21 +946,30 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; See jump table 0x4099. Out of fuel.
-4348_state07_out_of_fuel:
+4348_gamestate07_out_of_fuel:
 	push bc			;4348
 	call 0526bh		;4349 526b_copy_13_sprites_from_RAM_to_VRAM
-	ld a,006h		;434c
-	ld hl,03b03h		;434e
-	call 004D_WRTVRM	;4351
+	
+	; Show minicar (in dark red)
+	ld a,006h		;434c A = 0x06, sprite color: dark red
+	ld hl,03b03h		;434e Sprite #00 (minicar), color attribute.
+	call 004D_WRTVRM	;4351 WRTVRM(VRAM_address=0x3B03, value=0x06)
+
 	pop bc			;4354
 	djnz $+15		;4355 if (--B != 0) jump to 0x4364
+
+4348_game_state_07_substate_01:
 	call 0440ch		;4357 440c_decrement_timer_and_do_return_magic
 	; Post: timer ran out.
 	ld hl,0e002h		;435a
 	ld a,(hl)		;435d
 	and 0bfh		;435e
 	ld (hl),a		;4360
-	jp 0414eh		;4361
+	jp 0414eh		;4361 414e_set_gamestate_to_0_and_reset_timer
+
+; We can get here from:
+;   0x4355 (djnz)
+4364_game_state_07_substate_not_01:
 	call 04429h		;4364 4429_fixme
 	ret p			;4367
 	ld de,0475eh		;4368 475e_game_over_letters
@@ -964,48 +980,65 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; See jump table 0x4099. (After) checkpoint reached.
-4373_state08:
+4373_game_state_08:
 	push bc			;4373
 	call 0526bh		;4374 526b_copy_13_sprites_from_RAM_to_VRAM
 	call 0597dh		;4377 597d_update_minicar_vpos_and_color
 	pop bc			;437a
 	djnz $+13		;437b if (--B != 0) jump to 0x4388
-
 	; Post: B == 0
+
+437d_game_state_08_substate_01:
 	call 04429h		;437d 4429_fixme
 	ret p			;4380
 	call 0744ch		;4381 744c_draw_overview_of_stages
 	xor a			;4384 A = 0
 	jp 04167h		;4385
+
+
 	
 	; We can get here from:
 	;   0x437B (djnz)
 	djnz $+5		;4388 if (--B != 0) jump to 0x438D
+438a_game_state_08_substate_02:
 	jp 0747dh		;438a
+
+
+
 	djnz $+5		;438d if (--B != 0) jump to 0x4392
+438f_game_state_08_substate_03:
 	jp 07495h		;438f
+
+
+
 	djnz $+41		;4392 if (--B != 0) jump to 0x43BB
+4392_game_state_08_substate_04:
 	ld hl,e043_stage	;4394
 	inc (hl)		;4397 Next stage!
 	ld a,(hl)		;4398 Load new stage number
 	cp 007h			;4399 Only 6 stages, so 7 means we should wrap around.
 	ld bc,00004h		;439b BC = 0x0004
 	jr nz,$+10		;439e if (stage number != 7) jump to 0x43A8
+	
+	; Reached goal. Wraparound from stage 6 to stage 1.
 	ld bc,00303h		;43a0 BC = 0x0303
 	ld a,001h		;43a3 A = 1
 	ld (hl),a		;43a5 Set stage number to 1
-	dec hl			;43a6 HL = 0xE042 (num stage wraparouns?)
-	inc (hl)		;43a7 Increase
+	dec hl			;43a6 HL = 0xE042 (&num_stage_wraparounds)
+	inc (hl)		;43a7 Increase num_stage_wraparounds
 	
 	; We can get here from:
-	;   0x439E (jump) C=0x04 (game state), B = 0x00 (game substate) [No stage number wraparound.]
-	;   0x43A7 (fall) C=0x03 (game state), B = 0x03 (game substate) [Stage number wraparound, but handled.]
-	call 0414fh		;43a8 414f_store_state_and_reset_timer
+	;   0x439E (jump) A==next_stage, C==0x04 (game state), B==0x00 (game substate) [No stage number wraparound.]
+	;   0x43A7 (fall) A==1,          C==0x03 (game state), B==0x03 (game substate) [Stage number wraparound, but handled.]
+	call 0414fh		;43a8 414f_set_game_state_to_regA_and_reset_timer
 	ld (e000_game_state),bc	;43ab Store game state and game sub state.
-	ld (0e00dh),a		;43af
-	call 0504ch		;43b2 504c_init_new_game
+	ld (0e00dh),a		;43af ???
+	call 0504ch		;43b2 504c_init_stage
+	
+	; Reset minicar's vertical position to beginning of stage.
 	ld a,06ch		;43b5 A = 0x6C
-	ld (e10e_mcar_vpos),a	;43b7
+	ld (e10e_mcar_vpos),a	;43b7 *(0xE10E) = 0x6C
+	
 	ret			;43ba
 
 
@@ -1148,10 +1181,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   P flag
 ; 
 ; We can get here from:
-;   0x4197 (call)
-;   0x42D5 (call)
-;   0x4364 (call)
-;   0x437D (call)
+;   0x4197 (call) [from=4197_game_state_03_substate_03]
+;   0x42D5 (call) [from=4294_game_state_04_substate_06]
+;   0x4364 (call) [from=4364_game_state_07_substate_not_01]
+;   0x437D (call) [from=437d_game_state_08_substate_01]
 4429_fixme:
 	ld hl,0e004h		;4429 HL = 0xE004
 	dec (hl)		;442c
@@ -1365,7 +1398,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x41A1 (call) [from=4197_state03_substate03]
+;   0x41A1 (call) [from=4197_game_state_03_substate_03]
 ;   0x42DC (call) [from=4270_state04_demo]
 44d0_fixme:
 	call 044f4h		;44d0 44f4_draw_minimap_speed_fuel
@@ -5635,7 +5668,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-504c_init_new_game:
+; We can get here from:
+;   0x415D (call) [from=415a_state02_substate02]
+;   0x419E (call) [from=4197_game_state_03_substate_03]
+;   0x43B2 (call) [from=4392_game_state_08_substate_04]
+504c_init_stage:
 	; Clear/zero 0xE048 upto and including 0xE395.
 	ld hl,0e048h		;504c LDIR: Source
 	ld de,0e049h		;504f LDIR: Destination
@@ -5650,10 +5687,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld c,017h		;5064 LDIR: count (B is still 0)
 	ldir			;5066
 	
-	ld hl,0e042h		;5068
-	ld a,(hl)		;506b
-	or a			;506c
-	jr nz,$+11		;506d if (nz) jump to 0x5078
+	; Check if wrapped around.
+	ld hl,0e042h		;5068 HL = &num_stage_wraparounds
+	ld a,(hl)		;506b A = num_stage_wraparounds
+	or a			;506c Update Z/NZ flag.
+	jr nz,$+11		;506d if (num_stage_wraparounds != 0) jump to 0x5078
+
 	inc hl			;506f HL = 0xE043 (&stage)
 	ld a,(hl)		;5070 A = stage
 	ld hl,050beh		;5071 HL = 0x50BE
@@ -5661,13 +5700,18 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr nz,$+5		;5076 if (nz) jump to 0x507B
 	
 	; We can get here from:
-	;   0x506D (jump)
-	;   0x5076 (fall)
+	;   0x506D (jump) num_stage_wraparounds != 0
+	;   0x5076 (fall) num_stage_wraparounds == 0
 	ld hl,050dch		;5078 HL = 0x50DC
+	
+	; We can get here from:
+	;   0x5078 (fall) HL == 0x50DC (stage 6 and beyond)
+	;   0x5076 (jump) HL == 0x50BE (stage 1 to 5)
 	ld (0e0b2h),hl		;507b
-	call 050bfh		;507e 50bf_fixme
+	call 050bfh		;507e 50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code
 	ld a,008h		;5081 A = 8
-	ld (0e07dh),a		;5083 
+	ld (0e07dh),a		;5083 Top screen row: set number of horizonl scenery characters before track starts
+
 	call 051ffh		;5086 51ff_initialize_variables
 	
 	; Initialize fuel to 0xD0 (almost full fuel tank)
@@ -5715,10 +5759,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x507E (call) [from=504c_init_new_game]
+;   0x507E (call) [from=504c_init_stage]
 ;   0x56FE (call) [from=56f7_fixme]
-50bf_fixme:
-	call 05132h		;50bf 5132_fixme
+50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code:
+	call 05132h		;50bf 5132_setup_stage_specific_stuff_something
 	ld a,(e043_stage)	;50c2 A = stage
 	dec a			;50c5 Make stage 0 based.
 	call 04045h		;50c6 PC = PC[2 * A]
@@ -5727,21 +5771,25 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defw 0x50E7		;50c9 #00: Stage 1 50e7_init_stage_1
 	defw 0x50E8		;50cb #01: Stage 2 50e8_init_stage_2
 	defw 0x50EF		;50cd #02: Stage 3 50ef_init_stage_3
-	defw 0x510A		;50cf #03: Stage 4 510a_init_stage_4
+	defw 0x510A		;50cf #03: Stage 4 510a_init_stage_4_and_partly_stage_5
 	defw 0x5122		;50d1 #04: Stage 5 5122_init_stage_5
 	defw 0x50D5		;50d3 #05: Stage 6 50d5_init_stage_6
 
 
 
-; Stage 6. See 0x50D3.
+; We can get here from:
+;   0x50C6 (jump) index #05 of jump table (stage 6)
 50d5_init_stage_6:
 	ld hl,07fe4h		;50d5 HL = 0x7FE4
 	ld (0e090h),hl		;50d8 *(0xE090) = 0x7FE4
 	ret			;50db
 
 
-
-50dc_data:
+; Data for stage >= 6.
+; 
+; References:
+;   0x5078
+50dc_fixme:
 	defb 0x01		;50dc
 	defb 0x00		;50dd
 	defb 0x04		;50de
@@ -5757,14 +5805,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x50C6 (jump) Stage 2
+;   0x50C6 (jump) index #00 of jump table (stage 1)
 50e7_init_stage_1:
 	ret			;50e7
 
 
 
 ; We can get here from:
-;   0x50C6 (jump) Stage 2
+;   0x50C6 (jump) index #01 of jump table (stage 2)
 50e8_init_stage_2:
 	ld hl,07dc5h		;50e8
 	ld (0e08ah),hl		;50eb
@@ -5773,7 +5821,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x50C6 (jump) Stage 3
+;   0x50C6 (jump) index #02 of jump table (stage 3)
 50ef_init_stage_3:
 	ld hl,07c85h		;50ef HL = 0x7C85
 	ld (0e090h),hl		;50f2
@@ -5791,9 +5839,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x50C6 (jump) Stage 4
+;   0x50C6 (jump) index #03 of jump table (stage 4)
 ;   0x5122 (call) [from=5122_init_stage_5]
-510a_init_stage_4:
+510a_init_stage_4_and_partly_stage_5:
 	ld hl,05116h		;510a HL = 0x5116
 	ld de,0e08ah		;510d DE = 0xE08A
 	ld bc,0000ch		;5110 BC = 0x000C
@@ -5819,19 +5867,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; We can get here from:
+;   0x50C6 (jump) index #04 of jump table (stage 5)
 5122_init_stage_5:
-	call 0510ah		;5122 510a_init_stage_4
-	ld hl,07d8ah		;5125
+	call 0510ah		;5122 510a_init_stage_4_and_partly_stage_5
+	ld hl,07d8ah		;5125 HL = 0x7D8A
 	ld (0e08ah),hl		;5128
-	ld hl,0010eh		;512b
-	ld (0e092h),hl		;512e
+	ld hl,0010eh		;512b HL = 0x010E
+	ld (0e092h),hl		;512e *(0xE092) = 0x010E
 	ret			;5131
 
 
 
 ; We can get here from:
-;   0x50BF (call) [from=50bf_fixme]
-5132_fixme:
+;   0x50BF (call) [from=50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code]
+5132_setup_stage_specific_stuff_something:
 	; Compute HL = 0x5161 + 6 * (stage - 1)
 	ld a,(e043_stage)	;5132 A = stage
 	dec a			;5135 Make stage 0 based.
@@ -5842,7 +5892,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,05161h		;513a HL = 0x5161
 	call 0403bh		;513d HL = 0x5161 + 6 * stage_0based
 	
-	; Copy 6 bytes from HL to 0xE071.
+	; Copy 3 data pointers (3 words, 6 bytes) from HL to 0xE071.
 	ld bc,00006h		;5140 LDIR: count
 	ld de,0e071h		;5143 LDIR: destination
 	ldir			;5146 Copy HL to DE, 0x06 times. Copy 3 data pointers.
@@ -6058,7 +6108,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 07755h		;5230 7755_handle_grabbed_fuel_heart_state
 	call 06a70h		;5233 6a70_fixme
 	call 07374h		;5236 7374_increment_fuel_used
-	call 0738ch		;5239
+	call 0738ch		;5239 738c_update_distance_travelled
 	call 05251h		;523c 5251_check_if_checkpoint_reached
 	call 06e4ah		;523f 6e4a_handling_moving_objects_something_if_not_crashed
 	call 05501h		;5242 5501_fixme
@@ -6094,16 +6144,22 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x4297 (call) [from=4270_state04_demo]
 ;   0x42E2 (call) [from=4270_state04_demo]
 ;   0x4349 (call) [from=4348_state07_out_of_fuel]
-;   0x4374 (call) [from=4373_state08]
+;   0x4374 (call) [from=4373_game_state_08]
 ;   0x5224 (call) [from=5224_handle_race_substate]
 526b_copy_13_sprites_from_RAM_to_VRAM:
+	; 4 bytes per sprites, 0x34 / 4 == 13
 	ld bc,00034h		;526b BC = 0x0034, number of bytes to copy to VRAM.
 	jr $+5			;526e jump to 0x5273
+
+
 
 ; We can get here from:
 ;   0x41E6 (call)
 5270_copy_30_sprites_from_RAM_to_VRAM:
+	; 4 bytes per sprites, 0x78 / 4 == 13
 	ld bc,00078h		;5270 BC = 0x0078, number of bytes to copy to VRAM.
+
+
 
 ; Copy sprites attributes array from RAM to VRAM.
 ; 
@@ -6112,9 +6168,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;
 ; We can get here from:
 ;   0x526E (jump) BC == 0x0034 (copy 13 sprites)
-;   0x5270 (fall) BC == 0x0078 (copy 26 sprites)
+;   0x5270 (fall) BC == 0x0078 (copy 30 sprites)
 5273_copy_sprites_from_RAM_to_VRAM:
-	ld de,e10e_mcar_vpos	;5273 DE = 0xE10E, minicar vertical position
+	ld de,0e10eh		;5273 DE = 0xE10E, the start of sprites in RAM.
 	ld hl,03b00h		;5276 0x3B00 == sprite attribute table
 	call 45a7_copy2vram	;5279
 	ret			;527c
@@ -6127,7 +6183,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 05270h		;527d 5270_copy_30_sprites_from_RAM_to_VRAM
 	call 06a70h		;5280 6a70_fixme
 	call 06ca1h		;5283 6ca1_fixme
-	call 0738ch		;5286
+	call 0738ch		;5286 738c_update_distance_travelled
 	call 05501h		;5289 5501_fixme
 	jp 0528fh		;528c ?WHY, it is the next op, isn't it?
 
@@ -6170,33 +6226,46 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; Set the demo stage pseudo randomly to stage 1 or 2 or 3.
+;   50% chance for stage 1
+;   25% chance for stage 2
+;   25% chance for stage 3
+
 ; We can get here from:
-;   0x415A (call)
-52b8_fixme:
+;   0x415A (call) [from=415a_state02_substate02]
+52b8_set_demo_stage_pseudo_randomly:
+	; *(0xE042) = 0, num_stage_wraparound = 0
 	xor a			;52b8 A = 0
 	ld hl,0e042h		;52b9 HL = 0xE042
-	ld (hl),a		;52bc
-	ld a,r			;52bd ?Add pseudo randomness?
-	add a,h			;52bf A += 0xE0 ?why?!
+	ld (hl),a		;52bc *(0xE042) = 0
+	
+	; Make C pseudo random.
+	ld a,r			;52bd Add pseudo randomness.
+	add a,h			;52bf A += 0xE0, futile since 0xE0&3==0
 	ld c,a			;52c0 C = A
-	ld a,(0e003h)		;52c1 A = game state ticker
-	add a,c			;52c4 A += C
-	and 003h		;52c5 A &= 0x03
+	
+	; Make A (the stage to be) in [1,2,3,4], pseudo randomly.
+	ld a,(0e003h)		;52c1 A = game state ticker (a bit random)
+	add a,c			;52c4 A += C, adds "randomness".
+	and 003h		;52c5 A &= 0x03, A is "randomly" chosen to be in [0,1,2,3].
 	inc a			;52c7 ++A
-	; Post: A in [1,2,3,4]
-	cp 004h			;52c8
+	; Post: A in [1,2,3,4] (but "random" due to 0x52BD)
+	
+	; There is no demo for stage 4. Rewrite stage 4 to be actually 
+	; stage 1.
+	cp 004h			;52c8 Compute A - 4 and update Z/NZ flag.
 	jr nz,$+4		;52ca if (A != 4) jump to 0x52CE
 
 	; Post: A == 4
 	ld a,001h		;52cc A = 1
 	
 	; We can get here from:
-	;   0x52CA (jump) A == 4
+	;   0x52CA (jump) A in [1,2,3]
 	;   0x52CC (fall) A == 1
 	inc hl			;52ce HL = 0xE043 (stage)
 	ld (hl),a		;52cf Set stage.
 	ret			;52d0
-
+.
 
 
 ; We can get here from:
@@ -6924,17 +6993,22 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; Stage 4
 	call 05600h		;55e9 5600_fixme
-	ld bc,0fff9h		;55ec
-	add hl,bc		;55ef
-	ld b,007h		;55f0
-	ld de,0e06eh		;55f2
-	ld a,(hl)		;55f5
-	add a,00dh		;55f6
-	ld (de),a		;55f8
-	dec de			;55f9
-	inc hl			;55fa
-	djnz $-6		;55fb if (--B != 0) jump to 0x55F5
-	jp 05537h		;55fd
+	
+	; HL -= 7
+	ld bc,0fff9h		;55ec BC = 0xFFF9 (-7)
+	add hl,bc		;55ef HL -= 7
+	
+	ld b,007h		;55f0 DJNZ: loop count = 7
+	ld de,0e06eh		;55f2 DE = 0xE06E
+	
+	55f5_djnz_loop:
+	ld a,(hl)		;55f5 A = *(HL)
+	add a,00dh		;55f6 A += 0x0D
+	ld (de),a		;55f8 *(DE) = A
+	dec de			;55f9 --DE
+	inc hl			;55fa ++HL
+	djnz $-6		;55fb if (--B != 0) jump to 0x55F5 (55f5_djnz_loop)
+	jp 05537h		;55fd 5537_fixme
 
 
 
@@ -7046,7 +7120,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;5693
 	djnz $-4		;5694 if (--B != 0) jump to 0x5690
 	ld (0e094h),hl		;5696
-	jp 0553ah		;5699
+	jp 0553ah		;5699 553a_fixme
+
+
 
 ; Data, see 0x5621. Stage 4+5.
 	defw 0x7C92		;569c #00
@@ -7167,7 +7243,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   Stage 6: 0x7ED0
 	cp 0feh			;56fa Compute A - 0xFE and set flags.
 	jr nz,$+5		;56fc if (not special) jump to 0x5701
-	call 050bfh		;56fe 50bf_fixme
+	call 050bfh		;56fe 50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code
 
 	; We can get here from:
 	;   0x56FC (jump) *(0xE07A) != 0xFE (call to 0x50BF is SKIPPED)
@@ -7402,7 +7478,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;57d6
 	sub 001h		;57d7
 	ld (hl),a		;57d9
-	jp m,0585fh		;57da
+	jp m,0585fh		;57da if (m) jump to 0x585F
 	ld a,(hl)		;57dd
 	and 007h		;57de
 	ret nz			;57e0
@@ -7447,22 +7523,26 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 5810_fixme:
 	ld hl,0e07bh		;5810
 	dec (hl)		;5813
-	jr z,$+62		;5814 if (z) jump to 0x5852
+	jr z,$+62		;5814 if (*(HL) == 0) jump to 0x5852
 	ld a,(hl)		;5816
 	and 007h		;5817
 	jr nz,$+37		;5819 if (nz) jump to 0x583E
 	ld a,(0e07ah)		;581b
 	and 00fh		;581e
-	ld hl,0e07dh		;5820
-	inc (hl)		;5823
+	ld hl,0e07dh		;5820 HL = 0xE07D
+	inc (hl)		;5823 Track starts 1 character more to the right.
 	cp 002h			;5824
 	jr z,$+4		;5826 if (z) jump to 0x582A
-	dec (hl)		;5828
-	dec (hl)		;5829
+	dec (hl)		;5828 Undo 0x5823.
+	dec (hl)		;5829 Track starts 1 character more to the left.
+	
+	; We can get here from:
+	;   0x5826 (jump)
+	;   0x5829 (fall)
 	ld a,(0e07ah)		;582a
 	ld b,a			;582d
 	and 00fh		;582e A &= 0x0F (keep low nybble)
-	add a,a			;5830 A *= 2
+	add a,a			;5830 A *= 2 (element of at 0x593A are pointers)
 	ld hl,0593ah		;5831 HL = 0x593A
 	call 0403bh		;5834 HL += A
 	ld a,(hl)		;5837
@@ -7470,6 +7550,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld h,(hl)		;5839
 	ld l,a			;583a
 	ld (0e06fh),hl		;583b
+
 	ld hl,(0e06fh)		;583e
 	ld a,(0e07dh)		;5841
 	ld de,0e058h		;5844
@@ -15730,8 +15811,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x6AB1 (fall)
-;   0x6B6A (call)
-6ab4_fixme:
+;   0x6B6A (call) [from=6b5e_car_state_03__reached_checkpoint]
+6ab4_set_car_orientation_to_0:
 	xor a			;6ab4 A = 0
 
 ; We can get here from:
@@ -15810,6 +15891,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 6afe_fixme:
 	xor a			;6afe A = 0
 	ld (0e0b8h),a		;6aff Set state of grabbed bonus fuel hearts to UNGRABBED, so bonus fuel heart sounds stops playing.
+
+; We can get here from:
+;   0x6AFF (fall)
+;   0x6D25 (call)
+6b02_jump_to_draw_speed_and_fuel_gauge:
 	jp 0452ah		;6b02 452a_jump_to_draw_speed_and_fuel_gauge
 
 
@@ -15909,11 +15995,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,080h		;6b62 A = 0x80
 	ld (0e0eeh),a		;6b64
 	ld (0e0feh),a		;6b67
-	call 06ab4h		;6b6a
+	call 06ab4h		;6b6a 6ab4_set_car_orientation_to_0
 	
 	; Set speed to 0.
 	xor a			;6b6d A = 0
-	ld (e04fh_speed),a	;6b6e Store speed (0)
+	ld (e04fh_speed),a	;6b6e Store speed (0).
 	
 	; Test if car is outside screen.
 	ld hl,0e04ch_car_vpos	;6b71
@@ -16024,7 +16110,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x6BB0 (call) Car state == 0x04 (skidding)
+;   0x6BB0 (call) [from=6b90_car_state_04__skidding]
 ;   0x6C3A (call) [from=6c3a_car_state_07__spinning]
 6be2_car_is_skidding_or_spinning:
 	ld a,007h		;6be2 A = 0x07
@@ -16127,7 +16213,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x6A7D (jump table entry #07) [from=6a70_fixme]
 6c3a_car_state_07__spinning:
-	call 06be2h		;6c3a
+	call 06be2h		;6c3a 6be2_car_is_skidding_or_spinning
 	ld a,(0e003h)		;6c3d
 	and 003h		;6c40
 	ld hl,0e0b1h		;6c42
@@ -16144,9 +16230,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc (hl)		;6c56
 	ld a,(hl)		;6c57
 	and 007h		;6c58
-	call 06ab5h		;6c5a
+	call 06ab5h		;6c5a 6ab5_set_car_orientation_to_regA
 	ld hl,0e04ch_car_vpos	;6c5d
-	call 06dc1h		;6c60
+	call 06dc1h		;6c60 6dc1_fixme
 	ret nc			;6c63
 	jp 06f18h		;6c64 6f18_fixme
 	call 6c89_Z_if_car_s127	;6c67
@@ -16266,12 +16352,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x6BB3 (call)
 6cd1_side_bounce_checker_and_actioner:
 	ld hl,0e04ch_car_vpos	;6cd1
-	call 06dc1h		;6cd4
+	call 06dc1h		;6cd4 6dc1_fixme
 	ld hl,0e055h		;6cd7 HL = 0xE055
 	ld (hl),0ffh		;6cda
 	ret nc			;6cdc
 	ld (hl),b		;6cdd
-	call 06d09h		;6cde
+	call 06d09h		;6cde 6d09_fixme
 	ret nc			;6ce1
 	ld hl,00c01h		;6ce2
 	ld (e049_car_state),hl	;6ce5
@@ -16301,6 +16387,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Input:
 ;   D: ???
 ; 
+; Returns:
+;   C/NC: ???
+; 
 ; We can get here from:
 ;   0x6CDE (call) [from=6cd1_side_bounce_checker_and_actioner]
 6d09_fixme:
@@ -16310,25 +16399,35 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ccf			;6d0e Complement carry flag. Flip carry flag.
 	ret c			;6d0f if (D < 0x74 || D > 0x7B) return
 	; Post: D in [0x74..0x7B]
+	; Post: A in [0x00..0x07]
 
-	cp 004h			;6d10
-	jr nc,$+14		;6d12 if (nc) jump to 0x6D20
-	ld a,004h		;6d14
-	ld (e049_car_state),a	;6d16
-	ld a,020h		;6d19
-	ld (0e0b1h),a		;6d1b
-	and a			;6d1e
-	ret			;6d1f
-	ld a,020h		;6d20
+	cp 004h			;6d10 Compute A - 0x04 and update C/NC flag.
+	jr nc,$+14		;6d12 if (A >= 4) jump to 0x6D20
+	ld a,004h		;6d14 A = 4
+	ld (e049_car_state),a	;6d16 car_state = SKIDDING
+	ld a,020h		;6d19 A = 0x20
+	ld (0e0b1h),a		;6d1b skid_ticks_remaining = 0x20
+	and a			;6d1e Clears carry flag.
+	ret			;6d1f Return to 0x6CDE.
+
+	; We can get here from:
+	;   0x6D12 (jump)
+	ld a,020h		;6d20 A = 0x20
 	ld (e04fh_speed),a	;6d22
-	call 06b02h		;6d25
-	and a			;6d28
-	ret			;6d29
-	ld b,00ch		;6d2a
-	call 06d8bh		;6d2c
+	call 06b02h		;6d25 6b02_jump_to_draw_speed_and_fuel_gauge
+	and a			;6d28 Clears carry flag.
+	ret			;6d29 Return to 0x6CDE.
+
+
+
+; We can get here from:
+;   0x6DE9 (jump) [from=6dc1_fixme]
+6d2a_fixme:
+	ld b,00ch		;6d2a B = 0x0C
+	call 06d8bh		;6d2c 6d8b_fixme
 	ret nc			;6d2f
-	ld a,b			;6d30
-	cp 0cfh			;6d31 A -= 0xCF
+	ld a,b			;6d30 A = B
+	cp 0cfh			;6d31 Compute A - 0xCF and update C/NC flag.
 	jr c,$+22		;6d33 if (c) jump to 0x6D49
 
 	sub 0d9h		;6d35 A -= 0xD9
@@ -16360,10 +16459,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x6DE6 (jump) [from=6dc1_fixme]
 6d56_fixme:
 	ld b,004h		;6d56 B = 0x04
-	call 06d8bh		;6d58
+	call 06d8bh		;6d58 6d8b_fixme
 	ret nc			;6d5b
 	ld a,b			;6d5c A = B
-	cp 0fch			;6d5d A -= 0xFC
+	cp 0fch			;6d5d Compute A - 0xFC and update C/NC flag.
 	jr nc,$+25		;6d5f if (nc) jump to 0x6D78
 	sub 0e1h		;6d61 A -= 0xE1
 	cp 008h			;6d63 Compute A - 0x08 and update C/NC flag.
@@ -16501,7 +16600,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	cp (hl)			;6de4 Compute A - *(HL) and update C/NC flag.
 	pop hl			;6de5 Restore HL (stored at 0x6DC1).
 	jp nc,06d56h		;6de6 6d56_fixme
-	jp 06d2ah		;6de9 6da2_fixme
+	jp 06d2ah		;6de9 6d2a_fixme
 
 
 
@@ -17097,7 +17196,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x50AE (call) [from=504c_init_new_game]
+;   0x50AE (call) [from=504c_init_stage]
 ;   0x51D5 (jump) [from=51c2_fixme]
 ;   0x701D (fall) [from=6f18_fixme]
 7020_fixme:
@@ -17249,11 +17348,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;70bd
 	and a			;70be Update Z/NZ flag.
 	jp z,07298h		;70bf if (null pointer) jump to 0x7298 (7298_fixme)
-	ld hl,0728ah		;70c2
+	ld hl,0728ah		;70c2 HL = 0x728
 	push hl			;70c5
 	call 04045h		;70c6 PC = PC[2 * A]
 	
-	defw 0x7289		;70c9 state #00 ?No cars in screen? 
+	defw 0x7289		;70c9 state #00 ?No cars in screen? 7289_fixme
 	defw 0x70D9		;70cb state #01 ?Cars in screen?
 	defw 0x71A2		;70cd state #02 ?2 cars colliding?
 	defw 0x71C6		;70cf state #03
@@ -17268,13 +17367,18 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x70C6 (jump) jump table, index 0x01
 ;   0x70C6 (jump) jump table, index 0x04
 70d9_unknown_state_01_or_04:
-	call 072b8h		;70d9
-	call 071c6h		;70dc
+	call 072b8h		;70d9 72b8_fixme
+	call 071c6h		;70dc 71c6_fixme
 	call 053ddh		;70df 53dd_fixme
 	call 0716dh		;70e2 716d_fixme
-	call 072feh		;70e5
+
+; We can get here from:
+;   0x70E2 (fall) [from=70d9_unknown_state_01_or_04]
+;   0x7226 (jump) [from=7209_fixme]
+70e5_fixme:
+	call 072feh		;70e5 72fe_fixme
 	call 07123h		;70e8 7123_fixme
-	call 07154h		;70eb
+	call 07154h		;70eb 7154_fixme
 
 	ld c,006h		;70ee C = 0x06 (vpos)
 	call 072f6h		;70f0 72f6_set_A_to_current_rival_car_index_C
@@ -17303,7 +17407,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,d			;710c
 	and 003h		;710d A &= 0x03, and update Z/NZ flag.
 	ld c,a			;710f C = A
-	jp z,07289h		;7110 ?collision detection?
+	; ?collision detection?
+	jp z,07289h		;7110 if (z) jump to 0x7289 (7289_fixme) (ret)
 
 	ld a,(e04fh_speed)	;7113 A = speed
 	sub (hl)		;7116 A -= ?rival car speed?
@@ -17333,7 +17438,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld c,006h		;712e C = 0x06
 	call 072f6h		;7130 72f6_set_A_to_current_rival_car_index_C
 
-	call 06dc1h		;7133
+	call 06dc1h		;7133 6dc1_fixme
 	ret nc			;7136
 	ld hl,(0e0bfh)		;7137
 	ld de,0000fh		;713a DE = 0x000F
@@ -17346,15 +17451,25 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x7120 (jump) D == 0x00, E == 2 * abs(own speed - rival car speed)
 ;   0x7144 (fall) D == 0x02, E == 0xF0
-	dec a			;7145
+;   0x71B9 (call) D == 0x01, E == 0x00, A == ?
+7145_fixme:
+	dec a			;7145 --A and update Z/NZ flag.
+
+; We can get here from:
+;   0x7723 (call)
+7146_fixme:
 	jr nz,$+9		;7146 if (nz) jump to 0x714F
 	ld a,d			;7148
-	cpl			;7149
+	cpl			;7149 A = ~A
 	ld d,a			;714a
 	ld a,e			;714b
-	cpl			;714c
+	cpl			;714c A = ~A
 	ld e,a			;714d
 	inc de			;714e
+	
+	; We can get here from:
+	;   0x7146 (jump)
+	;   0x714E (fall)
 	ld c,008h		;714f C = 0x08
 	jp 072e7h		;7151
 
@@ -17362,6 +17477,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x70EB (call)
+7154_fixme:
 	ld c,009h		;7154 C = 0x09
 	call 072f6h		;7156 72f6_set_A_to_current_rival_car_index_C
 
@@ -17438,7 +17554,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld c,006h		;71a2 C = 0x06
 	call 072f6h		;71a4 72f6_set_A_to_current_rival_car_index_C
 
-	call 06dc1h		;71a7
+	call 06dc1h		;71a7 6dc1_fixme
 	jr c,$+24		;71aa if (c) jump to 0x71C2
 
 	ld c,00fh		;71ac C = 0x0F
@@ -17449,7 +17565,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	dec hl			;71b4
 	ld a,(hl)		;71b5
 	ld de,00100h		;71b6
-	call 07145h		;71b9
+	call 07145h		;71b9 7145_fixme
 	ld de,0ff00h		;71bc
 	jp 07168h		;71bf
 
@@ -17464,7 +17580,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x70C6 (jump) jump table, index 0x03
 ;   0x70DC (call)
-71c6_:
+71c6_fixme:
 	ld c,009h		;71c6 C = 0x09
 	call 072f6h		;71c8 72f6_set_A_to_current_rival_car_index_C
 
@@ -17516,24 +17632,31 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x70C6 (jump) jump table, index 0x05
 ;   0x70C6 (jump) jump table, index 0x07
+7209_fixme:
 	ld hl,(0e0bfh)		;7209
 	inc hl			;720c
 	ld d,(hl)		;720d
-	ld bc,0000eh		;720e
+	ld bc,0000eh		;720e BC = 0x000E
 	add hl,bc		;7211
 	dec (hl)		;7212
-	jp m,071c2h		;7213
+	jp m,071c2h		;7213 if (m) jump to 0x71C2
 	dec hl			;7216
 	ld a,d			;7217
-	ld de,000b8h		;7218
-	cp 005h			;721b
+	ld de,000b8h		;7218 DE = 0x00B8
+	cp 005h			;721b Compute A - 0x05 and update Z/NZ flag.
 	jr z,$+4		;721d if (z) jump to 0x7221
-	ld e,0a0h		;721f
+	ld e,0a0h		;721f E = 0xA0
 	ld a,(hl)		;7221
 	or a			;7222
-	call 07146h		;7223
-	jp 070e5h		;7226
-	call 0724bh		;7229
+	call 07146h		;7223 7146_fixme
+	jp 070e5h		;7226 jump to 0x70E5
+
+
+; We can get here from:
+;   0x728A (call) [from=728a_fixme]
+;   0x72AA (call) [from=72a4_fixme]
+7229_fixme:
+	call 0724bh		;7229 724b_fixme
 	ex af,af'		;722c
 	cp 006h			;722d
 	jr z,$+5		;722f if (z) jump to 0x7234
@@ -17545,7 +17668,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ex af,af'		;7238
 	add a,004h		;7239
 	ld hl,0e132h		;723b
-	call 0727dh		;723e
+	call 0727dh		;723e 727d_fixme
 	dec hl			;7241
 	ld (hl),008h		;7242
 	ld bc,0fffch		;7244
@@ -17555,6 +17678,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; We can get here from:
+;   0x7229 (call) [from=7229_fixme]
+724b_fixme:
 	ld hl,(0e0bfh)		;724b
 	ex af,af'		;724e
 	ld a,(hl)		;724f
@@ -17584,7 +17710,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,072afh		;7276
 	call 04040h		;7279 DE += A
 	ld a,(de)		;727c
-	call 07282h		;727d
+
+
+
+; We can get here from:
+;   0x727C (fall)
+;   0x723E (call)
+727d_fixme:
+	call 07282h		;727d 7282_fixme
 	add a,004h		;7280
 	ld (hl),b		;7282
 	inc hl			;7283
@@ -17593,17 +17726,20 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (hl),a		;7286
 	inc hl			;7287
 	inc hl			;7288
+
 ; We can get here from:
 ;   0x70C6 (jump) jump table, index 0x00
 ;   0x7110 (jump)
 ;   0x7288 (fall)
+7289_fixme:
 	ret			;7289
 
 
 
 ; We can get here from:
 ;   0x70C6 (jump) jump table, index 0x06
-	call 07229h		;728a
+728a_fixme:
+	call 07229h		;728a 7229_fixme
 
 	ld c,006h		;728d C = 0x06
 	call 072f6h		;728f 72f6_set_A_to_current_rival_car_index_C
@@ -17632,7 +17768,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (hl),0dfh		;72a4 *(HL) = 0xDF
 	xor a			;72a6 A = 0
 	call 0719ch		;72a7 719c_set_current_rival_car_offset_00_something_to_regA
-	call 07229h		;72aa
+	call 07229h		;72aa 7229_fixme
 	jr $-21			;72ad jump to 0x7298
 
 
@@ -18174,7 +18310,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x4381 (call) [from=4373_state08]
+;   0x4381 (call) [from=4373_game_state_08]
 744c_draw_overview_of_stages:
 	; Copy patterns 0x80..0xB2 (inclusive) to VRAM (all three bands).
 	ld hl,02400h		;744c HL = 0x2400, VRAM destination (pattern table)
@@ -19387,7 +19523,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld d,(hl)		;7786 D = 7791_heart_score[A]
 	ld e,000h		;7787 E = 0
 	call 0447fh		;7789 447f_update_score_and_hiscore
-	
+	; Fall to 778c_play_sound_03__grabbed_bonus_fuel_heart
+
+
+
+; We can get here from:
+;   0x40DE (call)
+;   0x7789 (fall)
+778c_play_sound_03__grabbed_bonus_fuel_heart:
 	ld a,003h		;778c A = 3, sound ID of grabbing a bonus fuel heart.
 	jp 04b6eh		;778e 4b6e_sound_something_with_D_is_0
 
@@ -19397,10 +19540,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; 
 ; Referenced by 0x7780.
 7791_heart_score:
-	defb 0x00		;7791 0 consecutive fuel hearts:    0 points
-	defb 0x03		;7792 1 consecutive fuel hearts:  300 points
-	defb 0x05		;7793 2 consecutive fuel hearts:  500 points
-	defb 0x08		;7794 3 consecutive fuel hearts:  800 points
+	defb 0x00		;7791 0  consecutive fuel hearts:    0 points
+	defb 0x03		;7792 1  consecutive fuel hearts:  300 points
+	defb 0x05		;7793 2  consecutive fuel hearts:  500 points
+	defb 0x08		;7794 3  consecutive fuel hearts:  800 points
 	defb 0x10		;7795 4+ consecutive fuel hearts: 1000 points
 
 
