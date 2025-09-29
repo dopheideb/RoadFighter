@@ -1,8 +1,20 @@
 ; z80dasm 1.1.6
 ; command line: z80dasm --address --origin=16384 --output=roadfighter.decompiled.org RoadFighter.rom
 
+
+
 	; C-BIOS MSX1
+	; 
+	; Disassembled with 'z80dasm --address --origin=0 /usr/share/cbios/cbios_main_msx1.rom'
 	org	00000h
+	di			;0000 [BIOS] CHKRAM (also called STARTUP, RESET or BOOT): Tests RAM and sets RAM slot for the system
+	jp 00d12h		;0001
+	defw 0x1BBF		;0004 [BIOS] Address of ROM character set
+	(...)
+	defb 0x98		;0006 [BIOS] VDP.DR: The base port address for VDP data reads.
+	defb 0x98		;0007 [BIOS] VDP.DW: The base port address for VDP data writes.
+	(...)
+	jp 018e6h		;0038 [BIOS] KEYINT: Executes the timer interrupt process routine
 	(...)
 	jp 0022eh		;0047 [BIOS] WRTVDP: Write to any VDP register
 	jp 00245h		;004a [BIOS] RDVRM : Read byte from VRAM
@@ -81,6 +93,125 @@
 
 
 
+18e6_KEYINT:
+	; Save all registers.
+	push hl			;18e6
+	push de			;18e7
+	push bc			;18e8
+	push af			;18e9
+	exx			;18ea
+	ex af,af'		;18eb
+	push hl			;18ec
+	push de			;18ed
+	push bc			;18ee
+	push af			;18ef
+	push iy			;18f0
+	push ix			;18f2
+	
+	; Call H.KEYI for every interrupt.
+	; 
+	; Note: MSX1 (with for instance TMS9929A) has no HBLANK.
+	call 0fd9ah		;18f4 H.KEYI
+	in a,(099h)		;18f7 Read VDP status register.
+	
+	; Set sign flag. Meaning:
+	;   P (bit 7 is 0): This is NOT a VBLANK. (VDPs interrupt flag is NOT set.)
+	;   M (bit 7 is 0): This IS a VBLANK. (VDPs interrupt flag IS set.)
+	or a			;18f9 Update sign flag (P/M).
+	ld (0f3e7h),a		;18fa Store VDP status register. (Unused in Road Fighter.)
+	jp p,0194eh		;18fd if (not VBLANK) jump to 0x194E (194e_restore_registers_ei_return)
+	
+	; VBLANK occured, call H.TIMI.
+	call 0fd9fh		;1900 H.TIMI
+
+	; Update JIFFY, i.e. the number of times this interrupt routine 
+	; has been called.
+	ld hl,(0fc9eh)		;1903
+	inc hl			;1906
+	ld (0fc9eh),hl		;1907
+	
+	; Clear CLIKFL.
+	xor a			;190a A = 0	
+	ld (0fbd9h),a		;190b
+	
+	; Update SCNCNT. This variable is used as a counter by the 
+	; interrupt handler to control the rate at which keyboard scans 
+	; are performed.
+	ld a,(0f3f6h)		;190e
+	dec a			;1911
+	ld (0f3f6h),a		;1912
+	
+	jr nz,$+57		;1915 if (nz) jump to 0x194E (194e_restore_registers_ei_return)
+	; Post: must perform keyboard scan.
+	; 
+	; Reset SCNCNT to 3
+	ld a,003h		;1917 A = 0x03
+	ld (0f3f6h),a		;1919
+
+	; Update TRGFLG.
+	xor a			;191c A = 0
+	call 01802h		;191d ?Scan keyboard and joysticks?
+	cpl			;1920 A = ~A
+	and 001h		;1921 A &= 1
+	ld (0f3e8h),a		;1923 Update TRGFLG.
+	
+	call 01963h		;1926
+	ld hl,(0f3f8h)		;1929 HL = *PUTPNT
+	ld de,(0f3fah)		;192c DE = *GETPNT
+	rst 20h			;1930 call DCOMPR: Compares HL with DE
+	jr nz,$+29		;1931 if (HL != DE) jump to 0x194E (194e_restore_registers_ei_return)
+	
+	; Update REPCNT: This variable is used as a counter by the 
+	; interrupt handler to control the key repeat rate.
+	ld a,(0f3f7h)		;1933 A = *REPCNT
+	dec a			;1936 --A
+	ld (0f3f7h),a		;1937 *REPCNT = A
+
+	jr nz,$+20		;193a if (nz) jump to 0x194E (194e_restore_registers_ei_return)
+	
+	; OLDKEY (11 bytes): This buffer is used by the interrupt 
+	; handler to hold the previous state of the keyboard matrix, 
+	; each byte contains one row of keys starting with row 0.
+	ld hl,0fbdah		;193c HL = OLDKEY
+	ld bc,00bffh		;193f B = 0x0B (DJNZ loop count), C = 0xFF
+	1942_fill_OLDKEY_buffer:
+	ld (hl),c		;1942
+	inc hl			;1943
+	djnz $-2		;1944 if (--B != 0) jump to 0x1942 (1942_fill_OLDKEY_buffer)
+	
+	call 01963h		;1946
+	
+	; Update REPCNT.
+	ld a,001h		;1949 A = 0x01
+	ld (0f3f7h),a		;194b *REPCNT = 0x01
+	; Fall to 194e_restore_registers_ei_return.
+	
+	; Restore all registers.
+	; 
+	; We can get here from:
+	;   0x18FD (jump)
+	;   0x1915 (jump)
+	;   0x1931 (jump)
+	;   0x194B (fall)
+	194e_restore_registers_ei_return:
+	pop ix			;194e
+	pop iy			;1950
+	pop af			;1952
+	pop bc			;1953
+	pop de			;1954
+	pop hl			;1955
+	exx			;1956
+	ex af,af'		;1957
+	pop af			;1958
+	pop bc			;1959
+	pop de			;195a
+	pop hl			;195b
+	
+	ei			;195c Enable interrupts.
+	ret			;195d
+
+
+
 ; Road Fighter ROM	
 org	04000h
 
@@ -111,23 +242,26 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 013E_RDVDP		;4013 Read VDP status register; clears interrupt.
 	di			;4016 Disable interrupts.
 	call 04bffh		;4017 4bff_handle_3_PSG_channel_structs_something
-	ld hl,E005_int_sentry	;401a HL = 0xE005
-	bit 0,(hl)		;401d
-	jr nz,$+15		;401f if (E005_int_sentry & 1) jump to 0x402E
+	ld hl,0e005h		;401a HL = &interrupt_sentry
+	bit 0,(hl)		;401d Test bit 0 (mask 0x01).
+	jr nz,$+15		;401f if (*(interrupt_sentry) & 0x01) jump to 0x402E (402e_interrupt_hook_bottom)
 	;
 	; Post: previous interrupt was completed, so we can actually 
 	; handle this interrupt.
 	;
-	inc (hl)		;4021
+	inc (hl)		;4021 ++interrupt_sentry, i.e. set interrupt_sentry to 1.
 	ei			;4022 Enable interrupts.
 	call 046b6h		;4023 46b6_read_and_save_joystick_and_keyboard
 	call 04082h		;4026 4082_increment_ticker__read_input__jump_to_state_handler
-	ld a,000h		;4029 A = 0
-	ld (0e005h),a		;402b *(0xE005) = 0
-	
-	; We can get here from:
-	;   0x401F (jump) Skipped  interrupt routine
-	;   0x402B (fall) Executed Interrupt routine 
+	ld a,000h		;4029 A = 0x00
+	ld (0e005h),a		;402b interrupt_sentry = 0x00
+	; Fall to 402e_interrupt_hook_bottom.
+
+
+
+; We can get here from:
+;   0x401F (jump) Skipped  interrupt routine
+;   0x402B (fall) Executed Interrupt routine 
 402e_interrupt_hook_bottom:
 	call 013E_RDVDP		;402e A = status register; clears interrupt.
 	or a			;4031 Set flags, including minus flag.
@@ -135,8 +269,6 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; Bit 7 (mask 0x80) of the VDP status register is set at the end 
 	; of the raster scan of the last line of the active display.
-	; 
-	; 
 	call m,04bffh		;4033 4bff_handle_3_PSG_channel_structs_something
 	
 	ei			;4036 Enable interrupts.
@@ -206,7 +338,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; (i.e. BIOS call "KEYINT")
 	im 1			;4050
 4052_setup_interrupt_hook:
-	; Set H.KEYI to "jp 0x4013". Fires at __every__ interrupt not 
+	; Set H.KEYI to "jp 0x4013". Fires at __every__ interrupt, not 
 	; just VDP.
 	;
 	;   0xFD9A | 0xFD9B | 0xFD9C | Assembly
@@ -216,10 +348,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (0fd9ah),a		;4054 "JP"
 	ld hl,04013h		;4057 HL = 0x4013 (4013_interrupt_hook)
 	ld (0fd9bh),hl		;405a
-405d_setup_stack_pointer:
+
+	; Setup stack pointer.
 	ld sp,0e800h		;405d Set top of stack to 0xE800.
-4060_clear_RAM:
-	; Zero 0xE000 up to and including 0xE7FF.
+
+	; Clear RAM. Zero 0xE000 up to and including 0xE7FF.
 	ld hl,e000_game_state	;4060 LDIR: source
 	ld de,e001_game_substate;4063 LDIR: destination
 	ld bc,007ffh		;4066 LDIR: count (0x800)
@@ -227,10 +360,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ldir			;406b Copy zero onwards.
 406d_setup_VDP:
 	ld a,001h		;406d A = 1
-	ld (0e005h),a		;406f *(0xE005) = 1
+	ld (0e005h),a		;406f interrupt_sentry = 1
 	call 04685h		;4072 4685_setup_PSG_and_VDP
 	xor a			;4075 A = 0
-	ld (0e005h),a		;4076 *(0xE005) = 0
+	ld (0e005h),a		;4076 interrupt_sentry = 1
 4079_clear_VDP_interrupt_flag:
 	call 013E_RDVDP		;4079 Read VDP status register; clears interrupt.
 	ei			;407c Enable interrupts. Was disabled at 0x404f.
@@ -2140,7 +2273,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x4072 (call) [404f_entry_point] *0xE005 == 1
+;   0x4072 (call) [404f_entry_point] interrupt_sentry == 1
 4685_setup_PSG_and_VDP:
 	; PSG: disable noise, all 3 channels.
 	; PSG: enable tone, all 3 channels.

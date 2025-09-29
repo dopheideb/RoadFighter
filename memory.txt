@@ -264,10 +264,10 @@ This table was generated with:
 		bit 3 (0x08) Tested at 0x502B
 
 
-0xE005		[E005_int_sentry] Interrupt sentry.
+0xE005		[&interrupt_sentry] Interrupt sentry.
 		
-		0x00 Previous interrupt done
-		0x01 Previous interrupt in progress
+		0x00 We are NOT handling an interrupt.
+		0x01 We ARE handling an interrupt.
 		
 		This byte (bit 0 actually) is checked at the beginning of the 
 		VDP interrupt hook (right after disabling the interrupts), as 
