@@ -216,7 +216,7 @@ This table was generated with:
 		0x08	0x00	0x4319+0x414F	Check point reached, car already out of screen. ?Meaning?
 		0x08	0x01	0x416D inc	Clear screen. (Victorious sound is almost done.)
 		0x08	0x02	0x416D inc	Show progress map, scroll minicar to right height.
-		0x08	0x03	0x416D inc	Blink minicar for a while.
+		0x08	0x03	0x416D inc	Blink minicar for a while at correct checkpoint/goal.
 		0x08	0x04	0x416D inc	?Switch to game state *(E043)?
 
 0xE002
@@ -232,7 +232,8 @@ This table was generated with:
 			1: player is playing
 0xE003		Game state ticker, increments
 	
-0xE004		State related bits or state related counter/timer.
+0xE004		[&game_state_bits_or_counter_or_timer]
+		State related bits or state related counter/timer.
 		0x18 During game
 		0x80 After seeing "EMPTY" on screen.
 		
@@ -396,7 +397,7 @@ This table was generated with:
 0xE042		?Num stage wraparounds?
 0xE043		Stage
 0xE044		Seen at 0x44A8
-0xE045		Seen at 0x6C36, 0x425E, 0x413D.
+0xE045		Seen at 0x413F, 0x6C36, 0x425E, 0x413D.
 0xE046-0xE047	Pointer to coarse pattern names (22 per line, not 32)
 0xE048		Seen at 0x6A75, 0x6E04. ?Stored if left or right is NEWLY pressed?
 			0x04 "Left"
@@ -418,7 +419,8 @@ This table was generated with:
 0xE04B		Car: vertical position: "decimals"
 			The word at 0xE04B is increased, and the high 
 			byte is used as the vertical position.
-0xE04C		Car: vertical position on screen, also when in stage map/overview.
+0xE04C		[&car_vpos]
+		Car: vertical position on screen, also when in stage map/overview.
 			Pokeable!
 			0x80: during start (on start grid)
 			0x9A: when driving at maximum speed
