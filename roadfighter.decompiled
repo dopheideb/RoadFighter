@@ -453,13 +453,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; See jump table 0x4099.
 40ab_game_state_00:
 	djnz $+21		;40ab if (--B != 0) jump to 0x40C0
-40ad_game_state_00_substate_01:
-	ld a,(0e003h)		;40ad A = *(0xE003)
+40ad_game_state_00_substate_01__konami_logo_and_line_and_software_letters:
+	ld a,(0e003h)		;40ad A = game_state_ticker
 	rra			;40b0 Rotate right through the carry flag.
-	ret nc			;40b1 if (*(0x003) & 0x1 == 0) return
+	ret nc			;40b1 if (game_state_ticker& 0x1 == 0) return
 	
 	call 048ddh		;40b2 48dd_write_upwards_scrolling_konami_logo
-	ret nz			;40b5 if (number_of_scrolls_remaining ! = 0) return
+	ret nz			;40b5 if (number_of_scrolls_remaining != 0) return
 	
 	; Post: A == 0 (i.e. no more scrolls remaining)
 	ld de,046fch		;40b6 DE = 46fc_line_and_software_letters
@@ -469,8 +469,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   HL = *DE, so HL == 0x394A
 	;   DE += 2,  so DE == 0x46FE
 	
-	xor a			;40bc A = 0
-	; Switch to state #01, substate #00.
+	; Get ready for next substate (#02).
+	xor a			;40bc A = 0x00
 	jp 04167h		;40bd 4167_increase_substate_and_set_E004_to_regA
 	
 	
@@ -478,10 +478,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x40AB (djnz)
 	djnz $+13		;40c0 if (--B != 0) jump to 0x40CD
-40cc_game_state_00_substate_02:
+40cc_game_state_00_substate_02__setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo:
 	call 0440ch		;40c2 440c_decrement_timer_and_do_return_magic
 	; Post: timer ran out.
 	call 049a6h		;40c5 49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo
+	
+	; Get ready for next substate (#03).
 	ld a,020h		;40c8 A = 0x20
 	jp 04167h		;40ca 4167_increase_substate_and_set_E004_to_regA
 
@@ -490,7 +492,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x40C0 (djnz)
 	djnz $+25		;40cd if (--B != 0) jump to 0x40E6
-40cf_game_state_00_substate_03:
+40cf_game_state_00_substate_03__draw_logo_konami_play_select_level_A_level_B:
 	; Decrement game_state_bits_or_counter_or_timer.
 	ld hl,0e004h		;40cf HL = &game_state_bits_or_counter_or_timer
 	dec (hl)		;40d2
@@ -499,20 +501,27 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	cp 007h			;40d4 Compute A - 0x07 and update C/NC flag.
 	jr c,$+8		;40d6 if (game_state_bits_or_counter_or_timer <= 6) jump to 0x40DE
 	; Post: game_state_bits_or_counter_or_timer >= 7
-	call 049c2h		;40d8 Draw "©KONAMI 1985" + "PLAY SELECT" + "LEVEL A" + "LEVEL B" in name table.
-	jp 05028h		;40db
+	; 
+	; Update the name table to draw "©KONAMI 1985" + "PLAY SELECT" + "LEVEL A" + "LEVEL B".
+	call 049c2h		;40d8 49c2_draw_logo_konami_play_select_level_A_level_B
+	jp 05028h		;40db 5028_fixme
+
+
 	
 	; We can get here from:
 	;   0x40D6 (jump) game_state_bits_or_counter_or_timer <= 6
 	call 0778ch		;40de 778c_play_sound_03__grabbed_bonus_fuel_heart
+	
+	; Get ready for next substate (#04).
 	ld a,020h		;40e1 A = 0x20
 	jp 04167h		;40e3 4167_increase_substate_and_set_E004_to_regA
+
 
 
 	; We can get here from:
 	;   0x40CD (djnz)
 	djnz $+52		;40e6 if (--B != 0) jump to 0x411A
-40cf_game_state_00_substate_04:
+40cf_game_state_00_substate_04__draw_road_fighter_logo_in_different_colors:
 	ld hl,0e004h		;40e8 HL = &game_state_bits_or_counter_or_timer
 	dec (hl)		;40eb --game_state_bits_or_counter_or_timer
 	jr z,$+34		;40ec if (game_state_bits_or_counter_or_timer == 0) jump to 0x410E
@@ -526,7 +535,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   A: the requested color set (0..3)
 ; 
 ; We can get here from:
-;   0x40EE (fall) A == *(0xE004) and *(0xE004) != 0
+;   0x40EE (fall) A == game_state_bits_or_counter_or_timer and A != 0x00
 ;   0x49BC (jump) A == 0x01
 40ef_draw_road_fighter_logo:
 	and 003h		;40ef A &= 0x03
@@ -579,9 +588,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x90		;4119 #03.1 FG=light red        , BG=transparent
 
 
+
+; This is game state #00, substate #00.
+; 
+; (Technically, we can also get here for substate >= #05.)
+; 
 ; We can get here from:
 ;   0x40E6 (djnz)
-411a_game_state_00_substate_05:
+411a_game_state_00_substate_00:
 	call 04698h		;411a 4698_setup_VDP_registers
 	call 04584h		;411d 4584_clear_name_table_and_set_sprite_00_vpos_to_D0
 	
@@ -589,7 +603,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 04b6eh		;4122 4b6e_sound_something_with_D_is_0
 	call 04773h		;4125 4773_copy_symbols_to_VRAM
 	call 048bbh		;4128 48bb_initialize_konami_logo
-	jr $+63			;412b jump to 0x416A
+	jr $+63			;412b 416a_increase_substate
 
 
 
@@ -597,8 +611,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 412d_game_state_01:
 	ld hl,0e004h		;412d
 	dec (hl)		;4130
-	jp nz,05028h		;4131 if (timer hasn't run out) jump
-	jp 042f8h		;4134
+	jp nz,05028h		;4131 if (timer hasn't run out) jump to 5028_fixme
+	jp 042f8h		;4134 42f8_increase_game_state_set_substate_to_00_set_game_state_bits_or_counter_or_timer_to_0x18
 	
 
 
@@ -661,9 +675,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,018h		;4165 A = 0x18
 
 ; We can get here from:
-;   0x40BD (jump) A == 0x00 [from=40ad_game_state_00_substate_01]
-;   0x40CA (jump) A == 0x20 [from=40cc_game_state_00_substate_02]
-;   0x40E3 (jump) A == 0x20 [from=40cf_game_state_00_substate_03]
+;   0x40BD (jump) A == 0x00 [from=40ad_game_state_00_substate_01__konami_logo_and_line_and_software_letters]
+;   0x40CA (jump) A == 0x20 [from=40cc_game_state_00_substate_02__setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo]
+;   0x40E3 (jump) A == 0x20 [from=40cf_game_state_00_substate_03__draw_logo_konami_play_select_level_A_level_B]
 ;   0x4165 (fall) A == 0x18 [from=4165_increase_substate_and_set_E004_to_0x18]
 ;   0x4193 (jump) A == 0x18 [from=418e_game_state_03_substate_02]
 ;   0x41B6 (jump) A == 0x04 [from=41b1_game_state_03_substate_04]
@@ -1282,7 +1296,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld c,000h		;43ec C = 0x00
 	ld (hl),c		;43ee Switch to game substate #00.
 	dec c			;43ef C = 0xFF
-	jp 05032h		;43f0 5032_fixme
+	jp 05032h		;43f0 5032_draw_0_or_1_hand_pointing_to_right_symbols_before_level_A_and_B
 
 
 
@@ -2075,6 +2089,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Draw or hide characters.
 ; 
 ; Input:
+;   HL: VRAM destination address
 ;   DE: Start of characters (end at value 0xFF)
 ;    C: Mask to apply:
 ;         0x00: Hide characters
@@ -2089,13 +2104,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc de			;45f9
 	ld b,a			;45fa
 	inc b			;45fb
-	ret z			;45fc DE contained 0xFF: we have reached the last entry, stop processing.
+	ret z			;45fc *(DE@45f8) == 0xFF: we have reached the last entry, stop processing.
 	
 	inc b			;45fd
 	jr z,$-12		;45fe DE contained 0xFE: we have reached the end of this entry, start with next entry at 0x45F2.
 	
 	and c			;4600 Either 0xFF (see 0x45F0) or 0x00 (see 0x4607).
-	call 004D_WRTVRM	;4601 Write A to VRAM address HL.
+	call 004D_WRTVRM	;4601 WRTVRM(VRAM_address=HL, value=A)
 	inc hl			;4604
 	jr $-13			;4605 Jump to 45f8_draw_or_hide_characters(start=DE, mask=C)
 
@@ -2359,7 +2374,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x411A (call) [from=411a_game_state_00_substate_05]
+;   0x411A (call) [from=411a_game_state_00_substate_00]
 ;   0x4695 (fall)
 4698_setup_VDP_registers:
 	ld hl,046a9h		;4698 HL = 0x46A9
@@ -3668,7 +3683,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x40C5 (call) [from=40cc_game_state_00_substate_02]
+;   0x40C5 (call) [from=40cc_game_state_00_substate_02__setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo]
 ;   0x49BF (call) [from=43f3_switch_to_game_state_01]
 49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo:
 	ld b,0e0h		;49a6 B = 0xE0, (B&0x07) == 0 so set the VRAM page to 0.
@@ -3692,10 +3707,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x43FF (call) [from=43f3_switch_to_game_state_01] *(0xE004) == 0x07
 49bf_draw_logo_konami_play_select_level_A_level_B_something:
 	call 049a6h		;49bf 49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo
-	
-	; We can get here from:
-	;   0x40D8 (call) *(0xE004) == 0x20 (initial value, see 0x40C8)
-	;   0x49BF (fall) *(0xE004) == 0x07
+
+
+
+; We can get here from:
+;   0x40D8 (call) *(0xE004) == 0x20 (initial value, see 0x40C8)
+;   0x49BF (fall) *(0xE004) == 0x07
+49c2_draw_logo_konami_play_select_level_A_level_B:
 	ld de,0472ah		;49c2 DE = 472a_copyright_konami_1985_letters,play_select,level_A
 	call 45f0_show_symbols	;49c5 Show "©KONAMI 1985" + "PLAY SELECT" + "LEVEL A"
 	
@@ -5816,35 +5834,48 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x40DB (jump) [from=40cf_game_state_00_substate_03]
+;   0x40DB (jump) [from=40cf_game_state_00_substate_03__draw_logo_konami_play_select_level_A_level_B]
 ;   0x4131 (jump) [from=412d_game_state_01]
-5028_:
-	ld hl,0e004h		;5028
+5028_fixme:
+	ld hl,0e004h		;5028 HL = &game_state_bits_or_counter_or_timer
 	bit 3,(hl)		;502b ?Test blink bit?
 	ld c,0ffh		;502d C = 0xFF (do write symbol)
-	jr nz,$+3		;502f if (nz) jump to 0x5032 5032_fixme
+	jr nz,$+3		;502f if (nz) jump to 5032_draw_0_or_1_hand_pointing_to_right_symbols_before_level_A_and_B
 	inc c			;5031 C = 0x00 (don't write symbol)
-	
+
+
+
 ; We can get here from:
-;   0x502F (jump) C == 0xFF
-;   0x5031 (fall) C == 0x00
-5032_fixme:
+;   0x502F (jump) C == 0xFF (do write hand symbol)
+;   0x5031 (fall) C == 0x00 (don't write hand symbol)
+5032_draw_0_or_1_hand_pointing_to_right_symbols_before_level_A_and_B:
 	ld hl,03a0ah		;5032 VRAM location for hand point to right (level A).
 	ld de,03a4ah		;5035 VRAM location for hand point to right (level B).
 	ld a,(0e03bh_levelAB)	;5038 0x00 == level A, 0x01 == level B
-	or a			;503b
+	or a			;503b Update Z/NZ flag.
 	jr z,$+3		;503c if (z) jump to 0x503F
-	ex de,hl		;503e
+	ex de,hl		;503e DE = 0x3A0A, HL = 0x3A4A
 	
 	; We can get here from:
 	;   0x503C (jump) [level A] HL == 0x3A0A, DE == 0x3A4A
 	;   0x503E (fall) [level B] HL == 0x3A4A, DE == 0x3A0A
-	push de			;503f
-	call 05046h		;5040 5046_draw_or_hide_hand_pointing_to_right
+	push de			;503f Store VRAM location of the other level.
+	call 05046h		;5040 5046_draw_or_hide_hand_pointing_to_right(VRAM_destination=HL, mask=C)
 	
-	pop hl			;5043
+	; Never must 2 hand symbols be seen, so at least 1 must be 
+	; hidden, so hide the other hand. I.e, set C to 0x00.
+	pop hl			;5043 Restore VRAM location of the other level.
 	ld c,000h		;5044 C = 0x00 (don't write symbol, i.e. blacken)
-	
+	; Fall to 5046_draw_or_hide_hand_pointing_to_right(VRAM_destination=HL, mask=C)
+
+
+
+; Draw or hide the hand pointing to right symbol.
+; 
+; Input:
+;   HL: VRAM start location (inside name table)
+;    C: mask (0x00: hide symbol, 0xFF: draw symbol)
+; 
 ; We can get here from:
 ;   0x5040 (call) C: determined by 0xE004, level A: HL == 0x3A0A, level B: HL == 0x3A4A
 ;   0x5044 (fall) C == 0x00              , level A: HL == 0x3A4A, level B: HL == 0x3A0A
@@ -5918,11 +5949,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; A = stage - 1, make stage 0-based.
 	ld a,(e043_stage)	;508e A = stage
 	dec a			;5091 A = stage - 1
-
-	ld hl,05191h		;5092
+	
+	; Init stage_specific_default_coarse_pattern_ID.
+	ld hl,05191h		;5092 HL = 5191_stage2default_scenery_pattern_id
 	call 0403bh		;5095 HL += A
 	ld a,(hl)		;5098
-	ld (0e089h),a		;5099
+	ld (0e089h),a		;5099 stage_specific_default_coarse_pattern_ID = 5191_stage2default_scenery_pattern_id[stage - 1]
 	
 	; A = stage - 1, make stage 0-based.
 	ld a,(e043_stage)	;509c A = stage
@@ -6156,12 +6188,17 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Data, see 0x5092.
-	defb 0xA0		;5191 Stage 01
+; Every stage has a default scenery pattern ID.
+; 
+; (Some) references:
+;   0x5092: Store stage specific value in 0xE089.
+;   0x5933 (indirect): Init a new coarse line with the stage specific value.
+5191_stage2default_scenery_pattern_id:
+	defb 0xA0		;5191 Stage 01: Green with yellow spickles
 	defb 0xC5		;5192 Stage 02
 	defb 0xAB		;5193 Stage 03
-	defb 0x06		;5194 Stage 04
-	defb 0x09		;5195 Stage 05
+	defb 0x06		;5194 Stage 04: Dark red
+	defb 0x09		;5195 Stage 05: Light red
 	defb 0x80		;5196 Stage 06
 
 
@@ -7084,7 +7121,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x5523 (jump) stage == 1
 ;   0x56C9 (jump) stage == 6
-	call 058afh		;5534 58af_fixme
+	call 058afh		;5534 58af_update_coarse_something_for_stage_1_2_6
 
 ; We can get here from:
 ;   0x5534 (fall) [stage 1+6]
@@ -7108,7 +7145,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Stage 2
-	call 058afh		;5545 58af_fixme
+	call 058afh		;5545 58af_update_coarse_something_for_stage_1_2_6
 	ld hl,(0e08ah)		;5548
 	ld a,(hl)		;554b
 	inc a			;554c
@@ -7830,9 +7867,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x5534 (call) Stage 1
+;   0x5534 (call) Stage 1 and 6
 ;   0x5545 (call) Stage 2
-58af_fixme:
+58af_update_coarse_something_for_stage_1_2_6:
 	ld hl,0e07fh		;58af HL = 0xE07F
 	dec (hl)		;58b2
 	jr z,$+12		;58b3 if (z) jump to 0x58BF
@@ -7845,17 +7882,23 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	dec (hl)		;58bc
 	jr $+47			;58bd jump to 0x58EC
 	
+	
+	
 	; We can get here from:
-	;   0x58B3 (jump)
-	ld (hl),008h		;58bf
+	;   0x58B3 (jump) HL == 0xE07F
+	ld (hl),008h		;58bf *(0xE07F) = 0x08
+	
+	; Advance some data pointer.
 	ld hl,(0e073h)		;58c1 HL = *(0xE073)
 	inc hl			;58c4
 	ld (0e073h),hl		;58c5
+	
 	ld a,(hl)		;58c8
-	inc a			;58c9
-	jr z,$+29		;58ca if (z) jump to 0x58E7
-	dec a			;58cc
-	and 00fh		;58cd
+	inc a			;58c9 ++A
+	jr z,$+29		;58ca if (special value 0xFF) jump to 0x58E7
+	
+	dec a			;58cc --A
+	and 00fh		;58cd A &= 0x0F
 	add a,a			;58cf A *= 2
 	ld hl,(0e075h)		;58d0
 	call 0403bh		;58d3 HL += A
@@ -7870,27 +7913,48 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;58e1
 	ld (0e087h),hl		;58e2
 	jr $+7			;58e5 jump to 0x58EC
+	
+	
+	
+	; We can get here from:
+	;   0x58CA (jump) Seen special value 0xFF.
 	ld a,008h		;58e7
 	ld (0e086h),a		;58e9
+	
+	; We can get here from:
+	;   0x58E5 (jump)
+	;   0x58E9 (fall)
 	ld hl,(0e073h)		;58ec
 	ld a,(hl)		;58ef
+	
+	; Return if special value 0xFF.
 	inc a			;58f0
-	ret z			;58f1
+	ret z			;58f1 if (special value 0xFF) return
 	dec a			;58f2
+	
+	; (A /= 16) *= 2
 	rra			;58f3
 	rra			;58f4
 	rra			;58f5
 	rra			;58f6
 	and 00fh		;58f7
-	add a,a			;58f9
-	ld de,0e058h		;58fa
+	add a,a			;58f9 A *= 2
+	
+	; Set LDIR destination.
+	; 
+	; DE = 0xE058 + A
+	ld de,0e058h		;58fa DE = 0xE058 ?22 pattern names?
 	add a,e			;58fd
 	ld e,a			;58fe
+	
+	; Set LDIR count to *(0xE085).
 	ld a,(0e085h)		;58ff
 	ld c,a			;5902
-	ld b,000h		;5903
-	ld hl,(0e087h)		;5905
-	ldir			;5908
+	ld b,000h		;5903 B = 0x00
+	
+	ld hl,(0e087h)		;5905 LDIR: source
+	ldir			;5908 do { *(DE++) = *(HL++) } while (--BC)
+	
 	ld (0e087h),hl		;590a
 	ret			;590d
 
@@ -7919,14 +7983,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Initializes the next coarse line (0xE058, 22 bytes) with the pattern 
-; specified by the value in 0xE089.
+; specified by the value in 0xE089 (the stage specific default pattern 
+; ID).
 ; 
 ; We can get here from:
-;   0x551D (call)
+;   0x551D (call) [from=551d_fixme]
 592a_init_next_coarse_line:
 	ld hl,0e058h		;592a HL = 0xE058
-	ld de,0e059h		;592d DE = 0xE059
-	ld a,(0e089h)		;5930 A = *(0xE089)
+	ld de,0e059h		;592d DE = &stage_specific_default_coarse_pattern_ID
+	ld a,(0e089h)		;5930 A = stage_specific_default_coarse_pattern_ID
 	ld (hl),a		;5933
 	ld bc,00015h		;5934 LDIR: loop count (21)
 	ldir			;5937
@@ -20442,7 +20507,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; Stage 1+4+5, data pointer 2. See 0x5163, 0x5175, 0x517B.
 	defb 0x94		;78e5
-	defb 0x15		;78e6
+	defb 0x15		;78e6 Stage 1: offset from 0xE058 is 0x02 (0x15 >> 4 << 1)
 	defb 0x94		;78e7
 	defb 0x00		;78e8
 	defb 0x97		;78e9
@@ -20565,74 +20630,79 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0xFF		;795e
 	defb 0xFF		;795f
 
+
+
 ; Stage 1, data pointer 3. See 0x5165.
-	defb 0x70		;7960
-	defb 0x79		;7961
-	defb 0xA3		;7962
-	defb 0x79		;7963
-	defb 0xCF		;7964
-	defb 0x79		;7965
-	defb 0x11		;7966
-	defb 0x7A		;7967
-	defb 0x11		;7968
-	defb 0x7A		;7969
-	defb 0x2B		;796a
-	defb 0x7A		;796b
-	defb 0x5D		;796c
-	defb 0x7A		;796d
-	defb 0x83		;796e
-	defb 0x7A		;796f
+	defw 0x7970		;7960
+	defw 0x79A3		;7962
+	defw 0x79CF		;7964
+	defw 0x7A11		;7966
+	defw 0x7A11		;7968
+	defw 0x7A2B		;796a
+	defw 0x7A5D		;796c
+	defw 0x7A83		;796e
+
+	; 0x7960 points here.
 	defb 0x07		;7970
 	defb 0x07		;7971
-	defb 0x80		;7972
+
+	defb 0x80		;7972 Block #00
 	defb 0x80		;7973
 	defb 0x80		;7974
 	defb 0x80		;7975
 	defb 0x80		;7976
 	defb 0x80		;7977
 	defb 0x87		;7978
-	defb 0x80		;7979
+
+	defb 0x80		;7979 Block #01
 	defb 0x87		;797a
 	defb 0x8C		;797b
 	defb 0x8B		;797c
 	defb 0x8A		;797d
 	defb 0x80		;797e
 	defb 0x87		;797f
-	defb 0x80		;7980
+
+	defb 0x80		;7980 Block #02
 	defb 0x87		;7981
 	defb 0x85		;7982
 	defb 0x86		;7983
 	defb 0x89		;7984
 	defb 0xA0		;7985
 	defb 0xA0		;7986
-	defb 0x80		;7987
+
+	defb 0x80		;7987 Block #03
 	defb 0x87		;7988
 	defb 0x83		;7989
 	defb 0x84		;798a
 	defb 0x89		;798b
 	defb 0xA0		;798c
 	defb 0xA0		;798d
-	defb 0x80		;798e
+
+	defb 0x80		;798e Block #04
 	defb 0x87		;798f
 	defb 0x81		;7990
 	defb 0x82		;7991
 	defb 0x88		;7992
 	defb 0x80		;7993
 	defb 0x87		;7994
-	defb 0x80		;7995
+
+	defb 0x80		;7995 Block #05
 	defb 0x87		;7996
 	defb 0xA0		;7997
 	defb 0xA0		;7998
 	defb 0xA0		;7999
 	defb 0x80		;799a
 	defb 0x87		;799b
-	defb 0x80		;799c
+
+	defb 0x80		;799c Block #06
 	defb 0x80		;799d
 	defb 0x80		;799e
 	defb 0x80		;799f
 	defb 0x80		;79a0
 	defb 0x80		;79a1
 	defb 0x87		;79a2
+
+	; 0x7962 points here.
 	defb 0x07		;79a3
 	defb 0x06		;79a4
 	defb 0x08		;79a5
@@ -20677,6 +20747,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0xBD		;79cc
 	defb 0xBD		;79cd
 	defb 0xBD		;79ce
+
+	; 0x7964 points here.
 	defb 0x08		;79cf
 	defb 0x08		;79d0
 	defb 0x80		;79d1
@@ -20743,6 +20815,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x80		;7a0e
 	defb 0x80		;7a0f
 	defb 0x87		;7a10
+
+	; 0x7966 points here.
+	; 0x7968 points here.
 	defb 0x08		;7a11
 	defb 0x03		;7a12
 	defb 0x8D		;7a13
@@ -20769,56 +20844,71 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0xA0		;7a28
 	defb 0x8D		;7a29
 	defb 0x8E		;7a2a
-	defb 0x08		;7a2b
-	defb 0x06		;7a2c
-	defb 0xA0		;7a2d
+
+
+
+	; 0x796A points here.
+	defb 0x08		;7a2b Upcoming: 8 blocks
+	defb 0x06		;7a2c Upcoming: block of size 6
+	defb 0xA0		;7a2d Block #00
 	defb 0xA0		;7a2e
 	defb 0xA0		;7a2f
 	defb 0xA0		;7a30
 	defb 0xAA		;7a31
 	defb 0xAB		;7a32
-	defb 0xAC		;7a33
+
+	defb 0xAC		;7a33 Block #01: Konami sign, shadow, grass+yellow spickles.
 	defb 0xAD		;7a34
 	defb 0xAE		;7a35
 	defb 0xAF		;7a36
 	defb 0xB0		;7a37
 	defb 0xA0		;7a38
-	defb 0xA0		;7a39
+
+	defb 0xA0		;7a39 Block #02
 	defb 0xA0		;7a3a
 	defb 0xA0		;7a3b
 	defb 0xA0		;7a3c
 	defb 0xA0		;7a3d
 	defb 0xA0		;7a3e
-	defb 0xA0		;7a3f
+
+	defb 0xA0		;7a3f Block #03
 	defb 0xA0		;7a40
 	defb 0xAA		;7a41
 	defb 0xAB		;7a42
 	defb 0xA0		;7a43
 	defb 0xA0		;7a44
-	defb 0xA0		;7a45
+
+	defb 0xA0		;7a45 Block #04
 	defb 0xA0		;7a46
 	defb 0xAA		;7a47
 	defb 0xAB		;7a48
 	defb 0x8D		;7a49
 	defb 0x8E		;7a4a
-	defb 0xB7		;7a4b
+
+	defb 0xB7		;7a4b Block #05
 	defb 0xB8		;7a4c
 	defb 0xBA		;7a4d
 	defb 0xA0		;7a4e
 	defb 0xA0		;7a4f
 	defb 0xA0		;7a50
-	defb 0xB5		;7a51
+
+	defb 0xB5		;7a51 Block #06
 	defb 0xB6		;7a52
 	defb 0xB9		;7a53
 	defb 0xA0		;7a54
 	defb 0x8D		;7a55
 	defb 0x8E		;7a56
-	defb 0xA0		;7a57
+
+	defb 0xA0		;7a57 Block #07
 	defb 0xA0		;7a58
 	defb 0xA0		;7a59
 	defb 0xA0		;7a5a
 	defb 0x8D		;7a5b
 	defb 0x8E		;7a5c
+
+
+
+	; 0x796C points here.
 	defb 0x06		;7a5d
 	defb 0x06		;7a5e
 	defb 0x80		;7a5f

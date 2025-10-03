@@ -496,7 +496,29 @@ This table was generated with:
 			0xE0
 		I.e. fuel (0xE083) decreases for every 0x20 consumed here.
 		Stored at 0x7388 as part of a write of a word.
-0xE058-0xE06D	22 bytes. Pattern names ?of next coarse line?
+0xE058-0xE06D	0x16 (22) bytes. Pattern names ?of next coarse line?
+0xE058		Byte #00
+0xE059		Byte #01
+0xE05A		Byte #02
+0xE05B		Byte #03
+0xE05C		Byte #04
+0xE05D		Byte #05
+0xE05E		Byte #06
+0xE05F		Byte #07
+0xE060		Byte #08
+0xE061		Byte #09
+0xE062		Byte #0A
+0xE063		Byte #0B
+0xE064		Byte #0C
+0xE065		Byte #0D
+0xE066		Byte #0E
+0xE067		Byte #0F
+0xE068		Byte #10
+0xE069		Byte #11
+0xE06A		Byte #12
+0xE06B		Byte #13
+0xE06C		Byte #14
+0xE06D		Byte #15
 0xE06E		Seen at 0x55F2 (stage 4)
 		Seen at 0x568D (stage 5)
 0xE06F		Track pointer. Track data starts at 0x5998, 0x5931, 0x5A19, 0x5A1B, 0x59C3. See 0x593A.
@@ -541,6 +563,7 @@ This table was generated with:
 0xE07D		Side of left road?
 0xE07E		0xE078_of_previous_frame&1. Distance travelled, middle byte. Seen at 0x550D.
 0xE07F		Seen at 0x514A, 0x58AF
+		0x58BF: set value to 0x08
 0xE081		Bytes of track to copy to VRAM buffer. Max 9 (3 lanes).
 		See 0x58A5, value from array at 0x58AB.
 0xE083		Fuel left:
@@ -562,7 +585,15 @@ This table was generated with:
 			Seems to go from 0x00 to 0x20 and back
 			0x00 ?
 			0x20 ?
-0xE089		Default coarse pattern name, see 0x592A.
+0xE085		?LDIR count, for copying non-default scenery?
+			0x58FF (read) LDIR count, for copying non-default scenery?
+			0x58DD Set new value
+0xE086		?Number of blocks with size *(0xE085)?
+			0x58B5 ?
+			0x58DD Set new value
+0xE087		Seen at 0x58E2 Current location for writing non-default scenery?
+0xE089		[&stage_specific_default_coarse_pattern_ID]
+		Default coarse pattern name, see 0x592A.
 			Stage 04: pattern 0x06 (completely dark red)
 0xE08A-0xE095	Seen at 0x510D.
 0xE08D		Number of rows of 0xE08E
