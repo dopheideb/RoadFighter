@@ -45,12 +45,12 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 
 Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F | Base
 -----+-------------------------------------------------------------------------------------------------+-----
-3800 | 00             __ __                                                  H  I  S  C  O  R  E       | 3800
-3820 | 00           | =( )= |                                                               0  0       | 3820
-3840 | 00           | =( )= |                                                                          | 3840
-3860 | 00           | =( )= |                                                S  C  O  R  E             | 3860
-3880 | 00           | =( )= |                                                               0  0       | 3880
-38A0 | 00             -- --                                                       __ __ __ __          | 38A0
+3800 | 00                __ __                                               H  I  S  C  O  R  E       | 3800
+3820 | 00              | =( )= |                                                            0  0       | 3820
+3840 | 00              | =( )= |                                                                       | 3840
+3860 | 00              | =( )= |                                             S  C  O  R  E             | 3860
+3880 | 00              | =( )= |                                                            0  0       | 3880
+38A0 | 00                -- --                                                    __ __ __ __          | 38A0
 38C0 | 00                                                                         |     |>  |          | 38C0
 38E0 | 00                                                                         |   |     |          | 38E0
 -----+-------------------------------------------------------------------------------------------------+-----
@@ -156,8 +156,10 @@ This table was generated with:
 
 == RAM ==
 
-0xE000		Game state
-0xE001		Game substate
+0xE000		[&game_state]
+		Game state
+0xE001		[&game_substate]
+		Game substate
 		0xE000	0xE001
 		state	sub	Address		Meaning
 		---------------------------------------
@@ -230,7 +232,8 @@ This table was generated with:
 		bit 6 (0x40):
 			0: demo
 			1: player is playing
-0xE003		Game state ticker, increments
+0xE003		[&game_state_ticker]
+		Game state ticker, increments
 	
 0xE004		[&game_state_bits_or_counter_or_timer]
 		State related bits or state related counter/timer.
