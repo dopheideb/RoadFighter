@@ -684,7 +684,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x41BD (jump) A == 0x1A [from=41c2_game_state_03_substate_05]
 ;   0x41D2 (jump) A == 0x05 [from=41cd_game_state_03_substate_07]
 ;   0x41DF (jump) A == 0x09 [from=41d7_game_state_03_substate_08]
-;   0x426D (jump) A == 0x50 [from=4266_game_state_03_substate_10]
+;   0x426D (jump) A == 0x50 [from=4266_game_state_03_substate_00]
 ;   0x427C (jump) A == 0x1A [from=4272_game_state_04_substate_01]
 ;   0x4287 (jump) A == 0x30 [from=4281_game_state_04_substate_02]
 ;   0x429C (jump) A == 0x28 [from=4294_game_state_04_substate_03]
@@ -807,7 +807,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	; We can get here from:
 	;   0x41CB (DJNZ)
-	djnz $+13		;41d5 if (--B != 0) jump to 0x41E2 (4266_game_state_03_substate_10)
+	djnz $+13		;41d5 if (--B != 0) jump to 0x41E2 (4266_game_state_03_substate_00)
 41d7_game_state_03_substate_08:
 	call 0440ch		;41d7 440c_decrement_timer_and_do_return_magic
 	; Post: timer ran out.
@@ -822,10 +822,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	; We can get here from:
 	;   0x41D5 (DJNZ)
-41e2_game_state_03_substate_09_or_higher:
+41e2_game_state_03_substate_09_or_00:
 	dec b			;41e2
-	jp nz,04266h		;41e3 if (substate >= 10) jump to 0x4266
-	
+	jp nz,04266h		;41e3 if (substate == 0 || substate >= 10) jump to 0x4266
+
+
+
 41e6_game_state_03_substate_09:
 	; Copy cars+minicar to sprite attributes and show cars on screen.
 	call 05270h		;41e6 5270_copy_30_sprites_from_RAM_to_VRAM
@@ -839,20 +841,20 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x41F0 (jump) A == 0xC8 (0xC8 is outside the screen, so car "disappears")
 	;   0x41F2 (fall) A == 0x80 (start position on grid)
-	ld (0e04ch_car_vpos),a	;41f4 Set vertical position of car.
+	ld (0e04ch_car_vpos),a	;41f4 car_vpos = A
 	call 06e1dh		;41f7 6e1d_store_car_sprite_attributes
 	
-	ld hl,0e003h		;41fa HL = 0xE003
-	ld a,(hl)		;41fd
-	and 01fh		;41fe
-	ret nz			;4200 if (*0xE003 & 0x1F) return
-	; Post: *0xE003 is a multiple of 0x20
+	ld hl,0e003h		;41fa HL = &game_state_ticker
+	ld a,(hl)		;41fd A = game_state_ticker
+	and 01fh		;41fe A &= 0x1F
+	ret nz			;4200 if (game_state_ticker & 0x1F) return
+	; Post: game_state_ticker is a multiple of 0x20.
 	
-	inc hl			;4201 HL = 0xE004
-	dec (hl)		;4202
-	ld a,(hl)		;4203
+	inc hl			;4201 HL = 0xE004 (since previous value was 0xE003 set at 0x41FA)
+	dec (hl)		;4202 --game_state_bits_or_counter_or_timer
+	ld a,(hl)		;4203 A = game_state_bits_or_counter_or_timer
 	cp 001h			;4204
-	jr z,$+68		;4206 if (*0xE004 == 1) jump to 424a_game_state_03_substate_09_subsubstate_01
+	jr z,$+68		;4206 if (game_state_bits_or_counter_or_timer == 1) jump to 424a_game_state_03_substate_09_subsubstate_01
 	bit 0,a			;4208
 	jr nz,$+13		;420a if (*0xE004 & 1 == 1) jump to 0x4217
 	cp 002h			;420c 
@@ -963,8 +965,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x41E3 (jump) [from=41e2_game_state_03_substate_09_or_higher]
-4266_game_state_03_substate_10:
+;   0x41E3 (jump) [from=41e2_game_state_03_substate_09_or_00]
+4266_game_state_03_substate_00:
 	ld a,098h		;4266 A = 0x98 Tune after selecting either level A or B
 	call 04b6eh		;4268 4b6e_sound_something_with_D_is_0
 	
@@ -6061,7 +6063,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,001h		;50fb A = 0x01
 	ld (0e07ch),a		;50fd
 	ld (0e08ah),a		;5100
-	ld hl,07aa1h		;5103 HL = 0x7AA1
+	ld hl,07aa1h		;5103 HL = 7aa1_oil_related_data_something
 	ld (0e0b2h),hl		;5106
 	ret			;5109
 
@@ -6194,7 +6196,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x5092: Store stage specific value in 0xE089.
 ;   0x5933 (indirect): Init a new coarse line with the stage specific value.
 5191_stage2default_scenery_pattern_id:
-	defb 0xA0		;5191 Stage 01: Green with yellow spickles
+	defb 0xA0		;5191 Stage 01: Green with yellow speckles
 	defb 0xC5		;5192 Stage 02
 	defb 0xAB		;5193 Stage 03
 	defb 0x06		;5194 Stage 04: Dark red
@@ -20633,20 +20635,24 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Stage 1, data pointer 3. See 0x5165.
-	defw 0x7970		;7960
-	defw 0x79A3		;7962
-	defw 0x79CF		;7964
-	defw 0x7A11		;7966
-	defw 0x7A11		;7968
-	defw 0x7A2B		;796a
-	defw 0x7A5D		;796c
-	defw 0x7A83		;796e
+	defw 0x7970		;7960 7970_stage_01_data__blue_house_with_opening_on_the_left__surrounded_by_bushes
+	defw 0x79A3		;7962 79a3_stage_01_data__red_tennis_court
+	defw 0x79CF		;7964 79cf_stage_01_data__red_house_with_swimming_pool__surrounded_by_bushes
+	defw 0x7A11		;7966 7a11_stage_01_data__misaligned_yellow_trees_with_their_shadow
+	defw 0x7A11		;7968 7a11_stage_01_data__misaligned_yellow_trees_with_their_shadow
+	defw 0x7A2B		;796a 7a2b_stage_01_data__konami_advertisement_sign_and_swimming_pool
+	defw 0x7A5D		;796c 7a5d_stage_01_data__house_with_stairs_on_the_left__surrounded_by_bushes
+	defw 0x7A83		;796e 7a83_stage_01_data__two_small_blue_houses_and_some_bushes
 
-	; 0x7960 points here.
-	defb 0x07		;7970
-	defb 0x07		;7971
 
-	defb 0x80		;7972 Block #00
+
+; Referenced by:
+;   0x7960
+7970_stage_01_data__blue_house_with_opening_on_the_left__surrounded_by_bushes:
+	defb 0x07		;7970 Number of blocks: 7
+	defb 0x07		;7971 Block length: 7
+
+	defb 0x80		;7972 Block #00/7: Large horizontal bush.
 	defb 0x80		;7973
 	defb 0x80		;7974
 	defb 0x80		;7975
@@ -20654,7 +20660,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x80		;7977
 	defb 0x87		;7978
 
-	defb 0x80		;7979 Block #01
+	defb 0x80		;7979 Block #01/7: Bush, shadow of blue hose, bush.
 	defb 0x87		;797a
 	defb 0x8C		;797b
 	defb 0x8B		;797c
@@ -20662,7 +20668,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x80		;797e
 	defb 0x87		;797f
 
-	defb 0x80		;7980 Block #02
+	defb 0x80		;7980 Block #02/7: Bush, blue house (bottom), bush.
 	defb 0x87		;7981
 	defb 0x85		;7982
 	defb 0x86		;7983
@@ -20670,7 +20676,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0xA0		;7985
 	defb 0xA0		;7986
 
-	defb 0x80		;7987 Block #03
+	defb 0x80		;7987 Block #03/7: Bush, blue house (middle), bush.
 	defb 0x87		;7988
 	defb 0x83		;7989
 	defb 0x84		;798a
@@ -20678,7 +20684,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0xA0		;798c
 	defb 0xA0		;798d
 
-	defb 0x80		;798e Block #04
+	defb 0x80		;798e Block #04/7: Bush, blue house (top), bush.
 	defb 0x87		;798f
 	defb 0x81		;7990
 	defb 0x82		;7991
@@ -20686,7 +20692,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x80		;7993
 	defb 0x87		;7994
 
-	defb 0x80		;7995 Block #05
+	defb 0x80		;7995 Block #05/7: Bush, garden, bush.
 	defb 0x87		;7996
 	defb 0xA0		;7997
 	defb 0xA0		;7998
@@ -20694,7 +20700,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x80		;799a
 	defb 0x87		;799b
 
-	defb 0x80		;799c Block #06
+	defb 0x80		;799c Block #06/7: Large horizontal bush.
 	defb 0x80		;799d
 	defb 0x80		;799e
 	defb 0x80		;799f
@@ -20702,56 +20708,72 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x80		;79a1
 	defb 0x87		;79a2
 
-	; 0x7962 points here.
-	defb 0x07		;79a3
-	defb 0x06		;79a4
-	defb 0x08		;79a5
+
+
+; Referenced by:
+;   0x7962
+79a3_stage_01_data__red_tennis_court:
+	defb 0x07		;79a3 Number of blocks: 7
+	defb 0x06		;79a4 Block size: 6
+
+	defb 0x08		;79a5 Block #00/7
 	defb 0x96		;79a6
 	defb 0x97		;79a7
 	defb 0x98		;79a8
 	defb 0x99		;79a9
 	defb 0x08		;79aa
-	defb 0x08		;79ab
+
+	defb 0x08		;79ab Block #01/7
 	defb 0x93		;79ac
 	defb 0x94		;79ad
 	defb 0x95		;79ae
 	defb 0x93		;79af
 	defb 0x08		;79b0
-	defb 0x08		;79b1
+	
+	defb 0x08		;79b1 Block #02/7
 	defb 0x8F		;79b2
 	defb 0x90		;79b3
 	defb 0x91		;79b4
 	defb 0x92		;79b5
 	defb 0x08		;79b6
-	defb 0x08		;79b7
+	
+	defb 0x08		;79b7 Block #03/7
 	defb 0x96		;79b8
 	defb 0x97		;79b9
 	defb 0x98		;79ba
 	defb 0x99		;79bb
 	defb 0x08		;79bc
-	defb 0x08		;79bd
+	
+	defb 0x08		;79bd Block #04/7
 	defb 0x93		;79be
 	defb 0x94		;79bf
 	defb 0x95		;79c0
 	defb 0x93		;79c1
 	defb 0x08		;79c2
-	defb 0x08		;79c3
+	
+	defb 0x08		;79c3 Block #05/7
 	defb 0x8F		;79c4
 	defb 0x90		;79c5
 	defb 0x91		;79c6
 	defb 0x92		;79c7
 	defb 0x08		;79c8
-	defb 0xBD		;79c9
+
+	defb 0xBD		;79c9 Block #06/7
 	defb 0xBD		;79ca
 	defb 0xBD		;79cb
 	defb 0xBD		;79cc
 	defb 0xBD		;79cd
 	defb 0xBD		;79ce
 
-	; 0x7964 points here.
-	defb 0x08		;79cf
-	defb 0x08		;79d0
-	defb 0x80		;79d1
+
+
+; Referenced by
+;   0x7964
+79cf_stage_01_data__red_house_with_swimming_pool__surrounded_by_bushes:
+	defb 0x08		;79cf Number of blocks: 8
+	defb 0x08		;79d0 Block length: 8
+	
+	defb 0x80		;79d1 Block #00/8: Large horizontal bush.
 	defb 0x80		;79d2
 	defb 0x80		;79d3
 	defb 0x80		;79d4
@@ -20759,7 +20781,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x80		;79d6
 	defb 0x80		;79d7
 	defb 0x87		;79d8
-	defb 0x80		;79d9
+	
+	defb 0x80		;79d9 Block #01/8: Bush, garden, pool (bottom), garden, bush.
 	defb 0x87		;79da
 	defb 0xA0		;79db
 	defb 0xBB		;79dc
@@ -20767,7 +20790,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0xA0		;79de
 	defb 0x80		;79df
 	defb 0x87		;79e0
-	defb 0x80		;79e1
+	
+	defb 0x80		;79e1 Block #02/8: Bush, garden, pool (middle), garden, bush.
 	defb 0x87		;79e2
 	defb 0xA0		;79e3
 	defb 0xB3		;79e4
@@ -20775,7 +20799,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0xA0		;79e6
 	defb 0x80		;79e7
 	defb 0x87		;79e8
-	defb 0xA0		;79e9
+	
+	defb 0xA0		;79e9 Block #03/8: Bush, garden, pool (top), garden, bush.
 	defb 0xA0		;79ea
 	defb 0xA0		;79eb
 	defb 0xB1		;79ec
@@ -20783,7 +20808,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0xA0		;79ee
 	defb 0x80		;79ef
 	defb 0x87		;79f0
-	defb 0xA0		;79f1
+	
+	defb 0xA0		;79f1 Block #04/8: Bush, garden, shadow of house, bush.
 	defb 0xA0		;79f2
 	defb 0x8C		;79f3
 	defb 0x8B		;79f4
@@ -20791,7 +20817,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x8A		;79f6
 	defb 0x80		;79f7
 	defb 0x87		;79f8
-	defb 0xA0		;79f9
+	
+	defb 0xA0		;79f9 Block #05/8: Garden, red house, bush.
 	defb 0xA0		;79fa
 	defb 0x9D		;79fb
 	defb 0x9E		;79fc
@@ -20799,7 +20826,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x89		;79fe
 	defb 0x80		;79ff
 	defb 0x87		;7a00
-	defb 0x80		;7a01
+	
+	defb 0x80		;7a01 Block #06/8: Bush, red house, bush.
 	defb 0x87		;7a02
 	defb 0x9A		;7a03
 	defb 0x9B		;7a04
@@ -20807,7 +20835,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x88		;7a06
 	defb 0x80		;7a07
 	defb 0x87		;7a08
-	defb 0x80		;7a09
+	
+	defb 0x80		;7a09 Block #07/8: Large horizontal bush.
 	defb 0x80		;7a0a
 	defb 0x80		;7a0b
 	defb 0x80		;7a0c
@@ -20816,90 +20845,105 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x80		;7a0f
 	defb 0x87		;7a10
 
-	; 0x7966 points here.
-	; 0x7968 points here.
-	defb 0x08		;7a11
-	defb 0x03		;7a12
-	defb 0x8D		;7a13
+
+
+; Referenced by:
+;   0x7966
+;   0x7968
+7a11_stage_01_data__misaligned_yellow_trees_with_their_shadow:
+	defb 0x08		;7a11 Number of block: 8
+	defb 0x03		;7a12 Block length: 3
+	
+	defb 0x8D		;7a13 Block #00/8: Yellow tree with its shadow, grass+yellow speckles.
 	defb 0x8E		;7a14
 	defb 0xA0		;7a15
-	defb 0xA0		;7a16
+	
+	defb 0xA0		;7a16 Block #01/8: Grass+yellow speckles, yellow tree with its shadow.
 	defb 0x8D		;7a17
 	defb 0x8E		;7a18
-	defb 0xA0		;7a19
+	
+	defb 0xA0		;7a19 Block #02/8: Grass+yellow speckles.
 	defb 0xA0		;7a1a
 	defb 0xA0		;7a1b
-	defb 0x8D		;7a1c
+	
+	defb 0x8D		;7a1c Block #03/8: Yellow tree with its shadow, grass+yellow speckles.
 	defb 0x8E		;7a1d
 	defb 0xA0		;7a1e
-	defb 0xA0		;7a1f
+	
+	defb 0xA0		;7a1f Block #04/8: Grass+yellow speckles, yellow tree with its shadow.
 	defb 0x8D		;7a20
 	defb 0x8E		;7a21
-	defb 0xA0		;7a22
+	
+	defb 0xA0		;7a22 Block #05/8: Grass+yellow speckles, yellow tree with its shadow.
 	defb 0x8D		;7a23
 	defb 0x8E		;7a24
-	defb 0x8D		;7a25
+	
+	defb 0x8D		;7a25 Block #06/8: Yellow tree with its shadow, grass+yellow speckles.
 	defb 0x8E		;7a26
 	defb 0xA0		;7a27
-	defb 0xA0		;7a28
+	
+	defb 0xA0		;7a28 Block #07/8: Grass+yellow speckles, yellow tree with its shadow.
 	defb 0x8D		;7a29
 	defb 0x8E		;7a2a
 
 
 
-	; 0x796A points here.
-	defb 0x08		;7a2b Upcoming: 8 blocks
-	defb 0x06		;7a2c Upcoming: block of size 6
-	defb 0xA0		;7a2d Block #00
+; Referenced by:
+;   0x796A
+7a2b_stage_01_data__konami_advertisement_sign_and_swimming_pool:
+	defb 0x08		;7a2b Number of blocks: 8
+	defb 0x06		;7a2c Block length: 6
+	
+	defb 0xA0		;7a2d Block #00/8: Purple+yellow bush and its shadow.
 	defb 0xA0		;7a2e
 	defb 0xA0		;7a2f
 	defb 0xA0		;7a30
 	defb 0xAA		;7a31
 	defb 0xAB		;7a32
 
-	defb 0xAC		;7a33 Block #01: Konami sign, shadow, grass+yellow spickles.
+	defb 0xAC		;7a33 Block #01/8: Konami sign, shadow, grass+yellow speckles.
 	defb 0xAD		;7a34
 	defb 0xAE		;7a35
 	defb 0xAF		;7a36
 	defb 0xB0		;7a37
 	defb 0xA0		;7a38
 
-	defb 0xA0		;7a39 Block #02
+	defb 0xA0		;7a39 Block #02/8: All grass+yellow speckles.
 	defb 0xA0		;7a3a
 	defb 0xA0		;7a3b
 	defb 0xA0		;7a3c
 	defb 0xA0		;7a3d
 	defb 0xA0		;7a3e
 
-	defb 0xA0		;7a3f Block #03
+	defb 0xA0		;7a3f Block #03/8: Purple+yellow bush and its shadow.
 	defb 0xA0		;7a40
 	defb 0xAA		;7a41
 	defb 0xAB		;7a42
 	defb 0xA0		;7a43
 	defb 0xA0		;7a44
 
-	defb 0xA0		;7a45 Block #04
+	defb 0xA0		;7a45 Block #04/8: Purple+yellow bush and its shadow, yellow tree and its shadow.
 	defb 0xA0		;7a46
 	defb 0xAA		;7a47
 	defb 0xAB		;7a48
 	defb 0x8D		;7a49
 	defb 0x8E		;7a4a
 
-	defb 0xB7		;7a4b Block #05
+	defb 0xB7		;7a4b Block #05/8: Pool (lower half) and its shadow.
 	defb 0xB8		;7a4c
 	defb 0xBA		;7a4d
 	defb 0xA0		;7a4e
 	defb 0xA0		;7a4f
 	defb 0xA0		;7a50
 
-	defb 0xB5		;7a51 Block #06
+	defb 0xB5		;7a51 Block #06/8: Pool (upper half) and its shadow, yellow tree and its shadow.
 	defb 0xB6		;7a52
 	defb 0xB9		;7a53
 	defb 0xA0		;7a54
 	defb 0x8D		;7a55
 	defb 0x8E		;7a56
 
-	defb 0xA0		;7a57 Block #07
+	defb 0xA0		;7a57 Block #07/8: Yellow tree and its shadow.
 	defb 0xA0		;7a58
 	defb 0xA0		;7a59
 	defb 0xA0		;7a5a
@@ -20908,75 +20952,102 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-	; 0x796C points here.
-	defb 0x06		;7a5d
-	defb 0x06		;7a5e
-	defb 0x80		;7a5f
+; Referenced by:
+;   0x796C
+7a5d_stage_01_data__house_with_stairs_on_the_left__surrounded_by_bushes:
+	defb 0x06		;7a5d Number of blocks: 6
+	defb 0x06		;7a5e Block length: 6
+	
+	defb 0x80		;7a5f Block #00/6: Large horizontal bush
 	defb 0x80		;7a60
 	defb 0x80		;7a61
 	defb 0x80		;7a62
 	defb 0x80		;7a63
 	defb 0x87		;7a64
-	defb 0x80		;7a65
+	
+	defb 0x80		;7a65 Block #01/6: Shadow of house, and bushes
 	defb 0x8C		;7a66
 	defb 0x8B		;7a67
 	defb 0x8A		;7a68
 	defb 0x80		;7a69
 	defb 0x87		;7a6a
-	defb 0xA7		;7a6b
+	
+	defb 0xA7		;7a6b Block #02/6: Stairs and house (lower half)
 	defb 0xA8		;7a6c
 	defb 0xA9		;7a6d
 	defb 0x89		;7a6e
 	defb 0x80		;7a6f
 	defb 0x87		;7a70
-	defb 0xA4		;7a71
+	
+	defb 0xA4		;7a71 Block #03/6: Stairs and house (upper half)
 	defb 0xA5		;7a72
 	defb 0xA6		;7a73
 	defb 0x88		;7a74
 	defb 0x80		;7a75
 	defb 0x87		;7a76
-	defb 0x80		;7a77
+	
+	defb 0x80		;7a77 Block #04/6: Bushes
 	defb 0x87		;7a78
 	defb 0xA0		;7a79
 	defb 0xA0		;7a7a
 	defb 0x80		;7a7b
 	defb 0x87		;7a7c
-	defb 0x80		;7a7d
+	
+	defb 0x80		;7a7d Block #05/6: All bush
 	defb 0x80		;7a7e
 	defb 0x80		;7a7f
 	defb 0x80		;7a80
 	defb 0x80		;7a81
 	defb 0x87		;7a82
-	defb 0x07		;7a83
-	defb 0x04		;7a84
-	defb 0xA0		;7a85
+
+
+
+; Referenced by:
+;   0x796E
+7a83_stage_01_data__two_small_blue_houses_and_some_bushes:
+	defb 0x07		;7a83 Number of blocks: 7
+	defb 0x04		;7a84 Block size: 4
+	
+	defb 0xA0		;7a85 Block #00/7: purple+yellow bush and its shadow
 	defb 0xAA		;7a86
 	defb 0xAB		;7a87
 	defb 0xA0		;7a88
-	defb 0xA0		;7a89
+	
+	defb 0xA0		;7a89 Block #01/7: purple+yellow bush and its shadow
 	defb 0xA0		;7a8a
 	defb 0xAA		;7a8b
 	defb 0xAB		;7a8c
-	defb 0xA1		;7a8d
+	
+	defb 0xA1		;7a8d Block #02/7: Small blue house
 	defb 0xA2		;7a8e
 	defb 0xA0		;7a8f
 	defb 0xA0		;7a90
-	defb 0xA0		;7a91
+	
+	defb 0xA0		;7a91 Block #03/7: purple+yellow bush and its shadow
 	defb 0xA0		;7a92
 	defb 0xAA		;7a93
 	defb 0xAB		;7a94
-	defb 0xA0		;7a95
+	
+	defb 0xA0		;7a95 Block #04/7: Small blue house
 	defb 0xA1		;7a96
 	defb 0xA2		;7a97
 	defb 0xA0		;7a98
-	defb 0xA0		;7a99
+	
+	defb 0xA0		;7a99 Block #05/7: purple+yellow bush and its shadow
 	defb 0xA0		;7a9a
 	defb 0xAA		;7a9b
 	defb 0xAB		;7a9c
-	defb 0xA0		;7a9d
+	
+	defb 0xA0		;7a9d Block #06/7: purple+yellow bush and its shadow
 	defb 0xAA		;7a9e
 	defb 0xAB		;7a9f
 	defb 0xA0		;7aa0
+
+
+
+; Referenced by:
+;   0x5103 [from=50ef_init_stage_3]
+7aa1_oil_related_data_something:
 	defb 0x03		;7aa1
 	defb 0x01		;7aa2
 	defb 0x07		;7aa3
@@ -20986,6 +21057,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x0A		;7aa7
 	defb 0x01		;7aa8
 	defb 0x00		;7aa9
+
+
 
 ; Stage 2+3, data pointer 1. See 0x5167, 0x516D.
 	defb 0x10		;7aaa
