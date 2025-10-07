@@ -431,9 +431,11 @@ This table was generated with:
 0xE04D		Car: horizontal position: "decimals"
 			The word at 0xE04D is increased, and the high 
 			byte is used as the horizontal position.
-0xE04E		Car: horizontal position on screen
+0xE04E		[&car_hpos]
+		Car: horizontal position on screen
 			Pokeable!
-0xE04F		Car: speed
+0xE04F		[&car_speed]
+		Car: speed
 			0x00-0x17	Seen at 0x6C96
 			0x18-0x4F	Seen at 0x6C9A
 			>= 0xB8		Seen at 0x6F2A
@@ -566,19 +568,20 @@ This table was generated with:
 		0x58BF: set value to 0x08
 0xE081		Bytes of track to copy to VRAM buffer. Max 9 (3 lanes).
 		See 0x58A5, value from array at 0x58AB.
-0xE083		Fuel left:
-		0xD7 means really full of fuel (see 0x7765)
-		0xD0 At start of stage ("full fuel")
-		0x09 low fuel warning, see 0x7437
-		0x08 low fuel warning, see 0x7437
-		0x07 low fuel warning, see 0x7437
-		0x06 low fuel warning, see 0x7437
-		0x05 low fuel warning, see 0x7437
-		0x04 low fuel warning, see 0x7437
-		0x03 low fuel warning, see 0x7437
-		0x02 low fuel warning, see 0x7437
-		0x01 low fuel warning, see 0x7437
-		0x00 means empty
+0xE083		[&fuel_remaining]
+		Fuel remaining:
+			0xD7 MAX_FUEL means really full of fuel (see 0x7765)
+			0xD0 At start of stage ("full fuel")
+			0x09 low fuel warning, see 0x7437
+			0x08 low fuel warning, see 0x7437
+			0x07 low fuel warning, see 0x7437
+			0x06 low fuel warning, see 0x7437
+			0x05 low fuel warning, see 0x7437
+			0x04 low fuel warning, see 0x7437
+			0x03 low fuel warning, see 0x7437
+			0x02 low fuel warning, see 0x7437
+			0x01 low fuel warning, see 0x7437
+			0x00 means empty
 		
 		Fuel heart: +0x20, see 0x7763
 0xE084		Fuel related?
@@ -604,11 +607,46 @@ This table was generated with:
 		0x557D: set value to 0x7C85 (0x4092 or 0x9240)
 		0x56C6: set value to 0x7FE4 (0x0000)
 0xE092 (word)	Seen at 0x512E. Stage 5 specific!
-0xE098		Seen at 0x6DD1, 0x7102. ?table, 1 byte per element, with (max) 32 elements?
+0xE098-0xE0AF	Table of 0x18 (24) bytes, keeps of (derivative of) left side of road
+                        Val |Remarks                       | Wanted hpos
+			----+------------------------------+----------
+			0x10 Utmost left                    0x3A (58)
+			0x20 Value at start of stage 1      0x5A (90)
+			0x2C Utmost right (seen in stage 2) 0x72 (114)
+0xE098		Entry #00
+0xE099		Entry #01
+0xE09A		Entry #02
+0xE09B		Entry #03
+0xE09C		Entry #04
+0xE09D		Entry #05
+0xE09E		Entry #06
+0xE09F		Entry #07
+0xE0A0		Entry #08
+0xE0A1		Entry #09
+0xE0A2		Entry #0A
+0xE0A3		Entry #0B
+0xE0A4		Entry #0C
+0xE0A5		Entry #0D
+0xE0A6		Entry #0E
+0xE0A7		Entry #0F
+0xE0A8		Entry #10
+0xE0A9		Entry #11
+0xE0AA		Entry #12 Seen at 0x52E4. This is just "above" the democar.
+0xE0AB		Entry #13
+0xE0AC		Entry #14
+0xE0AD		Entry #15
+0xE0AE		Entry #16
+0xE0AF		Entry #17
+
+
+		Seen at 0x6DD1, 0x7102. ?table, 1 byte per element, with (max) 32 elements?
+		0x5064: ?Table has 0x17 entries, filled by default with 0x20?
+		0x5914: ?Table has 0x17 entries?
 0xE0AA		Seen at 0x52E4.
 0xE0AD		Side of the road?
 0xE0B0		Seen at 0x7004.
-0xE0B1		Skid ticks remaining.
+0xE0B1		[&skid_ticks_remaining]
+		Skid ticks remaining.
 0xE0B2 (word)	Pointer to oil related data.
 0xE0B4		?Bool: Stage has no oil. See 0x54B4.?
 			0x00: Contains oil
@@ -625,21 +663,47 @@ This table was generated with:
 			0x03: Worth 800 points.
 			>= 0x04: Worth 1000 points.
 0xE0BA		Seen at 0x7796, ?Ticks remaining for playing fuel heart sound?
-0xE0BD (word)	Seen at 0x7020. Example value 0x53AB (seen in stage 3)
+0xE0BD (word)	Seen at 0x7020.
+			0x7020 Load
+			0x7024 Store
+			0x703A Store
+		
+		Pointer to data.
+		?Incremented when 0xE0C1 == 0?
+
+		Values:
+			0x537D At start of stage 1, but only very very briefly.
+			0x537E At start of stage 1.
+			
+			0x538D At start of stage 2, but only very very briefly.
 0xE0BF (word)	Seen at 0x6E62, 0x719C, 0x72F8 ??pointer to one of the current rival cars??
 0xE0C1		Seen at 0x51E5 (init), 0x6F2B, 0x7019, 0x7055
+		??Number of moving objects on spare??
+		Values:
+			0x02 Stored at 0x7058
 0xE0C2		Seen at 0x6F31
+		Values:
+			0x00 Stored at 0x705D
 0xE0C3-0xE0D2	Seen at 0x6F3C
+		Whole 16 bytes are copied to 0xE0E5 at 0x6FF4.
+0xE0C3		#00
+0xE0C4		#01 0x01 (set at 0x7066)
+0xE0C5		#02
 0xE0D3-0xE0E2	Seen as value in 0xE0BF
+		Whole 16 bytes are copied to 0xE0F5 at 0x6FF4.
 0xE0E3		Seen at 0x6EE3, bonus fuel heart related
 0xE0E4		Seen at 0x7298, 0x70AC. ?rival car index?
 0xE0E5		Seen at 0x6E61 - ?rival cars, 16 bytes per car?
 0xE0E5-0xE0F4	Moving object #00 (16 bytes)
-		0xE0E5 +0 ?Rival car type?
+		0xE0E5 +0 Type of moving object
 			0x00: Green car
 			0x01: Blue car (regular)
 			0x02: Blue car (overtaking player)
 			0x03: Purple car
+			0x04: Redneck hot rodder (regular, not used)
+			0x05: Redneck hot rodder
+			0x06: Truck (a.k.a. 18-wheeler), no oil drum
+			0x07: Truck (a.k.a. 18-wheeler), with spinning oil drum
 			0x08: Bonus fuel heart
 		0xE0E6 +1
 			0x00: This is NOT a VISIBLE moving object. I.e. don't draw it.

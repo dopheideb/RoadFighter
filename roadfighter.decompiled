@@ -301,7 +301,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Computes DE += A
-4040_DE+=a:
+4040_DE+=A:
 	add a,e			;4040
 	ld e,a			;4041
 	ret nc			;4042
@@ -317,7 +317,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   PC += 2 * A (the PC from the caller perspective)
 ; 
 ; Destroys A, DE, HL
-4045_pc=pc[2*a]:
+4045_PC=PC[2*A]:
 	add a,a			;4045 A += A
 	
 	; Z80 pushed the program counter (pc) when this subroutine was 
@@ -438,20 +438,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Jump table, see 0x4096.
-	defw 0x40AB		;4099 Game state #00: Setup game
-	defw 0x412D		;409b Game state #01: Player can decide to start the game
+	defw 0x40AB		;4099 #00: 40ab_game_state_00__setup_game
+	defw 0x412D		;409b #01: 412d_game_state_01__waiting_for_player_to_start_the_game
 	defw 0x4137		;409d Game state #02: Start demo/next stage
 	defw 0x416F		;409f Game state #03: Start a new game
 	defw 0x4270		;40a1 Game state #04: Demo
 	defw 0x4306		;40a3 Game state #05: Race has started
 	defw 0x4325		;40a5 Game state #06: Crashed: check remaining fuel.
-	defw 0x4348		;40a7 Game state #07: Out of fuel.
-	defw 0x4373		;40a9 Game state #08: (After) checkpoint reached
+	defw 0x4348		;40a7 #07: 4348_game_state_07__no_fuel_remaining
+	defw 0x4373		;40a9 #08: 4373_game_state_08__post_reaching_checkpoint_or_goal
 
 
 
-; See jump table 0x4099.
-40ab_game_state_00:
+; We can get here from:
+;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
+40ab_game_state_00__setup_game:
 	djnz $+21		;40ab if (--B != 0) jump to 0x40C0
 40ad_game_state_00_substate_01__konami_logo_and_line_and_software_letters:
 	ld a,(0e003h)		;40ad A = game_state_ticker
@@ -504,7 +505,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; 
 	; Update the name table to draw "©KONAMI 1985" + "PLAY SELECT" + "LEVEL A" + "LEVEL B".
 	call 049c2h		;40d8 49c2_draw_logo_konami_play_select_level_A_level_B
-	jp 05028h		;40db 5028_fixme
+	jp 05028h		;40db 5028_draw_or_hide_hand_pointing_to_right_symbols_in_front_of_level_A_and_B
 
 
 	
@@ -607,20 +608,22 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; See jump table 0x4099.
-412d_game_state_01:
+; We can get here from:
+;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
+412d_game_state_01__waiting_for_player_to_start_the_game:
 	ld hl,0e004h		;412d
 	dec (hl)		;4130
-	jp nz,05028h		;4131 if (timer hasn't run out) jump to 5028_fixme
+	jp nz,05028h		;4131 if (timer hasn't run out) jump to 5028_draw_or_hide_hand_pointing_to_right_symbols_in_front_of_level_A_and_B
 	jp 042f8h		;4134 42f8_increase_game_state_set_substate_to_00_set_game_state_bits_or_counter_or_timer_to_0x18
 	
 
 
-; See jump table 0x4099.
+; We can get here from:
+;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
 4137_game_state_02:
 	djnz $+35		;4137 if (--B != 0) jump to 0x415A
 4139_game_state_02_substate_01:
-	call 052d1h		;4139 52d1_fudge_currently_pressed_keys
+	call 052d1h		;4139 52d1_fudge_currently_pressed_keys_to_keep_near_left_side_of_the_road
 	call 05224h		;413c 5224_handle_race_substate
 	ld a,(0e045h)		;413f
 	or a			;4142
@@ -712,9 +715,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; See jump table 0x4099 (0x409F).
-; 
-; ?Start of a new game.?
+; We can get here from:
+;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
 416f_game_state_03:
 	djnz $+29		;416f if (--B != 0) jump to 0x418C
 418e_game_state_03_substate_01:
@@ -975,7 +977,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; See jump table 0x4099.
+; We can get here from:
+;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
 4270_game_state_04__demo:
 	djnz $+15		;4270 if (--B != 0) jump to 0x427F
 
@@ -1067,13 +1070,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-42f8_increase_game_state_set_substate_to_00_set_game_state_bits_or_counter_or_timer_to_0x18:
 ; We can get here from:
-;   0x4134 (jump) [from=412d_game_state_01] Ran out of time to choose level A/B.
+;   0x4134 (jump) [from=412d_game_state_01__waiting_for_player_to_start_the_game] Ran out of time to choose level A/B.
 ;   0x4263 (jump) [from=424a_game_state_03_substate_09_subsubstate_01] Just switched from state 03,substate 09,subsubstate 01 to state 04.
 ;   0x42CB (jump) [from=4270_game_state_04__demo] (*0xE002 & 0x40) == 0x40
-;   0x4317 (jump) Race started
-;   0x4346 (jump) No fuel left
+;   0x4317 (jump) [from=4306_game_state_05_substate_01]
+;   0x4346 (jump) [from=4341_game_over]
+42f8_increase_game_state_set_substate_to_00_set_game_state_bits_or_counter_or_timer_to_0x18:
 	ld a,018h		;42f8 A = 0x18
 
 ; We can get here from:
@@ -1096,7 +1099,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 
 
-; See jump table 0x4099. Race has started.
+; We can get here from:
+;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
 4306_game_state_05:
 	djnz $+28		;4306 if (--B != 0) jump to 0x4322
 
@@ -1124,11 +1128,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; See jump table 0x4099. Player crashed the car.
+; We can get here from:
+;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
 4325_game_state_06:
-	ld a,(E083_fuel)	;4325 A = *(0xE083), load fuel
+	ld a,(0e083h)		;4325 A = fuel_remaining
 	or a			;4328
-	jr z,$+24		;4329 if (no fuel left) jump to 0x4341 (game over)
+	jr z,$+24		;4329 if (fuel_remaining == 0) jump to 0x4341 (game over)
 	call 051c5h		;432b 51c5_fixme
 	ld a,001h		;432e
 	ld (0e045h),a		;4330
@@ -1149,8 +1154,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; See jump table 0x4099. Out of fuel.
-4348_game_state_07__out_of_fuel:
+; We can get here from:
+;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
+4348_game_state_07__no_fuel_remaining:
 	push bc			;4348
 	call 0526bh		;4349 526b_copy_13_sprites_from_RAM_to_VRAM
 	
@@ -1183,8 +1189,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 
 
-; See jump table 0x4099. (After) checkpoint reached.
-4373_game_state_08:
+; We can get here from:
+;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
+4373_game_state_08__post_reaching_checkpoint_or_goal:
 	push bc			;4373 Store B.
 	call 0526bh		;4374 526b_copy_13_sprites_from_RAM_to_VRAM
 	call 0597dh		;4377 597d_update_minicar_vpos_and_color
@@ -1298,7 +1305,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld c,000h		;43ec C = 0x00
 	ld (hl),c		;43ee Switch to game substate #00.
 	dec c			;43ef C = 0xFF
-	jp 05032h		;43f0 5032_draw_0_or_1_hand_pointing_to_right_symbols_before_level_A_and_B
+	jp 05032h		;43f0 5032_draw_0_or_1_hand_pointing_to_right_symbols_in_front_of_level_A_and_B
 
 
 
@@ -4748,9 +4755,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 4c94_:
-	ld a,(E083_fuel)	;4c94 A = *(0xE083), load fuel.
+	ld a,(0e083h)		;4c94 A = fuel_remaining
 	cp 010h			;4c97 Compute A - 0x10 and set flags.
-	jr c,$+21		;4c99 if (low on fuel) jump to 4cae_set_volume_A_to_9.
+	jr c,$+21		;4c99 if (fuel_remaining < 0x10) jump to 4cae_set_volume_A_to_9.
 	
 	ld a,(E028_soundID_B)	;4c9b
 	cp 003h			;4c9e
@@ -5837,20 +5844,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x40DB (jump) [from=40cf_game_state_00_substate_03__draw_logo_konami_play_select_level_A_level_B]
-;   0x4131 (jump) [from=412d_game_state_01]
-5028_fixme:
+;   0x4131 (jump) [from=412d_game_state_01__waiting_for_player_to_start_the_game]
+5028_draw_or_hide_hand_pointing_to_right_symbols_in_front_of_level_A_and_B:
 	ld hl,0e004h		;5028 HL = &game_state_bits_or_counter_or_timer
 	bit 3,(hl)		;502b ?Test blink bit?
 	ld c,0ffh		;502d C = 0xFF (do write symbol)
-	jr nz,$+3		;502f if (nz) jump to 5032_draw_0_or_1_hand_pointing_to_right_symbols_before_level_A_and_B
+	jr nz,$+3		;502f if (nz) jump to 5032_draw_0_or_1_hand_pointing_to_right_symbols_in_front_of_level_A_and_B
 	inc c			;5031 C = 0x00 (don't write symbol)
+	; Fall to 5032_draw_0_or_1_hand_pointing_to_right_symbols_in_front_of_level_A_and_B
 
 
 
 ; We can get here from:
 ;   0x502F (jump) C == 0xFF (do write hand symbol)
 ;   0x5031 (fall) C == 0x00 (don't write hand symbol)
-5032_draw_0_or_1_hand_pointing_to_right_symbols_before_level_A_and_B:
+5032_draw_0_or_1_hand_pointing_to_right_symbols_in_front_of_level_A_and_B:
 	ld hl,03a0ah		;5032 VRAM location for hand point to right (level A).
 	ld de,03a4ah		;5035 VRAM location for hand point to right (level B).
 	ld a,(0e03bh_levelAB)	;5038 0x00 == level A, 0x01 == level B
@@ -5944,9 +5952,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	call 051ffh		;5086 51ff_initialize_variables
 	
-	; Initialize fuel to 0xD0 (almost full fuel tank)
+	; Initialize remaining fuel to 0xD0 (almost full fuel tank). 
+	; FWIW: 0xD7 is really the maximum, see 0x7765.
 	ld a,0d0h		;5089 A = 0xD0
-	ld (E083_fuel),a	;508b Set fuel to 0xD0, i.e. (almost) full fuel!
+	ld (0e083h),a		;508b fuel_remaining = 0xD0
 	
 	; A = stage - 1, make stage 0-based.
 	ld a,(e043_stage)	;508e A = stage
@@ -6348,7 +6357,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 05251h		;523c 5251_check_if_checkpoint_reached
 	call 06e4ah		;523f 6e4a_handling_moving_objects_something_if_not_crashed
 	call 05501h		;5242 5501_fixme
-	call 07411h		;5245 7411_decrement_fuel
+	call 07411h		;5245 7411_decrement_fuel_remaining
 	call 06ca1h		;5248 6ca1_fixme
 	call 06f25h		;524b 6f25_fixme
 	jp 044d9h		;524e
@@ -6379,8 +6388,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x4297 (call) [from=4270_game_state_04__demo]
 ;   0x42E2 (call) [from=4270_game_state_04__demo]
-;   0x4349 (call) [from=4348_game_state_07__out_of_fuel]
-;   0x4374 (call) [from=4373_game_state_08]
+;   0x4349 (call) [from=4348_game_state_07__no_fuel_remaining]
+;   0x4374 (call) [from=4373_game_state_08__post_reaching_checkpoint_or_goal]
 ;   0x5224 (call) [from=5224_handle_race_substate]
 526b_copy_13_sprites_from_RAM_to_VRAM:
 	; 4 bytes per sprites, 0x34 / 4 == 13
@@ -6506,41 +6515,42 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x4139 [from=4139_game_state_02_substate_01]
-52d1_fudge_currently_pressed_keys:
+52d1_fudge_currently_pressed_keys_to_keep_near_left_side_of_the_road:
 	ld a,(e049_car_state)	;52d1
 	cp 004h			;52d4
 	jr nz,$+14		;52d6 if (car state != skidding) jump to 0x52E4
 	
-	; Car state: skidding (still recoverable)
-	ld a,(0e0b1h)		;52d8 A = skid ticks remaining
-	cp 015h			;52db
-	jr nc,$+7		;52dd if (skid ticks remaining >= 0x15) jump to 0x52E4. 0x15 == 21
+	; Car state: skidding (still recoverable by steering)
+	ld a,(0e0b1h)		;52d8 A = skid_ticks_remaining
+	cp 015h			;52db Compute A - 0x15 and update C/NC flag.
+	jr nc,$+7		;52dd if (skid_ticks_remaining >= 0x15) jump to 0x52E4. 0x15 == 21
 	
-	; skid ticks remaining < 0x15
+	; skid_ticks_remaining < 0x15
 	ld a,00ch		;52df A = 0x08 ("right" is pressed) | 0x04 ("left" is pressed)
 	ld (0e008h),a		;52e1 newly pressed keys = "right" + "left"
 	
 	; We can get here from:
-	;   0x52D6 (jump) car state != skidding
-	;   0x52DD (jump) car state == skidding, skid ticks remaining >= 0x15
-	;   0x52E1 (fall) car state == skidding, skid ticks remaining <  0x15
-	ld a,(0e0aah)		;52e4 ??????
+	;   0x52D6 (jump) car_state != skidding
+	;   0x52DD (jump) car_state == skidding, skid_ticks_remaining >= 0x15
+	;   0x52E1 (fall) car_state == skidding, skid_ticks_remaining <  0x15
+	ld a,(0e0aah)		;52e4 Left side of the road of row 19, where the demo car (almost) is.
 	and 0fch		;52e7 A &= 0xFC (clears bit 0 and 1)
 	add a,a			;52e9 A *= 2
 	add a,01ah		;52ea A += 0x1A
 	ld c,a			;52ec C = A
 
-	ld a,(0e04eh)		;52ed A = horizontal position on screen
+	ld a,(0e04eh)		;52ed A = car_hpos
 	sub c			;52f0 A -= C
 	add a,001h		;52f1 A += 1
 	cp 007h			;52f3 Compute A - 7 and set flags.
-	jr c,$+23		;52f5 if (A < 7) jump to 0x530C
-
-	ld a,(0e04eh)		;52f7 A = horizontal position on screen
-	cp c			;52fa
-	ld b,008h		;52fb B = 8
-	jr c,$+4		;52fd if (c) jump to 0x5301
-	ld b,004h		;52ff B = 4
+	jr c,$+23		;52f5 if (car_hpos < C + 6) jump to 0x530C (530c_no_steering_needed)
+	; Post: steering needed, to the left or to the right.
+	
+	ld a,(0e04eh)		;52f7 A = car_hpos
+	cp c			;52fa Compute A - C and update C/NC flag.
+	ld b,008h		;52fb B = 8 (steer right)
+	jr c,$+4		;52fd if (car_hpos < C ) jump to 0x5301
+	ld b,004h		;52ff B = 4 (steer left)
 	
 	; We can get here from:
 	;   0x52FD (jump) B == 8 (currently pressed key "right")
@@ -6558,7 +6568,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	; We can get here from:
 	;   0x52F5 (jump)
-	xor a			;530c A = 0
+	530c_no_steering_needed:
+	xor a			;530c A = 0, don't steer right nor left.
 	jr $-8			;530d jump to 0x5305
 
 
@@ -6566,129 +6577,129 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x3E		;530f ???
 	defb 0x04		;5310 ???
 ; Data, see 0x704E. 6 bytes per element. 17 elements
-	defb 0x00		;5311 Element #00
+	defb 0x00		;5311 Element #00: Green car
 	defb 0x04		;5312
 	defb 0x20		;5313
-	defb 0x00		;5314
+	defb 0x00		;5314 Green car
 	defb 0x08		;5315
 	defb 0x28		;5316
 
-	defb 0x00		;5317 Element #01
+	defb 0x00		;5317 Element #01: Green car
 	defb 0x04		;5318
 	defb 0x10		;5319
-	defb 0x01		;531a
+	defb 0x01		;531a Blue car
 	defb 0x10		;531b
 	defb 0x28		;531c
 
-	defb 0x00		;531d Element #02
+	defb 0x00		;531d Element #02: Green car
 	defb 0x04		;531e
 	defb 0x18		;531f
-	defb 0x00		;5320
+	defb 0x00		;5320 Green car
 	defb 0x08		;5321
 	defb 0x18		;5322
 
-	defb 0x00		;5323 Element #03
+	defb 0x00		;5323 Element #03: Green car
 	defb 0x04		;5324
 	defb 0x28		;5325
-	defb 0x00		;5326
+	defb 0x00		;5326 Green car
 	defb 0x08		;5327
 	defb 0x18		;5328
 
-	defb 0x00		;5329 Element #04
+	defb 0x00		;5329 Element #04: Green car
 	defb 0x04		;532a
 	defb 0x18		;532b
-	defb 0x08		;532c
+	defb 0x08		;532c Bonus fuel heart
 	defb 0x08		;532d
 	defb 0x28		;532e
 
-	defb 0x00		;532f Element #05
+	defb 0x00		;532f Element #05: Green car
 	defb 0x04		;5330
 	defb 0x28		;5331
-	defb 0x01		;5332
+	defb 0x01		;5332 Blue car
 	defb 0x08		;5333
 	defb 0x20		;5334
 
-	defb 0x02		;5335 Element #06
+	defb 0x02		;5335 Element #06: Speeding blue car
 	defb 0x04		;5336
 	defb 0x28		;5337
-	defb 0x00		;5338
+	defb 0x00		;5338 Green car
 	defb 0x08		;5339
 	defb 0x20		;533a
 
-	defb 0x00		;533b Element #07
+	defb 0x00		;533b Element #07: Green car
 	defb 0x04		;533c
 	defb 0x28		;533d
-	defb 0x03		;533e
+	defb 0x03		;533e Purple car
 	defb 0x08		;533f
 	defb 0x20		;5340
 
-	defb 0x06		;5341 Element #08
+	defb 0x06		;5341 Element #08: Truck (a.k.a. 18-wheeler), but without oil drum
 	defb 0x04		;5342
 	defb 0x18		;5343
-	defb 0x00		;5344
+	defb 0x00		;5344 Green car
 	defb 0x08		;5345
 	defb 0x30		;5346
 
-	defb 0x00		;5347 Element #09
+	defb 0x00		;5347 Element #09: Green car
 	defb 0x04		;5348
 	defb 0x30		;5349
-	defb 0x07		;534a
+	defb 0x07		;534a Truck (a.k.a. 18-wheeler)
 	defb 0x08		;534b
 	defb 0x1C		;534c
 
-	defb 0x02		;534d Element #0A
+	defb 0x02		;534d Element #0A: Speeding blue car
 	defb 0x04		;534e
 	defb 0x28		;534f
-	defb 0x03		;5350
+	defb 0x03		;5350 Purple car
 	defb 0x08		;5351
 	defb 0x20		;5352
 
-	defb 0x04		;5353 Element #0B
+	defb 0x04		;5353 Element #0B: Redneck hot rodder (but with the speed of a green car)
 	defb 0x04		;5354
 	defb 0x28		;5355
-	defb 0x02		;5356
+	defb 0x02		;5356 Speeding blue car
 	defb 0x08		;5357
 	defb 0x20		;5358
 
-	defb 0x04		;5359 Element #0C
+	defb 0x04		;5359 Element #0C: Redneck hot rodder (but with the speed of a green car)
 	defb 0x04		;535a
 	defb 0x28		;535b
-	defb 0x05		;535c
+	defb 0x05		;535c Redneck hot rodder
 	defb 0x08		;535d
 	defb 0x20		;535e
 
-	defb 0x05		;535f Element #0D
+	defb 0x05		;535f Element #0D: Redneck hot rodder (first appearance in stage 6 on level B)
 	defb 0x04		;5360
 	defb 0x18		;5361
-	defb 0x05		;5362
+	defb 0x05		;5362 Redneck hot rodder
 	defb 0x08		;5363
 	defb 0x28		;5364
 
-	defb 0x03		;5365 Element #0E
+	defb 0x03		;5365 Element #0E: Purple car
 	defb 0x04		;5366
 	defb 0x28		;5367
-	defb 0x03		;5368
+	defb 0x03		;5368 Purple car
 	defb 0x08		;5369
 	defb 0x20		;536a
 
-	defb 0x01		;536b Element #0F
+	defb 0x01		;536b Element #0F: Blue car
 	defb 0x0C		;536c
 	defb 0x01		;536d
-	defb 0x04		;536e
+	defb 0x04		;536e Redneck hot rodder (but with the speed of a green car)
 	defb 0x01		;536f
 	defb 0x04		;5370
 
-	defb 0x01		;5371 Element #10
+	defb 0x01		;5371 Element #10: Blue car
 	defb 0x0D		;5372
 	defb 0x0B		;5373
-	defb 0x01		;5374
+	defb 0x01		;5374 Blue car
 	defb 0x0B		;5375
 	defb 0x01		;5376
 
-	defb 0x01		;5377 Element #11
+	defb 0x01		;5377 Element #11: Blue car
 	defb 0x08		;5378
 	defb 0x01		;5379
-	defb 0x08		;537a
+	defb 0x08		;537a Bonus fuel heart
 	defb 0x0F		;537b
 	defb 0x0D		;537c
 
@@ -6697,112 +6708,115 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Data, see 0x50A7, 0x7036.
 ; 
 ; Stage 01.
-	defb 0x01		;537d
-	defb 0x02		;537e
-	defb 0x04		;537f
-	defb 0x05		;5380
-	defb 0x02		;5381
-	defb 0x03		;5382
-	defb 0x04		;5383
-	defb 0x08		;5384
-	defb 0x02		;5385
-	defb 0x06		;5386
-	defb 0x05		;5387
-	defb 0x04		;5388
-	defb 0x02		;5389
-	defb 0x01		;538a
-	defb 0x03		;538b
-	defb 0xFF		;538c
+	defb 0x01		;537d 0x5311: Green, green
+	defb 0x02		;537e 0x5317: Green, blue
+	defb 0x04		;537f 0x5323: Green, green
+	defb 0x05		;5380 0x5329: Green, bonus fuel heart
+	defb 0x02		;5381 0x5317: Green, blue
+	defb 0x03		;5382 0x531D: Green, green
+	defb 0x04		;5383 0x5323: Green, green
+	defb 0x08		;5384 0x533B: Green, purple
+	defb 0x02		;5385 0x5317: Green, blue
+	defb 0x06		;5386 0x532F: Green, blue
+	defb 0x05		;5387 0x5329: Green, bonus fuel heart
+	defb 0x04		;5388 0x5323: Green, green
+	defb 0x02		;5389 0x5317: Green, blue
+	defb 0x01		;538a 0x5311: Green, green
+	defb 0x03		;538b 0x531D: Green, green
+	defb 0xFF		;538c Repeat
 
 ; Stage 02.
-	defb 0x01		;538d
-	defb 0x02		;538e
-	defb 0x08		;538f
-	defb 0x04		;5390
-	defb 0x05		;5391
-	defb 0x01		;5392
-	defb 0x0F		;5393
-	defb 0x08		;5394
-	defb 0x01		;5395
-	defb 0x08		;5396
-	defb 0x05		;5397
-	defb 0x0B		;5398
-	defb 0x0F		;5399
-	defb 0xFF		;539a
-	defb 0xFF		;539b
-	defb 0xFF		;539c
+	defb 0x01		;538d 0x5311: Green, green
+	defb 0x02		;538e 0x5317: Green, blue
+	defb 0x08		;538f 0x533B: Green, purple
+	defb 0x04		;5390 0x5323: Green, green
+	defb 0x05		;5391 0x5329: Green, bonus fuel heart
+	defb 0x01		;5392 0x5311: Green, green
+	defb 0x0F		;5393 0x5365: Purple, purple
+	defb 0x08		;5394 0x533B: Green, purple
+	defb 0x01		;5395 0x5311: Green, green
+	defb 0x08		;5396 0x533B: Green, purple
+	defb 0x05		;5397 0x5329: Green, bonus fuel heart
+	defb 0x0B		;5398 0x534D: Speeding blue, purple
+	defb 0x0F		;5399 0x5365: Purple, purple
+	defb 0xFF		;539a Repeat
+	defb 0xFF		;539b (Unused data.)
+	defb 0xFF		;539c (Unused data.)
 
 ; Stage 03.
-	defb 0x02		;539d
-	defb 0x08		;539e
-	defb 0x06		;539f
-	defb 0x0F		;53a0
-	defb 0x05		;53a1
-	defb 0x0A		;53a2
-	defb 0x03		;53a3
-	defb 0x02		;53a4
-	defb 0x0A		;53a5
-	defb 0x08		;53a6
-	defb 0x07		;53a7
-	defb 0x05		;53a8
-	defb 0x08		;53a9
-	defb 0x06		;53aa
-	defb 0x0A		;53ab
-	defb 0xFF		;53ac
+	defb 0x02		;539d 0x5317: Green, blue
+	defb 0x08		;539e 0x533B: Green, purple
+	defb 0x06		;539f 0x532F: Green, blue
+	defb 0x0F		;53a0 0x5365: Purple, purple
+	defb 0x05		;53a1 0x5329: Green, bonus fuel heart
+	defb 0x0A		;53a2 0x5347: Green, truck
+	defb 0x03		;53a3 0x531D: Green, green
+	defb 0x02		;53a4 0x5317: Green, blue
+	defb 0x0A		;53a5 0x5347: Green, truck
+	defb 0x08		;53a6 0x533B: Green, purple
+	defb 0x07		;53a7 0x5335: Speeding blue, green
+	defb 0x05		;53a8 0x5329: Green, bonus fuel heart
+	defb 0x08		;53a9 0x533B: Green, purple
+	defb 0x06		;53aa 0x532F: Green, blue
+	defb 0x0A		;53ab 0x5347: Green, truck
+	defb 0xFF		;53ac Repeat
 
 ; Stage 04.
-	defb 0x01		;53ad
-	defb 0x02		;53ae
-	defb 0x09		;53af
-	defb 0x08		;53b0
-	defb 0x05		;53b1
-	defb 0x0A		;53b2
-	defb 0x02		;53b3
-	defb 0x0A		;53b4
-	defb 0x08		;53b5
-	defb 0x09		;53b6
-	defb 0x05		;53b7
-	defb 0x0A		;53b8
-	defb 0x03		;53b9
-	defb 0x0A		;53ba
-	defb 0x08		;53bb
-	defb 0xFF		;53bc
+	defb 0x01		;53ad 0x5311: Green, green
+	defb 0x02		;53ae 0x5317: Green, blue
+	defb 0x09		;53af 0x5341: Truck with oil drum, green
+	defb 0x08		;53b0 0x533B: Green, purple
+	defb 0x05		;53b1 0x5329: Green, bonus fuel heart
+	defb 0x0A		;53b2 0x5347: Green, truck
+	defb 0x02		;53b3 0x5317: Green, blue
+	defb 0x0A		;53b4 0x5347: Green, truck
+	defb 0x08		;53b5 0x533B: Green, purple
+	defb 0x09		;53b6 0x5341: Truck with oil drum, green
+	defb 0x05		;53b7 0x5329: Green, bonus fuel heart
+	defb 0x0A		;53b8 0x5347: Green, truck
+	defb 0x03		;53b9 0x531D: Green, green
+	defb 0x0A		;53ba 0x5347: Green, truck
+	defb 0x08		;53bb 0x533B: Green, purple
+	defb 0xFF		;53bc Repeat
 
 ; Stage 05.
-	defb 0x0F		;53bd
-	defb 0x0A		;53be
-	defb 0x06		;53bf
-	defb 0x0B		;53c0
-	defb 0x0F		;53c1
-	defb 0x0B		;53c2
-	defb 0x05		;53c3
-	defb 0x0B		;53c4
-	defb 0x08		;53c5
-	defb 0x06		;53c6
-	defb 0x0F		;53c7
-	defb 0x0A		;53c8
-	defb 0x06		;53c9
-	defb 0x0A		;53ca
-	defb 0xFF		;53cb https://www.msx.org/forum/msx-talk/software-and-gaming/did-anyone-ever-finish-road-fighter-level-b?page=1
-	defb 0xFF		;53cc
+	defb 0x0F		;53bd 0x5365: Purple, purple
+	defb 0x0A		;53be 0x5347: Green, truck
+	defb 0x06		;53bf 0x532F: Green, blue
+	defb 0x0B		;53c0 0x534D: Speeding blue, purple
+	defb 0x0F		;53c1 0x5365: Purple, purple
+	defb 0x0B		;53c2 0x534D: Speeding blue, purple
+	defb 0x05		;53c3 0x5329: Green, bonus fuel heart
+	defb 0x0B		;53c4 0x534D: Speeding blue, purple
+	defb 0x08		;53c5 0x533B: Green, purple
+	defb 0x06		;53c6 0x532F: Green, blue
+	defb 0x0F		;53c7 0x5365: Purple, purple
+	defb 0x0A		;53c8 0x5347: Green, truck
+	defb 0x06		;53c9 0x532F: Green, blue
+	defb 0x0A		;53ca 0x5347: Green, truck
+	; https://www.msx.org/forum/msx-talk/software-and-gaming/did-anyone-ever-finish-road-fighter-level-b?page=1 
+	; suggest to replace 0x53CB: From 0xFF to 0x05, i.e. insert 
+	; bonus fuel heart.
+	defb 0xFF		;53cb Repeat
+	defb 0xFF		;53cc (Unused data.)
 
 ; Stage 06.
-	defb 0x01		;53cd
-	defb 0x04		;53ce
-	defb 0x08		;53cf
-	defb 0x0F		;53d0
-	defb 0x08		;53d1
-	defb 0x0F		;53d2
-	defb 0x05		;53d3
-	defb 0x0A		;53d4
-	defb 0x0E		;53d5
-	defb 0x08		;53d6
-	defb 0x0F		;53d7
-	defb 0x02		;53d8
-	defb 0x0A		;53d9
-	defb 0x0F		;53da
-	defb 0x0A		;53db
-	defb 0xFF		;53dc
+	defb 0x01		;53cd 0x5311: Green, green
+	defb 0x04		;53ce 0x5323: Green, green
+	defb 0x08		;53cf 0x533B: Green, purple
+	defb 0x0F		;53d0 0x5365: Purple, purple
+	defb 0x08		;53d1 0x533B: Green, purple
+	defb 0x0F		;53d2 0x5365: Purple, purple
+	defb 0x05		;53d3 0x5329: Green, bonus fuel heart
+	defb 0x0A		;53d4 0x5347: Green, truck
+	defb 0x0E		;53d5 0x535F: Redneck, redneck
+	defb 0x08		;53d6 0x533B: Green, purple
+	defb 0x0F		;53d7 0x5365: Purple, purple
+	defb 0x02		;53d8 0x5317: Green, blue
+	defb 0x0A		;53d9 0x5347: Green, truck
+	defb 0x0F		;53da 0x5365: Purple, purple
+	defb 0x0A		;53db 0x5347: Green, truck
+	defb 0xFF		;53dc Repeat
 
 
 
@@ -7965,21 +7979,31 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x5701 (call)
 590e_fixme:
+	; The left side of the road changes, so copy current values 
+	; "downwards" in time, i.e.:
+	;   *(0xE0AE) -->copy to--> (0xE0AF)
+	;   (...)
+	;   *(0xE099) -->copy to--> (0xE098)
 	ld hl,0e0aeh		;590e LDDR: source
 	ld de,0e0afh		;5911 LDDR: destination
-	ld bc,00017h		;5914 LDDR: count
-	lddr			;5917
+	ld bc,00017h		;5914 LDDR: count (0x18)
+	lddr			;5917 do { *(DE--) = *(HL--) } while (--BC)
 	; Post: HL = 0xE097
 	
+	; Calculate the new left side of the road and store in 0xE098.
+	
+	; C = *(0xE07A) & 0x03
 	ld a,(0e07ah)		;5919
-	and 003h		;591c Keep only bit 0 and 1
+	and 003h		;591c Keep only bit 0 and 1.
 	ld c,a			;591e
+	
+	; *(0xE098) = (*(0xE07D) << 2) | (*(0xE07A) & 0x03)
 	ld a,(0e07dh)		;591f
 	sla a			;5922 A *= 2
 	sla a			;5924 A *= 2
-	or c			;5926 ??Re-add original bit 0 and 1
+	or c			;5926 A |= C
 	inc hl			;5927 HL = 0xE098
-	ld (hl),a		;5928
+	ld (hl),a		;5928 *(0xE098) = A
 	ret			;5929
 
 
@@ -16045,7 +16069,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 04045h		;6a7d PC = PC[2 * A]
 	defw 0x6A90		;6a80 #00: 6a90_car_state_00__all_okay
 	defw 0x6ABB		;6a82 #01: 6abb_car_state_01__crashed
-	defw 0x6B05		;6a84 #02: 6b05_car_state_02__out_of_fuel
+	defw 0x6B05		;6a84 #02: 6b05_car_state_02__no_fuel_remaining
 	defw 0x6B5E		;6a86 #03: 6b5e_car_state_03__reached_checkpoint
 	defw 0x6B90		;6a88 #04: 6b90_car_state_04__skidding, recoverable by steering
 	defw 0x6C05		;6a8a #05: 6c05_car_state_05__bounce_against_side_of_road
@@ -16056,7 +16080,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x6A7D (jump table entry #00) [from=6a70_fixme]
-;   0x6B0C (call)                 [from=6b05_car_state_02__out_of_fuel]
+;   0x6B0C (call)                 [from=6b05_car_state_02__no_fuel_remaining]
 6a90_car_state_00__all_okay:
 	call 06cd1h		;6a90 6cd1_side_bounce_checker_and_actioner
 	ld a,(0e055h)		;6a93
@@ -16083,7 +16107,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	xor a			;6ab4 A = 0
 
 ; We can get here from:
-;   0x6AB4 (fall) A == 0x00, from car state #00 (all okay), or #02 (out of fuel)
+;   0x6AB4 (fall) A == 0x00, from car state #00 (all okay), or #02 (no fuel remaining)
 ;   0x6AD4 (jump) A == 0x09, from car state #01 (crashed)
 ;   0x6ADD (jump) A == 0x08, from car state #01 (crashed)
 ;   0x6BDF (jump) A == 0x00, from car state #04 (skidding, just recovered)
@@ -16128,15 +16152,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	; We can get here from:
 	;   0x6AC6 (jump)
-	call 06af4h		;6adf 6af4_subtract_0x20_fuel_and_draw_speed_and_fuel_gauge
+	call 06af4h		;6adf 6af4_subtract_0x14_fuel_and_draw_speed_and_fuel_gauge
 	ld a,006h		;6ae2 A = 0x06
 	ld (e049_car_state),a	;6ae4
 	ld a,010h		;6ae7 A = 0x10
 	ld (0e004h),a		;6ae9
-	ld a,(E083_fuel)	;6aec A = *(0xE083), load fuel
+	ld a,(0e083h)		;6aec A = fuel_remaining
 	or a			;6aef
-	jr z,$+44		;6af0 if (fuel == 0) jump to 6b1c_out_of_fuel_and_no_more_speed (GAME OVER)
-	; Still some fuel left.
+	jr z,$+44		;6af0 if (fuel_remaining == 0) jump to 6b1c_out_of_fuel_and_no_more_speed (GAME OVER)
+	; Still some fuel remaining.
 	pop hl			;6af2 Remove return address, return to grandparent.
 	ret			;6af3
 
@@ -16144,16 +16168,19 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x6ADF (call) [from=6abb_car_state_01__crashed]
-6af4_subtract_0x20_fuel_and_draw_speed_and_fuel_gauge:
-	ld hl,E083_fuel		;6af4
-	ld a,(hl)		;6af7 A = fuel
-	sub 014h		;6af8 A -= 20
-	jr nc,$+3		;6afa if (*E083_fuel >= 20) jump to 0x6AFD
-	xor a			;6afc A = 0
-	ld (hl),a		;6afd *(0xE083) = A, store fuel
+6af4_subtract_0x14_fuel_and_draw_speed_and_fuel_gauge:
+	ld hl,0e083h		;6af4 HL = &fuel_remaining
+	ld a,(hl)		;6af7 A = fuel_remaining
+	sub 014h		;6af8 A -= 0x14
+	jr nc,$+3		;6afa if (fuel_remaining >= 0x14) jump to 0x6AFD
+	; Don't allow negative fuel.
+	xor a			;6afc A = 0x00
+
+	; Store.
+	ld (hl),a		;6afd fuel_remaining = A
 
 ; We can get here from:
-;   0x6AFD (fall) [from=6af4_subtract_0x20_fuel_and_draw_speed_and_fuel_gauge]
+;   0x6AFD (fall) [from=6af4_subtract_0x14_fuel_and_draw_speed_and_fuel_gauge]
 ;   0x6F22 (jump)
 6afe_fixme:
 	xor a			;6afe A = 0
@@ -16169,11 +16196,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x6A7D (jump table entry #02) [from=6a70_fixme]
-6b05_car_state_02__out_of_fuel:
-	ld a,(E083_fuel)	;6b05
+6b05_car_state_02__no_fuel_remaining:
+	ld a,(0e083h)		;6b05 A = fuel_remaining
 	or a			;6b08
-	jp nz,06c2ch		;6b09 if (fuel) jump to 0x6C2C (6c2c_set_car_state_to_0)
-	; Post: no fuel left
+	jp nz,06c2ch		;6b09 if (fuel_remainig) jump to 0x6C2C (6c2c_set_car_state_to_00)
+	; Post: no fuel remaining.
 
 	call 06a90h		;6b0c 6a90_car_state_00__all_okay
 	ld hl,e04fh_speed	;6b0f 
@@ -16439,21 +16466,27 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 6c24_set_car_state_2_if_out_of_fuel_else_car_state_0:
-	ld a,(E083_fuel)	;6c24
-	and a			;6c27
-	ld a,002h		;6c28 A = 2 (car state for out of fuel)
-	jr z,$+3		;6c2a if (fuel is empty) jump to 0x6c2d (6c2d_set_car_state_to_regA)
-	; Fall to 6c2c_set_car_state_to_0.
+	ld a,(0e083h)		;6c24 A = fuel_remaining
+	and a			;6c27 Update Z/NZ flag.
+	ld a,002h		;6c28 A = 0x02 (car state for no fuel remaining)
+	jr z,$+3		;6c2a if (fuel_remaining == 0) jump to 0x6c2d (6c2d_set_car_state_to_regA)
+	; Fall to 6c2c_set_car_state_to_00.
+
+
 
 ; We can get here from:
-;   0x6C2A (fall) Fuel is not empty.
-;   0x6B09 (jump) Fuel is not empty.
-6c2c_set_car_state_to_0:
-	xor a			;6c2c A = 0 (car state for all okay)
+;   0x6C2A (fall) [from=6c24_set_car_state_2_if_out_of_fuel_else_car_state_0]
+;   0x6B09 (jump) [from=6b05_car_state_02__no_fuel_remaining]
+; 
+; In both cases: fuel_remaining != 0x00
+6c2c_set_car_state_to_00:
+	xor a			;6c2c A = 0x00 (car state for all okay)
 	; Fall to 6c2d_set_car_state_to_regA
 
+
+
 ; We can get here from:
-;   0x6C2A (jump) A == 2 (car state for out of fuel)
+;   0x6C2A (jump) A == 2 (car state for no fuel remaining)
 ;   0x6C2C (fall) A == 0 (car state for all okay)
 6c2d_set_car_state_to_regA:
 	ld (e049_car_state),a	;6c2d Store car state.
@@ -16538,7 +16571,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Set/unset Z flag depending on car state.
 ; 
 ; Car state #01: Z flag is set (player crashed)
-; Car state #02: Z flag is set (player is out of fuel)
+; Car state #02: Z flag is set (player has no remaining fuel)
 ; Car state #07: Z flag is set (player is spinning out of control)
 ;
 ; Car state #00: Z flag is UNset
@@ -16547,11 +16580,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Car state #05: Z flag is UNset
 ; Car state #06: Z flag is UNset
 6c89_Z_if_car_s127:
-	ld a,(e049_car_state)	;6c89 Load car state.
+	ld a,(e049_car_state)	;6c89 A = car_state
 	dec a			;6c8c
-	ret z			;6c8d if (car state == 1) return
+	ret z			;6c8d if (car_state == 1) return
 	dec a			;6c8e
-	ret z			;6c8f if (car state == 2) return
+	ret z			;6c8f if (car_state == 2) return
 	cp 005h			;6c90
 	ret			;6c92
 
@@ -17418,21 +17451,23 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	ld a,(0e000h)		;6fe3 A = game_state
 	cp 006h			;6fe6
-	jr z,$+4		;6fe8 if (crashed) jump to 0x6FEC
+	jr z,$+4		;6fe8 if (game_state == CRASHED) jump to 0x6FEC
 	ld (hl),0bfh		;6fea
 
 	ld hl,(0e0bfh)		;6fec
 	pop de			;6fef Restore. Stored at 0x6FB7.
 	dec de			;6ff0
 	ld bc,00010h		;6ff1 BC = 0x0010 (copy 16 bytes with ldir)  
+	; Init moving object by copying from 0xE0C3 or 0xE0D3.
 	ldir			;6ff4 Copy HL to DE, 0x10 times.
 	
-	; HL = 0x536B + 2 * FIXME
 	ld hl,(0e0bfh)		;6ff6
 	ld a,(hl)		;6ff9
 	inc hl			;6ffa
 	ld (hl),000h		;6ffb
 	add a,a			;6ffd
+	
+	; HL = 0x536B + 2 * FIXME
 	ld hl,0536bh		;6ffe
 	call 0403bh		;7001 HL += A
 	
@@ -17464,9 +17499,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x50AE (call) [from=504c_init_stage]
-;   0x51D5 (jump) [from=51c2_fixme]
+;   0x51D5 (jump) [from=51c5_fixme]
 ;   0x701D (fall) [from=6f18_fixme]
 7020_fixme:
+	; Increase *(0xE0BD).
 	ld hl,(0e0bdh)		;7020
 	inc hl			;7023
 	ld (0e0bdh),hl		;7024
@@ -17475,6 +17511,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;7027
 	inc a			;7028
 	jr nz,$+20		;7029 if (nz) jump to 0x703D
+	; Post: this is special value 0xFF.
 	
 	; A = stage - 1 (makes stage 0-based).
 	ld a,(e043_stage)	;702b A = stage
@@ -17493,21 +17530,28 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add hl,de		;7039
 	
 	ld (0e0bdh),hl		;703a
+	
+	; We can get here from:
+	;   0x7029 (jump) Not special value 0xFF
+	;   0x703A (fall) Special value 0xFF, but handled.
 	ld a,(0e03bh_levelAB)	;703d A == 0: Level A, A == 1: Level B
 	
 	or a			;7040 Update Z/NZ flag.
 	ld a,(hl)		;7041 A = *(HL)
-	jr nz,$+7		;7042 if (levelB) jump to 0x7049
+	jr nz,$+7		;7042 if (level_B) jump to 0x7049
 	
+	; Level A: do not use element 0x0A (0x09 as 0-based), use element 0x09 (0x08 as 0-based) instead.
 	cp 00ah			;7044 Compute A - 0x0A and set flags.
 	jr nz,$+3		;7046 if (A != 0x0A) jump to 0x7049
 	; Post: A == 0x0A
 	dec a			;7048 A = 0x09
 	
 	; We can get here from:
-	;   0x7042 (jump) A = *(HL), and playing on level B
-	;   0x7046 (jump) A != 0x0A, and playing on level A
+	;   0x7042 (jump) A == *(HL), and playing on level B
+	;   0x7046 (jump) A == *(HL) && A != 0x0A, and playing on level A
 	;   0x7048 (fall) A == 0x09, and playing on level A
+	; 
+	; Make A 0-based instead of 1-based.
 	dec a			;7049 --A
 	
 	; A *= 6
@@ -17517,29 +17561,35 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,b			;704d A += B
 
 	ld hl,05311h		;704e HL = 0x5311
-	call 0403bh		;7051 HL = 0x5311 + A
-	ex de,hl		;7054 DE = HL
+	call 0403bh		;7051 HL = 0x5311 + 6 * something
+	ex de,hl		;7054 DE = 0x5311 + 6 * something
 	ld hl,0e0c1h		;7055 HL = 0xE0C1
 	ld (hl),002h		;7058 *(0xE0C1) = 0x02
 	inc hl			;705a HL = 0xE0C2
 	ld (hl),000h		;705b *(0xE0C2) = 0x00
+	
 	inc hl			;705d HL = 0xE0C3
-	ex de,hl		;705e DE = 0xE0C3, HL = 0x5311 + A
+	ex de,hl		;705e DE = 0xE0C3, HL = 0x5311 + 6 * something
+	; Fall to 705f_fixme.
 
+
+
+; Compute initial values of moving object.
+;
 ; We can get here from:
-;   0x705E (fall)
-;   0x70A5 (jump)
+;   0x705E (fall) [from=7020_fixme] DE == 0xE0C3, HL == 0x5311 + A
+;   0x70A5 (jump) [from=705f_fixme] DE == 0xE0D3, HL += 3
 705f_fixme:
-	ex af,af'		;705f Store A, restored at 0x7061.
+	ex af,af'		;705f Store A+F, restored at 0x7061.
 	ld a,(hl)		;7060 Store A, restored at 0x707B.
-	ex af,af'		;7061 Restore A, stored at 0x705F.
+	ex af,af'		;7061 Restore A+F, stored at 0x705F.
 	ldi			;7062 *(DE++) = *(HL++), --BC
 	ld a,001h		;7064 A = 0x01
 	ld (de),a		;7066 *(0xE0C4) = 0x01
 	inc de			;7067 DE = 0xE0C5
 	inc de			;7068 DE = 0xE0C6
-	ld a,(0e03bh_levelAB)	;7069 A == 0: Level A, A == 1: Level B
-	dec a			;706c A == -1: Level A, A == 0: Level B
+	ld a,(0e03bh_levelAB)	;7069 A == 0x00: Level A, A == 0x01: Level B
+	dec a			;706c A == 0xFF: Level A, A == 0x00: Level B, updates Z/NZ flag.
 	ld a,(hl)		;706d A = *(HL)
 	jr z,$+3		;706e if (playing at level B) jump to 0x7071
 	add a,a			;7070 A *= 2
@@ -17549,33 +17599,43 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   0x7070 (fall) Playing at level A. A == ?
 	ld (de),a		;7071 *(0xE0C6) = A
 	inc de			;7072 DE = 0xE0C7
-	inc hl			;7073 ++HL
+	inc hl			;7073 HL = start_value@7051 + 2
 	ldi			;7074 *(DE++) = *(HL++), --BC
-	ex de,hl		;7076 HL = 0xE0C8, DE = ?
+	ex de,hl		;7076 HL = 0xE0C8, DE = start_value@7051 + 3
 	ld bc,00004h		;7077 BC = 0x0004
-	add hl,bc		;707a HL += 0x0004
-	ex af,af'		;707b Restore A. Stored at 0x7060.
+	add hl,bc		;707a HL = 0xE0CC
+	ex af,af'		;707b Restore A+F. Stored at 0x7060.
 	ld b,a			;707c B = A
 	ld a,(e043_stage)	;707d A = stage
 	cp 003h			;7080 Compute A - 0x03 and update Z/NZ flag.
-	ld (hl),080h		;7082 *(0xE0C8) = 0x80
+	ld (hl),080h		;7082 *(0xE0CC) = 0x80
 	jr nz,$+4		;7084 if (stage != 0x03) jump to 0x7088
-	; Only for stage 3.
-	ld (hl),06ch		;7086
-
+	; Only for stage 3. ?oil?
+	ld (hl),06ch		;7086 *(0xE0CC) = 0x6C
+	
+	; We can get here from:
+	;   0x7084 (jump) A != 0x03
+	;   0x7086 (fall) A == 0x03
 	ld a,b			;7088 A = B
 	cp 002h			;7089 Compute A - 0x02 and update Z/NZ flag.
-	jr z,$+6		;708b if (z) jump to 0x7091
+	jr z,$+6		;708b if (A == 0x02) jump to 0x7091
 	cp 005h			;708d Compute A - 0x05 and update Z/NZ flag.
-	jr nz,$+4		;708f if (nz) jump to 0x7093
-	ld (hl),0e4h		;7091 *(HL) = 0xE4
-
+	jr nz,$+4		;708f if (A != 0x05) jump to 0x7093
+	
+	; We can get here from:
+	;   0x708B (jump) A == 2
+	;   0x708F (fall) A == 5
+	ld (hl),0e4h		;7091 *(0xE0CC) = 0xE4
+	
+	; We can get here from:
+	;   0x708F (jump)
+	;   0x7091 (fall)
 	ex af,af'		;7093
-	inc hl			;7094 ++HL
-	ld (hl),000h		;7095 *(HL) = 0x00
+	inc hl			;7094 HL = 0xE0CD
+	ld (hl),000h		;7095 *(0xE0CD) = 0x00
 	ld bc,00006h		;7097 BC = 0x0006
-	add hl,bc		;709a HL += 0x0006
-	ex de,hl		;709b
+	add hl,bc		;709a HL = 0xE0D3
+	ex de,hl		;709b DE = 0xE0D3, HL = start_value@7051 + 3
 	exx			;709c Exchange BC, DE, HL with shadow registers.
 		ld hl,0e0c2h	;709d HL = 0xE0C2
 		inc (hl)	;70a0
@@ -17583,6 +17643,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 		cp (hl)		;70a3 Compute A - *(0xE0C2) and update Z/NZ flag.
 	exx			;70a4 Exchange BC, DE, HL with shadow registers.
 	jr nz,$-70		;70a5 if (*(0xE0C2) != 0x02) jump to 0x705F
+	
 	ret			;70a7
 
 
@@ -17590,8 +17651,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x522A (call) [from=5224_handle_race_substate]
 70a8_fixme:
-	xor a			;70a8 A = 0
-	ld (0e0e4h),a		;70a9 *(0xE0E4) = 0
+	xor a			;70a8 A = 0x00
+	ld (0e0e4h),a		;70a9 *(0xE0E4) = 0x00
 
 ; We can get here from:
 ;   0x70A9 (fall) *(0xE0E4) == 0
@@ -18300,17 +18361,23 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(e04fh_speed)	;73a5 Load car speed
 	jr z,$+5		;73a8 if (bounced against side of road) jump to 0x73AD
 	ld (0e051h),a		;73aa Store car speed ?in some alternative location?
+	; Fall to 73ad_draw_speed_gauge.
+
+
 
 ; We can get here from:
 ;   0x73AA (fall)
 ;   0x704B (call)	
 73ad_draw_speed_gauge:
-	ld a,(e04fh_speed)	;73ad Load car speed
+	ld a,(e04fh_speed)	;73ad A = car_speed
 	ld l,0d8h		;73b0 L = 0xD8, bottom left of speed gauge (VRAM, low byte)
+	; Fall to 73b2_draw_speed_or_fuel_gauge.
+
+
 
 ; We can get here from:
-;   0x73B0 (fall) A == car speed, L == 0xD8 (bottom-left of speed gauge is 0x3AD8)
-;   0x7449 (jump) A == fuel left, L == 0xDB (bottom-left of fuel gauge is 0x3ADB)
+;   0x73B0 (fall) A == car speed,      L == 0xD8 (bottom-left of speed gauge is 0x3AD8)
+;   0x7449 (jump) A == fuel_remaining, L == 0xDB (bottom-left of fuel gauge is 0x3ADB)
 73b2_draw_speed_or_fuel_gauge:
 	; Set VRAM address of speed/fuel gauge.
 	ld h,03ah		;73b2 H = 0x3A
@@ -18391,7 +18458,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;     0x3A00 <= HL <= 0x3AFF
 	
 	; We can get here from:
-	;   0x73B5 (jump) car speed or fuel left == 0
+	;   0x73B5 (jump) car_speed == 0 or fuel_remaining == 0
 	;   0x73F0 (fall)
 	73f1_:
 	ld de,07408h		;73f1 DE = 0x7408 (source)
@@ -18403,7 +18470,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Data. Each 3 consecutive bytes define 3 characters which are used for 
-; drwaing rows for both the fuel and speed gauge.
+; drawing rows for both the fuel and speed gauge.
 ; 
 ; Referenced by:
 ;    0x73BE
@@ -18483,7 +18550,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; [05] . . . . - - - -   - - - - - - - -   - - - - . . . .
 	; [06] . . . . - - - -   - - - - - - - -   - - - - . . . .
 	; [06] . . . . - - - -   - - - - - - - -   - - - - . . . .
-	defb 0x61		;7408 Referenced by 0x73F1
+	defb 0x61		;7408
 	defb 0x04		;7409
 	defb 0x62		;740a
 
@@ -18500,8 +18567,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Fuel decrementer.
 ; 
 ; We can get here from:
-;   0x5245 (call)
-7411_decrement_fuel:
+;   0x5245 (call) [from=5224_handle_race_substate]
+7411_decrement_fuel_remaining:
 	; D = *(E057_fuel_ticker) & 0x20
 	ld a,(E057_fuel_ticker)	;7411 A = *(E057_fuel_ticker)
 	ld b,020h		;7414 B = 0x20
@@ -18535,27 +18602,27 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	xor b			;7420 A ^= 0x20
 	ld (hl),a		;7421 *(0xE084) = A
 
-	dec hl			;7422 HL = 0xE083 (E083_fuel)
+	dec hl			;7422 HL = &fuel_remaining (0xE083)
 	ld a,(hl)		;7423 A = fuel
 	and a			;7424 Test A for being zero.
-	jr z,$+7		;7425 if (fuel == 0) jump to 0x742C (742c_no_fuel_left)
+	jr z,$+7		;7425 if (fuel_remaining == 0) jump to 0x742C (742c_no_fuel_remaining)
 	; Post: fuel > 0, i.e. at least 1, so fuel can be decremented.
-	dec (hl)		;7427 Decrement fuel.
+	dec (hl)		;7427 Decrement remaining fuel.
 	ld a,(hl)		;7428 A = decremented_fuel
 	or a			;7429 Test A for being zero.
-	jr nz,$+7		;742a if (decremented_fuel != 0) jump to 7431_either_with_or_without_fuel_left
-				;     else fall to 742c_no_fuel_left
+	jr nz,$+7		;742a if (decremented_fuel != 0) jump to 7431_either_with_or_without_fuel_remaining
+				;     else fall to 742c_no_fuel_remaining
 
 ; Set car state to 2 (out of fuel).
-742c_no_fuel_left:
+742c_no_fuel_remaining:
 	; *(E049_car_state) = 2
 	ld hl,e049_car_state	;742c
 	ld (hl),002h		;742f
-7431_either_with_or_without_fuel_left:
+7431_either_with_or_without_fuel_remaining:
 	call 07444h		;7431 call 7444_draw_fuel_gauge (since fuel was decremented)
-	ld a,(E083_fuel)	;7434 A = fuel
-	cp 010h			;7437 Check for low fuel (< 10).
-	ret nc			;7439 if (fuel >= 10) return
+	ld a,(0e083h)		;7434 A = fuel_remaining
+	cp 010h			;7437 Check for low fuel (< 0x10).
+	ret nc			;7439 if (fuel_remaining >= 0x10) return
 				;     else fall to 743a_emit_low_fuel_warning
 743a_emit_low_fuel_warning:
 	ld a,(E028_soundID_B)	;743a
@@ -18567,10 +18634,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x7431 (jump)
-;   0x776C (call)
+;   0x7431 (jump) [from=7431_either_with_or_without_fuel_remaining]
+;   0x776C (call) [from=775f_grabbed_fuel_heart]
 7444_draw_fuel_gauge:
-	ld a,(E083_fuel)	;7444 A = *(0xE083), fuel left
+	ld a,(0e083h)		;7444 A = fuel_remaining
 	ld l,0dbh		;7447 L = 0xDB, name table offset for fuel gauge
 	jp 073b2h		;7449 73b2_draw_speed_of_fuel_gauge
 
@@ -19792,18 +19859,19 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x7759 (jump) [from=7755_handle_grabbed_fuel_heart_state]
 775f_grabbed_fuel_heart:
-	ld hl,E083_fuel		;775f
-	ld a,(hl)		;7762 A = fuel
-	add a,020h		;7763 A = fuel + 0x20
-	ld b,0d7h		;7765 B = max fuel possible
-	cp b			;7767 Compute A - 0xD7 and update C/NC flag.
-	jr c,$+3		;7768 if (fuel < max fuel) jump to 0x776B
-	ld a,b			;776a A = 0xD7, cap fuel to maximum of 0xD7.
+	; Add 0x20 to fuel remaining, maxing out at 0xD7.
+	ld hl,0e083h		;775f HL = &fuel_remaining
+	ld a,(hl)		;7762 A = fuel_remaining
+	add a,020h		;7763 A = fuel_remaining + 0x20
+	ld b,0d7h		;7765 B = MAX_FUEL
+	cp b			;7767 Compute A - MAX_FUEL and update C/NC flag.
+	jr c,$+3		;7768 if (fuel_remaining < MAX_FUEL) jump to 0x776B
+	ld a,b			;776a A = MAX_FUEL, cap fuel remaining to maximum of 0xD7.
 	
 	; We can get here:
 	;   0x7768 (jump) Fuel below 0xD7
 	;   0x776A (fall) Fuel capped to 0xD7
-	ld (hl),a		;776b Store fuel
+	ld (hl),a		;776b fuel_remaining = A
 	
 	call 07444h		;776c 7444_draw_fuel_gauge
 	ld hl,0e0b8h		;776f HL = 0xE0B8
