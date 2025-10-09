@@ -300,8 +300,10 @@ This table was generated with:
 		decrementing	See 0x48FC.
 		
 			0x0E Seen at 0x48BB
-0xE00D		?from 0x00 to 0x01 after reaching checkpoint and driven out of screen?
+0xE00D		[&have_reached_checkpoint_and_all_moving_objects_are_gone]
+		Values:
 			0x01 Seen at 0x6B8C, car reached checkpoint and has driven out of the screen.
+			0x00 Not yet done with this stage.
 0xE00E-0xE00F	Possible different meanings for different game states.
 		
 		Game state 0:
@@ -397,8 +399,12 @@ This table was generated with:
 0xE03F		Score: units and tens (BCD)
 0xE040		Score: hundreds and thousands (BCD)
 0xE041		Score: tenthousands and hundredthousands (BCD)
-0xE042		?Num stage wraparounds?
-0xE043		Stage
+0xE042		[&num_stage_wraparounds]
+0xE043		[&stage]
+		The stage number. It is 1-based, not 0-based. A lot of 
+		code therefore load the stage in register A and then 
+		decrements A.
+
 0xE044		Seen at 0x44A8
 0xE045		Seen at 0x413F, 0x6C36, 0x425E, 0x413D.
 0xE046-0xE047	Pointer to coarse pattern names (22 per line, not 32)
@@ -657,7 +663,9 @@ This table was generated with:
 			0x00 Ungrabbed
 			0x01 Grabbed a fuel heart (very very briefly, moves almost instantly to 0x02, see 0x6F07)
 			0x02 Grabbed a fuel heart
-0xE0B9		Streak count of number of grabbed fuel hearts.
+0xE0B9		[&grabbed_fuel_hearts_streak_count]
+		Streak count of number of grabbed fuel hearts.
+			0x00: Set at 0x51D2, when crashed.
 			0x01: Worth 300 points.
 			0x02: Worth 500 points.
 			0x03: Worth 800 points.
@@ -689,6 +697,19 @@ This table was generated with:
 0xE0C3		#00
 0xE0C4		#01 0x01 (set at 0x7066)
 0xE0C5		#02
+0xE0C6		#03 Level A: 2 times value 0x5312/0x5315/0x5318, level B: just the value.
+0xE0C7		#04 Value of 0x5313/0x5316/0x5319/... (value of third element)
+0xE0C8		#05
+0xE0C9		#06
+0xE0CA		#07
+0xE0CB		#08 0x00 (set at 0x7095)
+0xE0CC		#09
+0xE0CD		#0A
+0xE0CE		#0B
+0xE0CF		#0C
+0xE0D0		#0D
+0xE0D1		#0E
+0xE0D2		#0F
 0xE0D3-0xE0E2	Seen as value in 0xE0BF
 		Whole 16 bytes are copied to 0xE0F5 at 0x6FF4.
 0xE0E3		Seen at 0x6EE3, bonus fuel heart related
@@ -710,7 +731,7 @@ This table was generated with:
 			0x01: Moving object is visible in screen.
 			0x02: Colliding with other object. See 0x735F.
 		0xE0E7 +2 ?
-		0xE0E8 +3 ?
+		0xE0E8 +3 Space between objects? See 0x706D
 		0xE0E9 +4 0x28: ?
 		0xE0EA +5 Vertical position on screen, "decimals"
 		0xE0EB +6 Vertical position on screen
@@ -862,6 +883,71 @@ This table was generated with:
 			0xE13B	hpos	Always the same as the player car (see 0x77A8).
 			0xE13C	pat	0x94 ("300"), 0x98 ("500"), 0x9C ("700"), 0xA0 ("1000")
 			0xE13D	color	Always 0x06 (transparent + dark red)
+		Sprite #0C	0xE13E-0x141	?
+			0xE13E
+			0xE13F
+			0xE140
+			0xE141
+		Sprite #0D	0xE142-0x145	Blue car at start of stage #01, right column, 1 of 6.
+			0xE142
+			0xE143
+			0xE144
+			0xE145
+		Sprite #0E	0xE146-0x149	Blue car at start of stage #01, right column, 1 of 6, shadow.
+			0xE146
+			0xE147
+			0xE148
+			0xE149
+		Sprite #0F	0xE14A-0x14D	Blue car at start of stage #01, right column, 2 of 6.
+			0xE14A
+			0xE14B
+			0xE14C
+			0xE14D
+		Sprite #10	0xE14E-0x151	Blue car at start of stage #01, right column, 2 of 6, shadow.
+			0xE14E
+			0xE14F
+			0xE150
+			0xE151
+		Sprite #11	0xE152-0x155	Blue car at start of stage #01, right column, 3 of 6.
+			0xE152
+			0xE153
+			0xE154
+			0xE155
+		Sprite #12	0xE156-0x159	Blue car at start of stage #01, right column, 3 of 6, shadow.
+			0xE156
+			0xE157
+			0xE158
+			0xE159
+		Sprite #13	0xE15A-0x15D	Blue car at start of stage #01, right column, 4 of 6.
+			0xE15A
+			0xE15B
+			0xE15C
+			0xE15D
+		Sprite #14	0xE15E-0x161	Blue car at start of stage #01, right column, 4 of 6, shadow.
+			0xE15E
+			0xE15F
+			0xE160
+			0xE161
+		Sprite #15	0xE162-0x165	Blue car at start of stage #01, right column, 5 of 6.
+			0xE162
+			0xE163
+			0xE164
+			0xE165
+		Sprite #16	0xE166-0x169	Blue car at start of stage #01, right column, 5 of 6, shadow.
+			0xE166
+			0xE167
+			0xE168
+			0xE169
+		Sprite #17	0xE16A-0x16D	Blue car at start of stage #01, right column, 6 of 6.
+			0xE16A
+			0xE16B
+			0xE16C
+			0xE16D
+		Sprite #18	0xE16E-0x171	Blue car at start of stage #01, right column, 6 of 6, shadow.
+			0xE16E
+			0xE16F
+			0xE170
+			0xE171
 
 0xE186-E395	Coarse pattern name table.
 		
