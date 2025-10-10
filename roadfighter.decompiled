@@ -1143,20 +1143,30 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
-4325_game_state_06:
+4325_game_state_06__player_car_crashed:
 	ld a,(0e083h)		;4325 A = fuel_remaining
 	or a			;4328
 	jr z,$+24		;4329 if (fuel_remaining == 0) jump to 0x4341 (game over)
+	; Post: still fuel remaining
+	;
 	call 051c5h		;432b 51c5_car_crashed_something
-	ld a,001h		;432e
+	ld a,001h		;432e A = 0x01
 	ld (0e045h),a		;4330
-	ld hl,0433ah		;4333
-	push hl			;4336
+	
+	ld hl,0433ah		;4333 HL = 0x433A
+	push hl			;4336 ?WHY? Return to 0x433A?
+	
 	call 0573ah		;4337 573a_copy_coarse_to_VRAM
 	
-	ld hl,00105h		;433a
+	; We can get here from:
+	;   0x???? (????) See 0x4336
+	;   0x4337 (fall)
+	ld hl,00105h		;433a HL = 0x0105
 	ld (0e000h),hl		;433d game_state = 0x05, game_substate = 0x01, player can accelerate
+	
 	ret			;4340
+
+
 
 ; We can get here from:
 ;   0x4329 (jump)
@@ -1541,14 +1551,32 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Add     1 * E to score
-; Add   100 * D to score
+; Add to score and update hiscore.
+;
+; Add     1 * (E & 0xF) to score
+; Add    10 * (E >> 4)  to score
+; Add   100 * (D & 0xF) to score
+; Add  1000 * (D >> 4)  to score
+; 
+; Input:
+;   D: BCD score to add
+;   E: BCD score to add times 100
+;
+; Routine                                                             |  D   |  E   | Result
+; --------------------------------------------------------------------+------+------+--------------------
+; 5501_if_distance_travelled_changed__add_to_score_and_update_hiscore | 0x00 | 0x03 | Add 3 to score.
+; --------------------------------------------------------------------+------+------+--------------------
+; 775f_grabbed_fuel_heart                                             | 0x03 | 0x00 | Add 300 to score.
+; 775f_grabbed_fuel_heart                                             | 0x05 | 0x00 | Add 500 to score.
+; 775f_grabbed_fuel_heart                                             | 0x08 | 0x00 | Add 800 to score.
+; 775f_grabbed_fuel_heart                                             | 0x10 | 0x00 | Add 1000 to score.
+; --------------------------------------------------------------------+------+------+--------------------
 ; 
 ; We can get here from:
-;   0x551A (call) [from=5501_fixme] D = 0x00, E = 0x03, i.e. 3 points.
-;   0x7789 (call) [from=775f_grabbed_fuel_heart] D in [3,5,8,10], E = 0x00, i.e. 300/500/800/1000 points
-447f_update_score_and_hiscore:
-	ld c,000h		;447f C = 0
+;   0x551A (call) [from=5501_if_distance_travelled_changed__add_to_score_and_update_hiscore]
+;   0x7789 (call) [from=775f_grabbed_fuel_heart]
+447f_add_to_score_and_update_hiscore:
+	ld c,000h		;447f C = 0x00
 	ld a,(0e002h)		;4481
 	; Bit 6 (mask 0x40) in 0xE002 means:
 	;     0: demo
@@ -1560,25 +1588,29 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,a			;4484
 	ret p			;4485 if (demo) return
 	
-	; NOT a demo
-	ld hl,0e03fh		;4486 HL = location of score
-	ld a,(hl)		;4489 Load score (BCD, units and tens)
+	; NOT a demo.
+	ld hl,0e03fh		;4486 HL = &bcd_score__tens_and_units
+	ld a,(hl)		;4489 A = bcd_score__tens_and_units
 	add a,e			;448a A += E
-	daa			;448b Compensate for BCD
-	ld (hl),a		;448c Store score
-	inc l			;448d
-	ld a,(hl)		;448e Load score (BCD, hundreds and thousands)
-	adc a,d			;448f A += D and add carry
-	daa			;4490 Compensate for BCD
-	ld (hl),a		;4491 Store score
-	inc hl			;4492
-	ld a,(hl)		;4493 Load score (BCD, tenthousands and hundredthousands)
+	daa			;448b Compensate for BCD.
+	ld (hl),a		;448c bcd_score__tens_and_units = A
+	
+	inc l			;448d HL = &bcd_score__thousands_and_hundreds
+	ld a,(hl)		;448e A = bcd_score__thousands_and_hundreds
+	adc a,d			;448f A += D and add carry from tens
+	daa			;4490 Compensate for BCD.
+	ld (hl),a		;4491 bcd_score__thousands_and_hundreds = A
+
+	inc hl			;4492 HL = bcd_score__hundredthousands_and_tenthousands
+	ld a,(hl)		;4493 A = bcd_score__hundredthousands_and_tenthousands
 	adc a,c			;4494 A += C and add carry
-	daa			;4495 Compensate for BCD
-	ld (hl),a		;4496 Store score
+	daa			;4495 Compensate for BCD.
+	ld (hl),a		;4496 bcd_score__hundredthousands_and_tenthousands = A
 	jr nc,$+16		;4497 if (no score overflow) jump to 0x44A7
 	
 	; Score overflowed, fix hiscore to 999,999.
+	; 
+	; Note: We are storing 0xE03D twice, and 0xE03C and 0xE03E once.
 	ld bc,09999h		;4499
 	ld (0e03ch),bc		;449c
 	ld (0e03dh),bc		;44a0
@@ -1598,7 +1630,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	cp (hl)			;44ab
 	jr c,$+11		;44ac if (A < *HL) jump to 0x44B7
 	
-	; ?Reached score of multiple of 50000?
+	; Reached score of multiple of 50000.
 	ld a,(hl)		;44ae
 	add a,005h		;44af A += 5
 	daa			;44b1 Compensate for BCD
@@ -1644,26 +1676,25 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x42DC (call) [from=4270_game_state_04__demo]
 44d0_fixme:
 	call 044f4h		;44d0 44f4_draw_minimap_speed_fuel
-	ld de,0470dh		;44d3 470d_hiscore_letters
+	ld de,0470dh		;44d3 DE = 470d_hiscore_letters
 	call 045f0h		;44d6 45f0_show_symbols
-	; Fall to 44d9_fixme
+	; Fall to 44d9_draw_score_and_hiscore
 
 ; We can get here from:
-;   0x44D6 (fall) [from=44d0_fixme]
-;   0x6B5F (call) [from=6b5e_car_state_03__reached_checkpoint]
-44d9_fixme:
+;   0x44D6 (fall) [from=44d0_fixme]                            C == 0xFF (due to calling 45f0_show_symbols)
+;   0x6B5F (call) [from=6b5e_car_state_03__reached_checkpoint] C == ?
+44d9_draw_score_and_hiscore:
 	ld de,0e03eh		;44d9 DE = 0xE03E
 	ld hl,03838h		;44dc HL = 0x3838 (name table, start of hiscore)
 	call 044e6h		;44df 44e6_fixme
 
 	ld l,098h		;44e2 HL = 0x3898 (name table, start of score)
 	ld e,041h		;44e4 DE = 0xE041
-	; Fall to 44e6_fixme
-
-; We can get here from:
-;   0x44DF (call) [from=44d9_fixme] DE == 0xE03E, HL == 0x3838 (name table, start of hiscore)
-;   0x44E4 (fall) [from=44d9_fixme] DE == 0xE041, HL == 0x3898 (name table, start of score)
-44e6_fixme:
+	
+	44e6_fixme:
+	; We can get here from:
+	;   0x44DF (call) [from=self] DE == 0xE03E, HL == 0x3838 (name table, start of hiscore)
+	;   0x44E4 (fall) [from=self] DE == 0xE041, HL == 0x3898 (name table, start of score)
 	ld b,003h		;44e6 B = 0x03
 	jr $+77			;44e8 jump to 0x4535 (4535_write_score_or_hiscore)
 
@@ -1768,13 +1799,17 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   B: loop count
 ; 
 ; We can get here from:
-;   0x44E8/0x44DF (jump) PO == ?, HL == 0x3838, DE == 0xE03E (hiscore BCD), B == 3, C == ?mask?
-;   0x44E8/0x44E4 (jump) PO == ?, HL == 0x3898, DE == 0xE041 (  score BCD), B == 3, C == ?mask?
-;   0x44F2 (jump) PO == ?, HL == 0x3836, DE == 0xE043 (stage), B == 1, C == ?mask?
+;   0x44E8 (jump) [from=44d9_draw_score_and_hiscore,0x44DF] PO == ?, HL == 0x3838, DE == 0xE03E (hiscore BCD), B == 3, C == mask
+;   0x44E8 (jump) [from=44d9_draw_score_and_hiscore,0x44E8] PO == ?, HL == 0x3898, DE == 0xE041 (  score BCD), B == 3, C == mask
+;   0x44F2 (jump) [from=44ea_fixme]                         PO == ?, HL == 0x3836, DE == 0xE043 (stage      ), B == 1, C == mask (?DEAD CODE?)
 4535_write_score_or_hiscore:
 	ret po			;4535 if (parity or overflow) return
-	nop			;4536 Weird.
+	nop			;4536 Weird. Useless code.
 	
+	; We can get here from:
+	;   0x4536 (fall) [from=self]
+	;   0x455E (djnz) [from=self]
+	4537_start_of_djnz_loop:
 	; A = *(DE) >> 4, i.e. the high nybble of *(DE) of score (tens/thousands/hundredthousands).
 	ld a,(de)		;4537
 	rra			;4538
@@ -4643,7 +4678,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(0e003h)		;4c29 A = 0xE003
 	and 003h		;4c2c A &= 0x03 (only preserve bits 0 and 1)
 	bit 0,a			;4c2e Test bit 0 (mask 0x01)
-	jr nz,$+85		;4c30 if (*0xE003 & 1) jump to 4c85_set_engine_humming_frequency_divider
+	jr nz,$+85		;4c30 if (*0xE003 & 1) jump to 4c85_set_engine_humming_frequency_divider_and_set_volume_something
 	
 	; Post:
 	;   bit 7 to 2: 0 (due to "and" at 0x4C2C)
@@ -4756,7 +4791,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x4C30 (jump) IY == 0xE034, (*0xE003 & 1) == 1, ticker is odd
 ;   0x4C81 (fall) IY == 0xE032, (*0xE003 & 1) == 0, ticket is even
-4c85_set_engine_humming_frequency_divider:
+4c85_set_engine_humming_frequency_divider_and_set_volume_something:
 	ld de,(0e036h)		;4c85 DE = *0xE036 (seen DE == 0x0000)
 	
 	; HL = IY[0], load base engine humming frequency divider, i.e. 
@@ -4775,8 +4810,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	sbc hl,de		;4c8f HL -= (DE + carry)
 	call 04dc3h		;4c91 4dc3_set_PSG_tone_frequency_divider(channel=C, frequency_divider=HL)
 
-
-4c94_:
+	4c94_set_volume_something:
 	ld a,(0e083h)		;4c94 A = fuel_remaining
 	cp 010h			;4c97 Compute A - 0x10 and set flags.
 	jr c,$+21		;4c99 if (fuel_remaining < 0x10) jump to 4cae_set_volume_A_to_9.
@@ -5109,7 +5143,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; 0x4C05: C=1, and switches to C=3 and C=5 inside DJNZ loop
 ; 
 ; We can get here from:
-;   0x4C91 (call) [from=4c85_set_engine_humming_frequency_divider]
+;   0x4C91 (call) [from=4c85_set_engine_humming_frequency_divider_and_set_volume_something]
 ;   0x4D0F (call) [from=4d03_fixme]
 ;   0x4DBD (jump) [from=4d5f_soundID_with_0x80]
 ;   0x4DC1 (fall) [from=4d5f_soundID_with_0x80]
@@ -6308,7 +6342,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x432B (call) [from=4325_game_state_06]
+;   0x432B (call) [from=4325_game_state_06__player_car_crashed]
 51c5_car_crashed_something:
 	call 051ffh		;51c5 51ff_initialize_variables
 	call 051f3h		;51c8 51f3_something_about_car_horizontal_pos_on_screen
@@ -6396,12 +6430,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 070a8h		;522a 70a8_fixme
 	call 05434h		;522d 5434_truck_something
 	call 07755h		;5230 7755_handle_grabbed_fuel_heart_state
-	call 06a70h		;5233 6a70_fixme
+	call 06a70h		;5233 6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine
 	call 07374h		;5236 7374_increment_fuel_used
 	call 0738ch		;5239 738c_update_distance_travelled
 	call 05251h		;523c 5251_check_if_checkpoint_reached
 	call 06e4ah		;523f 6e4a_handling_moving_objects_something_if_not_crashed
-	call 05501h		;5242 5501_fixme
+	call 05501h		;5242 5501_if_distance_travelled_changed__add_to_score_and_update_hiscore
 	call 07411h		;5245 7411_decrement_fuel_remaining
 	call 06ca1h		;5248 6ca1_fixme
 	call 06f25h		;524b 6f25_fixme
@@ -6471,10 +6505,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x4322 (jump) [from=4306_game_state_05_substate_02]
 527d_fixme:
 	call 05270h		;527d 5270_copy_30_sprites_from_RAM_to_VRAM
-	call 06a70h		;5280 6a70_fixme
+	call 06a70h		;5280 6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine
 	call 06ca1h		;5283 6ca1_fixme
 	call 0738ch		;5286 738c_update_distance_travelled
-	call 05501h		;5289 5501_fixme
+	call 05501h		;5289 5501_if_distance_travelled_changed__add_to_score_and_update_hiscore
 	jp 0528fh		;528c ?WHY, it is the next op, isn't it?
 
 ; We can get here from:
@@ -6618,7 +6652,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr $-8			;530d jump to 0x5305
 
 
-
+; Dead data? 
 	defb 0x3E		;530f ???
 	defb 0x04		;5310 ???
 
@@ -7140,10 +7174,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x5242 (call)
 ;   0x5289 (call)
-5501_fixme:
-	ld a,(e049_car_state)	;5501
-	dec a			;5504
-	ret z			;5505
+5501_if_distance_travelled_changed__add_to_score_and_update_hiscore:
+	ld a,(0e049h)		;5501 A = car_state
+	dec a			;5504 --A, updates Z/NZ flag
+	ret z			;5505 if (car_state == CAR_STATE_CRASHED) return
+	; Post: not crashed
+	;
 	ld b,001h		;5506 B = 0x01
 	ld a,(0e078h)		;5508 A = distance_travelled (middle byte)
 	and b			;550b A &= 0x01
@@ -7161,7 +7197,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; Add 3 to score, update highscore if necessary.
 	ld de,00003h		;5517 DE = 0x0003
-	call 0447fh		;551a 447f_update_score_and_hiscore
+	call 0447fh		;551a 447f_add_to_score_and_update_hiscore
 
 
 
@@ -7588,7 +7624,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x41C5 (call) [from=41c2_game_state_03_substate_06]
-;   0x4337 (call) [from=4325_game_state_06]
+;   0x4337 (call) [from=4325_game_state_06__player_car_crashed]
 ;   0x5738 (fall) [from=5716_fixme]
 573a_copy_coarse_to_VRAM:
 	ld hl,03801h		;573a HL = 0x3801, VDP name table, character 1 (character 0 is elsewhere set to black)
@@ -16115,7 +16151,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x5233 (call) [from=5224_handle_race_substate]
 ;   0x5280 (call) [from=527d_fixme]
-6a70_fixme:
+6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine:
 	ld a,(0e008h)		;6a70 Get newly pressed keys.
 	and 00ch		;6a73 Select only "Left" and "Right". 0x0C = (0x08 | 0x04)
 	ld hl,0e048h		;6a75 HL = 0xE048 (it is read at 0x6E04).
@@ -16123,9 +16159,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (hl),a		;6a7a "Left" and/or "Right" is pressed and wasn't pressed in previous frame. Store.
 	
 	; We can get here from:
-	;   0x6A78 (jump)
-	;   0x6A7A (fall)
-	inc hl			;6a7b HL = 0xE049 (== &car_state)
+	;   0x6A78 (jump) HL == 0xE048
+	;   0x6A7A (fall) HL == 0xE048
+	inc hl			;6a7b HL = car_state (0xE049)
 	ld a,(hl)		;6a7c A = car_state
 	call 04045h		;6a7d PC = PC[2 * A]
 	defw 0x6A90		;6a80 #00: 6a90_car_state_00__all_okay
@@ -16140,7 +16176,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x6A7D (jump table entry #00) [from=6a70_fixme]
+;   0x6A7D (jump table entry #00) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 ;   0x6B0C (call)                 [from=6b05_car_state_02__no_fuel_remaining]
 6a90_car_state_00__all_okay:
 	call 06cd1h		;6a90 6cd1_side_bounce_checker_and_actioner
@@ -16182,7 +16218,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Player car has crashed.
 ; 
 ; We can get here from:
-;   0x6A7D (jump table entry #01) [from=6a70_fixme]
+;   0x6A7D (jump table entry #01) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 6abb_car_state_01__crashed:
 	pop hl			;6abb ?Remove return address? ?Return to grand parent?
 	ld a,(0e003h)		;6abc A = *(0xE003)
@@ -16219,7 +16255,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,010h		;6ae7 A = 0x10
 	ld (0e004h),a		;6ae9
 	ld a,(0e083h)		;6aec A = fuel_remaining
-	or a			;6aef
+	or a			;6aef Update Z/NZ flag.
 	jr z,$+44		;6af0 if (fuel_remaining == 0) jump to 6b1c_out_of_fuel_and_no_more_speed (GAME OVER)
 	; Still some fuel remaining.
 	pop hl			;6af2 Remove return address, return to grandparent.
@@ -16232,13 +16268,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 6af4_subtract_0x14_fuel_and_draw_speed_and_fuel_gauge:
 	ld hl,0e083h		;6af4 HL = &fuel_remaining
 	ld a,(hl)		;6af7 A = fuel_remaining
-	sub 014h		;6af8 A -= 0x14
+	sub 014h		;6af8 A -= 0x14 (20 in decimal)
 	jr nc,$+3		;6afa if (fuel_remaining >= 0x14) jump to 0x6AFD
 	; Don't allow negative fuel.
 	xor a			;6afc A = 0x00
 
 	; Store.
 	ld (hl),a		;6afd fuel_remaining = A
+
+
 
 ; We can get here from:
 ;   0x6AFD (fall) [from=6af4_subtract_0x14_fuel_and_draw_speed_and_fuel_gauge]
@@ -16256,7 +16294,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x6A7D (jump table entry #02) [from=6a70_fixme]
+;   0x6A7D (jump table entry #02) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 6b05_car_state_02__no_fuel_remaining:
 	ld a,(0e083h)		;6b05 A = fuel_remaining
 	or a			;6b08
@@ -16343,10 +16381,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x6A7D (jump table entry #03) [from=6a70_fixme]
+;   0x6A7D (jump table entry #03) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 6b5e_car_state_03__reached_checkpoint:
 	pop hl			;6b5e Removes caller PC from stack, routine will return to grandparent.
-	call 044d9h		;6b5f 44d9_fixme
+	call 044d9h		;6b5f 44d9_draw_score_and_hiscore
 	ld a,080h		;6b62 A = 0x80
 	ld (0e0eeh),a		;6b64
 	ld (0e0feh),a		;6b67
@@ -16398,7 +16436,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Skidding, recoverable by steering. Ticks left is at 0xE0B1.
 ; 
 ; We can get here from:
-;   0x6A7D (jump table entry #04) [from=6a70_fixme]
+;   0x6A7D (jump table entry #04) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 6b90_car_state_04__skidding:
 	ld hl,0e0b1h		;6b90
 	dec (hl)		;6b93 Decrement skid ticks left.
@@ -16508,7 +16546,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; crash.
 ; 
 ; We can gete here from:
-;   0x6A7D (jump table entry #05) [from=6a70_fixme]
+;   0x6A7D (jump table entry #05) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 6c05_car_state_05__bounce_against_side_of_road:
 	ld hl,0e004h		;6c05
 	dec (hl)		;6c08
@@ -16564,7 +16602,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Respawn player car (after crash).
 ; 
 ; We can get here from:
-;   0x6A7D (jump table entry #06) [from=6a70_fixme]
+;   0x6A7D (jump table entry #06) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 6c31_car_state_06__respawn:
 	pop hl			;6c31
 	call 0440ch		;6c32 440c_decrement_timer_and_do_return_magic
@@ -16578,7 +16616,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Player car is spinning.
 ; 
 ; We can get here from:
-;   0x6A7D (jump table entry #07) [from=6a70_fixme]
+;   0x6A7D (jump table entry #07) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 6c3a_car_state_07__spinning:
 	call 06be2h		;6c3a 6be2_car_is_skidding_or_spinning
 	ld a,(0e003h)		;6c3d
@@ -18392,24 +18430,30 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Increment fuel used/ticker based on fuel consumption level (A/B).
+;
+; We can get here from:
+;   0x5236 (call) [from=5224_handle_race_substate]
 7374_increment_fuel_used:
-	ld a,(e049_car_state)	;7374 Load car state
-	dec a			;7377
-	ret z			;7378 if (car crashed) return
+	ld a,(0e049h)		;7374 A = car_state
+	dec a			;7377 car_state == 1 means "crashed"
+	ret z			;7378 if (car_state == CAR_STATE_CRASHED) return
 
 	; Post: car state is not 0x01, i.e. not in crash state.
-	ld bc,001ffh		;7379 B = 0x01, C = 0xFF
+	ld bc,001ffh		;7379 fuel_consumption_rate = 0x01FF (fuel consumption rate at level B)
 	ld a,(0e03bh_levelAB)	;737c A = levelAB
 	or a			;737f
 	jr nz,$+4		;7380 if (level B) jump to 0x7384
-	ld c,080h		;7382 C = 0x80 (fuel consumption rate at level A)
+	ld c,080h		;7382 fuel_consumption_rate = 0x0180 (fuel consumption rate at level A)
 	
 	; We can get here from:
-	;   0x7380 (jump) C == 0xFF (level B, high fuel consumption rate)
-	;   0x7382 (fall) C == 0x80 (level A, low  fuel consumption rate)
-	ld hl,(0e056h)		;7384 
-	add hl,bc		;7387
-	ld (0e056h),hl		;7388 Writes fuel used/ticker (0xE057) as well.
+	;   0x7380 (jump) fuel_consumption_rate == 0x01FF (level B, high fuel consumption rate)
+	;   0x7382 (fall) fuel_consumption_rate == 0x0180 (level A, low  fuel consumption rate)
+	;
+	; fuel_used += fuel_consumption_rate
+	ld hl,(0e056h)		;7384 HL = &fuel_used
+	add hl,bc		;7387 HL += fuel_consumption_rate
+	ld (0e056h),hl		;7388 fuel_used = HL
+	
 	ret			;738b
 
 
@@ -18640,12 +18684,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x5245 (call) [from=5224_handle_race_substate]
 7411_decrement_fuel_remaining:
-	; D = *(E057_fuel_ticker) & 0x20
-	ld a,(E057_fuel_ticker)	;7411 A = *(E057_fuel_ticker)
+	; D = fuel_used__high_byte & 0x20
+	ld a,(0e057h)		;7411 A = fuel_used__high_byte
 	ld b,020h		;7414 B = 0x20
 	and b			;7416 A &= 0x20
-	ld d,a			;7417 D = *(E057_fuel_ticker) & 0x20
-	; Register D can be only 0x00 or 0x20.
+	ld d,a			;7417 D = fuel_used__high_byte & 0x20
+	; Post: Register D can be only 0x00 or 0x20. (0x00 in roughly 95% 
+	; of the cases.)
 
 	; A = (*(0xE084) & 0x20)
 	ld hl,0e084h		;7418 HL = 0xE084
@@ -18659,36 +18704,41 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;                  | Register  D |
 	;             XOR  | 0x00 | 0x20 |
 	; -----------------+------+------+
-	; Register A: 0x00 | 0x00 | 0x20 |
-	; -----------------+------+------+
-	; Register B: 0x20 | 0x20 | 0x00 |
+	;             0x00 | 0x00 | 0x20 |
+	; Register A  -----+------+------+
+	;             0x20 | 0x20 | 0x00 |
 	; -----------------+------+------+
 	xor d			;741d A ^= D
+	; A == 0x00 means: (fuel_used__high_byte & 0x20) == *(0xE084)
+	; A == 0x20 means: (fuel_used__high_byte & 0x20) != *(0xE084)
 	
 
-	ret z			;741e if (A == 0) return
-	; Post: A == B (0x20)
-
+	ret z			;741e if (A == 0x00) return
+	; Post:
+	;   B  == 0x20   (set at 0x7414)
+	;   HL == 0xE084 (set at 0x7418)
+	;   *(0xE084) != (fuel_used__high_byte & 0x20)
+	;
 	ld a,(hl)		;741f A = *(0xE084)
 	xor b			;7420 A ^= 0x20
 	ld (hl),a		;7421 *(0xE084) = A
 
 	dec hl			;7422 HL = &fuel_remaining (0xE083)
-	ld a,(hl)		;7423 A = fuel
+	ld a,(hl)		;7423 A = fuel_remaining
 	and a			;7424 Test A for being zero.
 	jr z,$+7		;7425 if (fuel_remaining == 0) jump to 0x742C (742c_no_fuel_remaining)
 	; Post: fuel > 0, i.e. at least 1, so fuel can be decremented.
-	dec (hl)		;7427 Decrement remaining fuel.
-	ld a,(hl)		;7428 A = decremented_fuel
-	or a			;7429 Test A for being zero.
-	jr nz,$+7		;742a if (decremented_fuel != 0) jump to 7431_either_with_or_without_fuel_remaining
+	dec (hl)		;7427 --fuel_remaining
+	ld a,(hl)		;7428 A = fuel_remaining
+	or a			;7429 Update Z/NZ flag.
+	jr nz,$+7		;742a if (fuel_remaining > 0) jump to 7431_either_with_or_without_fuel_remaining
 				;     else fall to 742c_no_fuel_remaining
 
 ; Set car state to 2 (out of fuel).
 742c_no_fuel_remaining:
-	; *(E049_car_state) = 2
-	ld hl,e049_car_state	;742c
-	ld (hl),002h		;742f
+	; car_state = 2
+	ld hl,0e049h		;742c HL = &car_state
+	ld (hl),002h		;742f car_state = 2
 7431_either_with_or_without_fuel_remaining:
 	call 07444h		;7431 call 7444_draw_fuel_gauge (since fuel was decremented)
 	ld a,(0e083h)		;7434 A = fuel_remaining
@@ -19947,31 +19997,38 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 07444h		;776c 7444_draw_fuel_gauge
 	ld hl,0e0b8h		;776f HL = 0xE0B8
 	inc (hl)		;7772
-	inc hl			;7773 HL = e0b9_heart_streak
-	inc (hl)		;7774 Increase heart streak count
+	
+	; ++grabbed_fuel_hearts_streak_count
+	inc hl			;7773 HL = &grabbed_fuel_hearts_streak_count
+	inc (hl)		;7774 ++grabbed_fuel_hearts_streak_count
+
 	inc hl			;7775 HL = 0xE0BA
 	ld (hl),060h		;7776
-	dec hl			;7778 HL = e0b9_heart_streak
-	ld a,(hl)		;7779 A = heart streak count
+	
+	dec hl			;7778 HL = &grabbed_fuel_hearts_streak_count
+	ld a,(hl)		;7779 A = grabbed_fuel_hearts_streak_count
 	cp 004h			;777a
-	jr c,$+4		;777c if (heart streak count < 4) jump to 0x7791
+	jr c,$+4		;777c if (grabbed_fuel_hearts_streak_count < 4) jump to 0x7791
 	ld a,004h		;777e A = 4
 	
 	; We can get here from:
 	;   0x777c (jump) A = Heart streak count capped to 4
 	;   0x777e (fall) A = Heart streak count not capped
-	ld hl,7791_heart_score	;7780 HL = pointer to fuel heart score table
+	ld hl,07791h		;7780 HL = 7791_heart_score_table
 	call 0403bh		;7783 HL += A
-	ld d,(hl)		;7786 D = 7791_heart_score[A]
-	ld e,000h		;7787 E = 0
-	call 0447fh		;7789 447f_update_score_and_hiscore
+	
+	; Score += 7791_heart_score_table[A] * 100, updates hiscore if 
+	; needed.
+	ld d,(hl)		;7786 D = 7791_heart_score_table[A]
+	ld e,000h		;7787 E = 0x00
+	call 0447fh		;7789 447f_add_to_score_and_update_hiscore
 	; Fall to 778c_play_sound_03__grabbed_bonus_fuel_heart
 
 
 
 ; We can get here from:
-;   0x40DE (call)
-;   0x7789 (fall)
+;   0x40DE (call) [from=40cf_game_state_00_substate_03__draw_logo_konami_play_select_level_A_level_B]
+;   0x7789 (fall) [from=775f_grabbed_fuel_heart]
 778c_play_sound_03__grabbed_bonus_fuel_heart:
 	ld a,003h		;778c A = 3, sound ID of grabbing a bonus fuel heart.
 	jp 04b6eh		;778e 4b6e_sound_something_with_D_is_0
@@ -19981,7 +20038,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; The more fuel hearts a player grabs, the more it is worth.
 ; 
 ; Referenced by 0x7780.
-7791_heart_score:
+7791_heart_score_table:
 	defb 0x00		;7791 0  consecutive fuel hearts:    0 points
 	defb 0x03		;7792 1  consecutive fuel hearts:  300 points
 	defb 0x05		;7793 2  consecutive fuel hearts:  500 points

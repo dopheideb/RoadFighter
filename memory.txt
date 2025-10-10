@@ -393,19 +393,31 @@ This table was generated with:
 0xE03B		Level
 			0x00: Level A
 			0x01: Level B
-0xE03C		HiScore: units and tens (BCD)
+0xE03C		[&bcd_score__tens_and_units]
+		HiScore: units and tens (BCD)
 0xE03D		HiScore: hundreds and thousands (BCD)
 0xE03E		HiScore: tenthousands and hundredthousands (BCD)
-0xE03F		Score: units and tens (BCD)
-0xE040		Score: hundreds and thousands (BCD)
-0xE041		Score: tenthousands and hundredthousands (BCD)
+0xE03F		[&bcd_score__tens_and_units]
+		Score: units and tens (BCD)
+0xE040		[&bcd_score__thousands_and_hundreds]
+		Score: hundreds and thousands (BCD)
+0xE041		[&bcd_score__hundredthousands_and_tenthousands]
+		Score: tenthousands and hundredthousands (BCD)
 0xE042		[&num_stage_wraparounds]
 0xE043		[&stage]
 		The stage number. It is 1-based, not 0-based. A lot of 
 		code therefore load the stage in register A and then 
 		decrements A.
 
-0xE044		Seen at 0x44A8
+0xE044		Seen at 0x44A8, BCD. Doesn't seem to be used though.
+		Values:
+			0x00: At the start.
+			0x05: As soon as the score is above 0 (i.e. when score is 3).
+			0x10: As soon at the score is above 50,000.
+			0x15: As soon at the score is above 100,000.
+			(...)
+			0xFF: Cap, see 0x44B4
+, starts at 5, is increased with 5 at every 50000.
 0xE045		Seen at 0x413F, 0x6C36, 0x425E, 0x413D.
 0xE046-0xE047	Pointer to coarse pattern names (22 per line, not 32)
 0xE048		Seen at 0x6A75, 0x6E04. ?Stored if left or right is NEWLY pressed?
@@ -414,9 +426,9 @@ This table was generated with:
 			0x0C Both "Left" and "Right"
 
 0xE049-0xE053	Car data. Initial values are at 0x5219.
-0xE049		Car state?
+0xE049		[&car_state]
 			0x00 All okay
-			0x01 Crashed
+			0x01 CAR_STATE_CRASHED Crashed
 			0x02 Out of fuel (but with speed)
 			0x03 Reached checkpoint, see 0x5265
 			0x04 Skidding (player can escape this by steering in correct direction)
@@ -480,30 +492,32 @@ This table was generated with:
 			0x07, 0xFF, 0xF7: North-west
 0xE055		Seen at 0x6C1A.
 			bit 0, mask 0x01: ?left is pressed? See 0x6E0B.
-0xE056-0xE057	Fuel used/consumed. Wraps around.
-0xE056		Low byte, necessary because level A and B have different fuel consumption rates.
-0xE057		Fuel ticker (or fuel used/consumed)
-
+0xE056 (word)	[&fuel_used]
+		Fuel used/consumed. Wraps around.
+		
+		Governed by routine 0x7374 (7374_increment_fuel_used).
+		
+		Increases with this rate:
+			Level A: 0x0180 is added to word 0xE056 every frame. See 0x7382.
+			Level B: 0x01FF is added to word 0xE056 every frame. see 0x7379.
+		
 		Increases even when stationary (engine is running). 
 		Doesn't increase if car has crashed (see 0x7378).
 
-		Increases with this rate:
-			Level A: once per 2 frames. (0x80 is added to word 0xE056 every frame)
-			Level B: "once" per frame. (0xFF is added to word 0xE056 every frame)
-			
-			0x80: see 0x7382
-			0xFF: see 0x7379
 		Fuel decreases when this ticker reaches:
-			0x00
-			0x20
-			0x40
-			0x60
-			0x80
-			0xA0
-			0xC0
-			0xE0
-		I.e. fuel (0xE083) decreases for every 0x20 consumed here.
-		Stored at 0x7388 as part of a write of a word.
+			0x0000
+			0x2000
+			0x4000
+			0x6000
+			0x8000
+			0xA000
+			0xC000
+			0xE000
+		I.e. fuel (0xE083) decreases for every 0x2000 consumed here.
+0xE056 (byte)	[&fuel_used__low_byte]
+		Low byte of fuel_used.
+0xE057 (byte)	[&fuel_used__high_byte]
+		High byte of fuel_used.
 0xE058-0xE06D	0x16 (22) bytes. Pattern names ?of next coarse line?
 0xE058		Byte #00
 0xE059		Byte #01
@@ -569,7 +583,8 @@ This table was generated with:
 			Stage 6: 0x7EA8 (see 0x517F)
 0xE07B		Bitmask 0x07: offset for table at 0x5808 (vertical pattern of left side of straight track)
 0xE07D		Side of left road?
-0xE07E		0xE078_of_previous_frame&1. Distance travelled, middle byte. Seen at 0x550D.
+0xE07E		[&previous_last_bit_of_distance_travelled_middle_byte]
+		0xE078_of_previous_frame&1. Distance travelled, middle byte. Seen at 0x550D.
 0xE07F		Seen at 0x514A, 0x58AF
 		0x58BF: set value to 0x08
 0xE081		Bytes of track to copy to VRAM buffer. Max 9 (3 lanes).
