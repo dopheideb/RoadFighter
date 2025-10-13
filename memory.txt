@@ -221,17 +221,24 @@ This table was generated with:
 		0x08	0x03	0x416D inc	Blink minicar for a while at correct checkpoint/goal.
 		0x08	0x04	0x416D inc	?Switch to game state *(E043)?
 
-0xE002
-		0x00 During demo
-		0x20 During demo
-		0x40 Level A, bit 6
-		0x60 Level B, bit 6 and bit 5
-		bit 5 (0x20):
-			0: Level A (also for demo)
-			1: Level B (also for demo)
-		bit 6 (0x40):
-			0: demo
-			1: player is playing
+0xE002		[&game_bits]
+		Bit | Mask | Name    | Meaning                  | Mask name
+		----+------+---------+--------------------------+----------------------
+		  5 | 0x20 | level   | 0: Level A               | GAME_BITS__LEVEL
+		    |      |         | 1: Level B               |
+		----+------+---------+--------------------------+----------------------
+		  6 | 0x40 | playing | 0: Player is not playing | GAME_BITS__IS_PLAYING
+		    |      |         | 1: Player is playing     |
+		----+------+---------+--------------------------+----------------------
+		
+		Observed values and their meaning:
+			Value | Masks    | Bits set | Meaning
+			------+-----------+----------+------------------------------
+			 0x00 | (none)    | (none)   | Demo at level A.
+			 0x20 | 0x20      | Bit 5    | Demo at level B.
+			 0x40 |      0x40 | Bit   6  | Player is playing at level A.
+			 0x60 | 0x20+0x40 | Bit 5+6  | Player is playing at level B.
+			------+-----------+----------+------------------------------
 0xE003		[&game_state_ticker]
 		Game state ticker, increments
 	
@@ -435,7 +442,8 @@ This table was generated with:
 			0x05 Bounced against side of the road. (Not crashed since speed is too low.)
 			0x06 Respawn after crash.
 			0x07 Spinning (speed below threshold stops the spinning)
-0xE04A		Car substate? Seen at 0x6F1B (as part of a word)
+0xE04A		[&car_substate]
+			0x0C ??? Seen at 0x6F18
 0xE04B-0xE04C	Car: vertical position
 0xE04B		Car: vertical position: "decimals"
 			The word at 0xE04B is increased, and the high 
@@ -451,7 +459,6 @@ This table was generated with:
 			byte is used as the horizontal position.
 0xE04E		[&car_hpos]
 		Car: horizontal position on screen
-			Pokeable!
 0xE04F		[&car_speed]
 		Car: speed
 			0x00-0x17	Seen at 0x6C96
@@ -674,7 +681,8 @@ This table was generated with:
 			otherwise: Does not contain oil
 0xE0B5 (word)	Pointer to correct oil tile.
 0xE0B7		?Horizonal offset of oil mark?
-0xE0B8		State for grabbed bonus fuel hearts.
+0xE0B8		[&fuel_heart_state]
+		State for grabbed bonus fuel hearts.
 			0x00 Ungrabbed
 			0x01 Grabbed a fuel heart (very very briefly, moves almost instantly to 0x02, see 0x6F07)
 			0x02 Grabbed a fuel heart
@@ -699,7 +707,14 @@ This table was generated with:
 			0x537E At start of stage 1.
 			
 			0x538D At start of stage 2, but only very very briefly.
-0xE0BF (word)	Seen at 0x6E62, 0x719C, 0x72F8 ??pointer to one of the current rival cars??
+
+0xE0BF (word)	[&current_moving_object_address]
+		The address of the current moving object.
+		Typical values:
+			0xE0E5: start address of moving object #00
+			0xE0F5: start address of moving object #01
+			?0xE105: start address of moving object #02 (oil drum)?
+
 0xE0C1		Seen at 0x51E5 (init), 0x6F2B, 0x7019, 0x7055
 		??Number of moving objects on spare??
 		Values:
@@ -728,10 +743,21 @@ This table was generated with:
 0xE0D3-0xE0E2	Seen as value in 0xE0BF
 		Whole 16 bytes are copied to 0xE0F5 at 0x6FF4.
 0xE0E3		Seen at 0x6EE3, bonus fuel heart related
-0xE0E4		Seen at 0x7298, 0x70AC. ?rival car index?
-0xE0E5		Seen at 0x6E61 - ?rival cars, 16 bytes per car?
-0xE0E5-0xE0F4	Moving object #00 (16 bytes)
-		0xE0E5 +0 Type of moving object
+0xE0E4		[&moving_object_idx]
+		Seen at 0x7298, 0x70AC.
+		Values:
+			0x00 means 0xE0E5-0xE0F4
+			0x01 means 0xE0F5-0xE104
+			0x02 means 0xE105-0xE10D???
+			0x03 means all moving object are handled, see 0x6F0F.
+0xE0E5-0xE104	[moving_object_table]
+		Number of element: 3
+		Size of element #00: 16 bytes
+		Size of element #01: 16 bytes
+		Size of element #02:  9 bytes (spinning oil drum)
+0xE0E5-0xE0F4	[&moving_object_00]
+		Moving object #00 (16 bytes)
+		0xE0E5 +0 [type] Type of moving object
 			0x00: Green car
 			0x01: Blue car (regular)
 			0x02: Blue car (overtaking player)
@@ -741,10 +767,21 @@ This table was generated with:
 			0x06: Truck (a.k.a. 18-wheeler), no oil drum
 			0x07: Truck (a.k.a. 18-wheeler), with spinning oil drum
 			0x08: Bonus fuel heart
-		0xE0E6 +1
+		0xE0E6 +1 [state]
 			0x00: This is NOT a VISIBLE moving object. I.e. don't draw it.
 			0x01: Moving object is visible in screen.
 			0x02: Colliding with other object. See 0x735F.
+			0x03: Not observed by these debug commands:
+				debug set_condition {[debug read_block memory 0xE0E6 1] == [binary format c 0x03]}
+				debug set_condition {[debug read_block memory 0xE0F6 1] == [binary format c 0x03]}
+			0x04: Not observed by these debug commands:
+				debug set_condition {[debug read_block memory 0xE0E6 1] == [binary format c 0x04]}
+				debug set_condition {[debug read_block memory 0xE0F6 1] == [binary format c 0x04]}
+			0x05: ?Purple car is moving? Set by 0x719A.
+			0x06: Not observed by these debug commands:
+				debug set_condition {[debug read_block memory 0xE0E6 1] == [binary format c 0x06]}
+				debug set_condition {[debug read_block memory 0xE0F6 1] == [binary format c 0x06]}
+			0x07: ? Set by 0x7207.
 		0xE0E7 +2 ?
 		0xE0E8 +3 Space between objects? See 0x706D
 		0xE0E9 +4 0x28: ?
@@ -757,28 +794,59 @@ This table was generated with:
 		0xE0F0 +B ?
 		0xE0F1 +C 0x03: ?
 		0xE0F2 +D ?
-		0xE0F3 +E 0x01: bounced against green car / purple car is moving sideways
+		0xE0F3 +E
+			Green car:
+				0x01: bounced?
+			Purple car:
+			0x00 Player is left  of purple car
+			0x01 Player is right of purple car (or equal hpos)
+
 		0xE0F4 +F
 			0x0C: Seen at 0x7367
-0xE0F5-0xE104	Moving object #01 (16 bytes)
+			0x20: Seen at 0x7198 (716d_purple_car_something)
+0xE0F5-0xE104	[&moving_object_01]
+		Moving object #01 (16 bytes)
 		0xE0F5 +0 See 0xE0E5
 		0xE0F6 +1 See 0xE0E6
+		0xE0F7 +2 See 0xE0E7
+		0xE0F8 +3 See 0xE0E8
 		0xE0F9 +4 See 0xE0E9
 		0xE0FA +5 See 0xE0EA
 		0xE0FB +6 See 0xE0EB
+		0xE0FC +7 See 0xE0EC
 		0xE0FD +8 See 0xE0ED
+		0xE0FE +9 See 0xE0EE
+		0xE0FF +A See 0xE0EF
+		0xE100 +B See 0xE0F0
+		0xE101 +C See 0xE0F1
+		0xE102 +D See 0xE0F2
 		0xE103 +E See 0xE0F3
 		0xE104 +F See 0xE0F4
-0xE105-0xE107
-		0xE105 ?0x00 == no truck, 0x01 == yes truck?
-			Stored at 0x5421
-			Seen at 0x5434
-			Stored at 0x54A3
-		0xE106 +1 ?Spinning oil drum: Vertical position on screen, "decimals"?
-		0xE107 +2 ?Spinning oil drum: Vertical position on screen?
-		0xE108 +1 ?Spinning oil drum: Horizontal position on screen, "decimals"?
-		0xE109 +2 ?Spinning oil drum: Horizontal position on screen?
-0xE10E-?	Sprite attributes
+0xE105-0xE10D	[&oil_drum]
+		Moving object #02 (9 bytes)
+		0xE105 (byte)	[is_active]
+			0x00 == no  spinning oil drum, see 0x54A1
+			0x01 == yes spinning oil drum
+		0xE106 (word)	[vpos_word] Vertical position
+			0xE106 +1 [vpos_decimals] Spinning oil drum: Vertical position on screen, "decimals"
+			0xE107 +2 [vpos]          Spinning oil drum: Vertical position on screen
+		0xE108 (word)	[hpos_word] Horizontal position
+			0xE108 +3 [hpos_decimals] Spinning oil drum: Horizontal position on screen, "decimals"
+			0xE109 +4 [hpos]          Spinning oil drum: Horizontal position on screen
+		0xE10A (word)	[vertical_speed]
+			0xE10A +5 [vertical_speed__lo_byte]
+			0xE10B +6 [vertical_speed__hi_byte]
+		0xE10C (word)	[horizontal_speed]
+			0xE10C +7 [horizontal_speed__lo_byte]
+			0xE10D +8 [horizontal_speed__hi_byte]
+0xE10E-?	[&sprite_attrs]
+		Sprite attributes. Each element is 4 bytes:
+			Offset #00: [vpos]	Vertical position on screen
+			Offset #01: [hpos]	Horizontal position on screen
+			Offset #02: [pattern]	Pattern ID
+			Offset #03: [color]	Mask 0x0F: Color (0..15)
+						Mask 0x80: Early clock bit
+		
 		Sprite #00	0xE10E-0xE111	Minicar
 			0xE10E	vpos	Variable:
 						0x2F after leaving screen after reaching checkpoint/goal.
@@ -883,26 +951,26 @@ This table was generated with:
 			0xE12F
 			0xE130
 			0xE131
-		Sprite #09	0xE132-0x135	?
+		Sprite #09	0xE132-0x135	Truck: bottom half (shadow)
 			0xE132
 			0xE133
-			0xE134
-			0xE135
-		Sprite #0A	0xE136-0x139	?
+			0xE134	pat	0x58
+			0xE135	color	0x01 (black, see 0x7248)
+		Sprite #0A	0xE136-0x139	Truck: bottom half (regular)
 			0xE136
 			0xE137
-			0xE138
-			0xE139
+			0xE138	pat	0x5B
+			0xE139	color	0x08 (light red, see 0x7242)
 		Sprite #0B	0xE13A-0x13D	Points scored for grabbing the bonus fuel heart.
 			0xE13A	vpos	Always 0x10 above player car (see 0x77A3).
 			0xE13B	hpos	Always the same as the player car (see 0x77A8).
 			0xE13C	pat	0x94 ("300"), 0x98 ("500"), 0x9C ("700"), 0xA0 ("1000")
-			0xE13D	color	Always 0x06 (transparent + dark red)
-		Sprite #0C	0xE13E-0x141	?
-			0xE13E
-			0xE13F
-			0xE140
-			0xE141
+			0xE13D	color	0x06 (dark red)
+		Sprite #0C	0xE13E-0x141	[&sprite_attrs_0C] Spinning oil drum behind red truck.
+			0xE13E	vpos
+			0xE13F	hpos
+			0xE140	pat
+			0xE141	color	0x08 (medium red, see 0x549A)
 		Sprite #0D	0xE142-0x145	Blue car at start of stage #01, right column, 1 of 6.
 			0xE142
 			0xE143
