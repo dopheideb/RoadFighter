@@ -402,8 +402,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 4082_increment_ticker__read_input__jump_to_state_handler:
 	ld hl,0e003h		;4082 HL = 0xE003
 	inc (hl)		;4085 Increment ticker
-	ld a,(0e002h)		;4086 A = *0xE002
-	add a,a			;4089 A *= 2
+	ld a,(0e002h)		;4086 A = game_bits
+	add a,a			;4089 A = 2 * game_bits
 
 	; "m" is minus: bit 7, mask 0x80. If bit 6 (0x40) is set in 
 	; 0xE002, then 2 * *(0xE002) has bit 7 set. So if bit 6 (0x40, 
@@ -1004,7 +1004,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jp z,04167h		;4287 4167_increase_substate_and_set_E004_to_regA
 	ld hl,04291h		;428a
 	push hl			;428d
-	call 0551dh		;428e 551d_fixme
+	call 0551dh		;428e 551d_init_next_coarse_line_and_jump_to_stage_specific_routine
 	ret			;4291
 
 
@@ -1863,7 +1863,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; 
 ; We can get here from:
 ;   0x6B34 (call) [from=6b1c_out_of_fuel_and_no_more_speed]
-;   0x6DA2 (call) [from=6da2_fixme]
+;   0x6DA2 (call) [from=6da2_clear_carry_flag_if_HL_is_asphalt]
 4561_compute_vdp_address_of_HL_coordinates:
 	ld a,l			;4561 A = L
 	
@@ -1985,7 +1985,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x42AD (call) [from=42a1_game_state_04_substate_04]
 ;   0x4507 (call) [from=44f4_draw_minimap_speed_fuel]
 ;   0x4578 (call) [from=4575_copy2nametable_multiple_partial_rows]
-;   0x45c2 (call)
+;   0x45c2 (call) [from=45a7_copy2vram]
 ;   0x5279 (call) [from=5273_copy_sprites_from_RAM_to_VRAM]
 ;   0x6B4A (call) [from=6b1c_out_of_fuel_and_no_more_speed]
 ;   0x73CA (call) [from=73b2_draw_speed_or_fuel_gauge]
@@ -5162,8 +5162,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x4D0B (call) HL is set by sound opcodes.
-;   0x4D95 (call)
+;   0x4D0B (call) [from=4d03_fixme]             HL is set by sound opcodes.
+;   0x4D95 (call) [from=4d5f_soundID_with_0x80]
 4dce_load_new_sound_definition:
 	inc hl			;4dce ???
 	ld (ix+003h),l		;4dcf IX[3] = L
@@ -5974,7 +5974,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (hl),000h		;5055
 	ldir			;5057
 	
-	call 51e5_clear_e0c1_44	;5059
+	call 051e5h		;5059 51e5_moving_objects__zero
 	ld hl,0e098h		;505c LDIR: source
 	ld de,0e099h		;505f LDIR: destination
 	ld (hl),020h		;5062 Initialize source
@@ -6041,12 +6041,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,0537dh		;50a7
 	add hl,de		;50aa
 	
-	ld (0e0bdh),hl		;50ab
-	call 07020h		;50ae 7020_fixme
+	ld (0e0bdh),hl		;50ab &current_moving_object_initial_data__idx = HL
+	call 07020h		;50ae 7020_moving_object__compute_and_set_next_pair_of_initial_values
 	
-	ld a,004h		;50b1
+	ld a,004h		;50b1 A = 0x04.
 	ld (0e086h),a		;50b3
-	ld de,0e186h		;50b6
+	ld de,0e186h		;50b6 DE = 0xE186
 	ld (0e046h),de		;50b9
 	ret			;50bd
 
@@ -6347,31 +6347,40 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 051ffh		;51c5 51ff_initialize_variables
 	call 051f3h		;51c8 51f3_something_about_car_horizontal_pos_on_screen
 	call 06e1dh		;51cb 6e1d_store_car_sprite_attributes
-	call 051d8h		;51ce 51d8_fixme
+	call 051d8h		;51ce 51d8_moving_objects__hide_and_zero
 	
 	; Reset grabbed_fuel_hearts_streak_count.
 	xor a			;51d1 A = 0x00
 	ld (0e0b9h),a		;51d2 grabbed_fuel_hearts_streak_count = 0x00
 	
-	jp 07020h		;51d5 7020_fixme
+	jp 07020h		;51d5 7020_moving_object__compute_and_set_next_pair_of_initial_values
 
 
 
+; Set sprites #03 upto and including sprite #0E to vpos 0xC8. (It sets 
+; hpos, pattern and color to 0xC8, but that is besides the meaning of 
+; this routine.)
+; 
 ; We can get here from:
 ;   0x51CE (call) [from=51c5_car_crashed_something]
-51d8_fixme:
-	ld hl,0e11ah		;51d8
-	ld de,0e11bh		;51db
-	ld bc,00030h		;51de
-	ld (hl),0c8h		;51e1
-	ldir			;51e3
-	; Fall to 51e5_clear_e0c1_44.
+51d8_moving_objects__hide_and_zero:
+	ld hl,0e11ah		;51d8 HL = 0xE11A (start of sprite #03)
+	ld de,0e11bh		;51db DE = HL + 1
+	ld bc,00030h		;51de BC = 0x0030 
+	ld (hl),0c8h		;51e1 Set vpos to outside of the screen.
+	ldir			;51e3 do { *(DE++) = *(HL++) } while (--BC)
+
+	; Fall to 51e5_moving_objects__zero.
 
 
+
+; Clear everything about moving objects, from 0xE0C1 upto and including 
+; 0xE104.
+; 
 ; We can get here from:
 ;   0x5059 (call) [from=504c_init_stage]
-;   0x51E3 (fall) [from=51d8_fixme]
-51e5_clear_e0c1_44:
+;   0x51E3 (fall) [from=51d8_moving_objects__hide_and_zero]
+51e5_moving_objects__zero:
 	ld hl,0e0c1h		;51e5 LDIR: source
 	ld de,0e0c2h		;51e8 LDIR: destination
 	ld bc,00044h		;51eb LDIR: count
@@ -6438,13 +6447,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 05501h		;5242 5501_if_distance_travelled_changed__add_to_score_and_update_hiscore
 	call 07411h		;5245 7411_decrement_fuel_remaining
 	call 06ca1h		;5248 6ca1_fixme
-	call 06f25h		;524b 6f25_fixme
-	jp 044d9h		;524e
+	call 06f25h		;524b 6f25_something_with_loading_next_initial_moving_object_if_speed_is_high
+	jp 044d9h		;524e 44d9_draw_score_and_hiscore
 
 
 
 ; We can get here from:
-;   0x523C (call)
+;   0x523C (call) [from=5224_handle_race_substate]
 5251_check_if_check_point_reached:
 	ld hl,(0e078h)		;5251 Load distance travelled (middle and high byte)
 	ld bc,00f12h		;5254 BC = 0x0F12 (checkpoint is at 0x0F1200)
@@ -6478,7 +6487,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x41E6 (call)
+;   0x41E6 (call) [from=41e6_game_state_03_substate_09]
 5270_copy_30_sprites_from_RAM_to_VRAM:
 	; 4 bytes per sprites, 0x78 / 4 == 13
 	ld bc,00078h		;5270 BC = 0x0078, number of bytes to copy to VRAM.
@@ -6652,142 +6661,165 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr $-8			;530d jump to 0x5305
 
 
+
 ; Dead data? 
 	defb 0x3E		;530f ???
 	defb 0x04		;5310 ???
 
+
+
 ; Data, see 0x704E. 6 bytes per element. 17 elements
+5311_moving_object_initial_data__2_per_element:
 	; Element #00.
 	defb 0x00		;5311 Green car
 	defb 0x04		;5312
-	defb 0x20		;5313
+	defb 0x20		;5313 hpos_offset
 	defb 0x00		;5314 Green car
 	defb 0x08		;5315
-	defb 0x28		;5316
+	defb 0x28		;5316 hpos_offset
 
 	defb 0x00		;5317 Element #01: Green car
 	defb 0x04		;5318
-	defb 0x10		;5319
+	defb 0x10		;5319 hpos_offset
 	defb 0x01		;531a Blue car
 	defb 0x10		;531b
-	defb 0x28		;531c
+	defb 0x28		;531c hpos_offset
 
 	defb 0x00		;531d Element #02: Green car
-	defb 0x04		;531e
+	defb 0x04		;531e hpos_offset
 	defb 0x18		;531f
 	defb 0x00		;5320 Green car
 	defb 0x08		;5321
-	defb 0x18		;5322
+	defb 0x18		;5322 hpos_offset
 
 	defb 0x00		;5323 Element #03: Green car
 	defb 0x04		;5324
-	defb 0x28		;5325
+	defb 0x28		;5325 hpos_offset
 	defb 0x00		;5326 Green car
 	defb 0x08		;5327
-	defb 0x18		;5328
+	defb 0x18		;5328 hpos_offset
 
 	defb 0x00		;5329 Element #04: Green car
 	defb 0x04		;532a
-	defb 0x18		;532b
+	defb 0x18		;532b hpos_offset
 	defb 0x08		;532c Bonus fuel heart
 	defb 0x08		;532d
-	defb 0x28		;532e
+	defb 0x28		;532e hpos_offset
 
 	defb 0x00		;532f Element #05: Green car
 	defb 0x04		;5330
-	defb 0x28		;5331
+	defb 0x28		;5331 hpos_offset
 	defb 0x01		;5332 Blue car
 	defb 0x08		;5333
-	defb 0x20		;5334
+	defb 0x20		;5334 hpos_offset
 
 	defb 0x02		;5335 Element #06: Speeding blue car
 	defb 0x04		;5336
-	defb 0x28		;5337
+	defb 0x28		;5337 hpos_offset
 	defb 0x00		;5338 Green car
 	defb 0x08		;5339
-	defb 0x20		;533a
+	defb 0x20		;533a hpos_offset
 
 	defb 0x00		;533b Element #07: Green car
 	defb 0x04		;533c
-	defb 0x28		;533d
+	defb 0x28		;533d hpos_offset
 	defb 0x03		;533e Purple car
 	defb 0x08		;533f
-	defb 0x20		;5340
+	defb 0x20		;5340 hpos_offset
 
 	defb 0x06		;5341 Element #08: Truck (a.k.a. 18-wheeler), but without oil drum
 	defb 0x04		;5342
-	defb 0x18		;5343
+	defb 0x18		;5343 hpos_offset
 	defb 0x00		;5344 Green car
 	defb 0x08		;5345
-	defb 0x30		;5346
+	defb 0x30		;5346 hpos_offset
 
 	defb 0x00		;5347 Element #09: Green car
 	defb 0x04		;5348
-	defb 0x30		;5349
+	defb 0x30		;5349 hpos_offset
 	defb 0x07		;534a Truck (a.k.a. 18-wheeler)
 	defb 0x08		;534b
-	defb 0x1C		;534c
+	defb 0x1C		;534c hpos_offset
 
 	defb 0x02		;534d Element #0A: Speeding blue car
 	defb 0x04		;534e
-	defb 0x28		;534f
+	defb 0x28		;534f hpos_offset
 	defb 0x03		;5350 Purple car
 	defb 0x08		;5351
-	defb 0x20		;5352
+	defb 0x20		;5352 hpos_offset
 
 	defb 0x04		;5353 Element #0B: Redneck hot rodder (but with the speed of a green car)
 	defb 0x04		;5354
-	defb 0x28		;5355
+	defb 0x28		;5355 hpos_offset
 	defb 0x02		;5356 Speeding blue car
 	defb 0x08		;5357
-	defb 0x20		;5358
+	defb 0x20		;5358 hpos_offset
 
 	defb 0x04		;5359 Element #0C: Redneck hot rodder (but with the speed of a green car)
 	defb 0x04		;535a
-	defb 0x28		;535b
+	defb 0x28		;535b hpos_offset
 	defb 0x05		;535c Redneck hot rodder
 	defb 0x08		;535d
-	defb 0x20		;535e
+	defb 0x20		;535e hpos_offset
 
 	defb 0x05		;535f Element #0D: Redneck hot rodder (first appearance in stage 6 on level B)
 	defb 0x04		;5360
-	defb 0x18		;5361
+	defb 0x18		;5361 hpos_offset
 	defb 0x05		;5362 Redneck hot rodder
 	defb 0x08		;5363
-	defb 0x28		;5364
+	defb 0x28		;5364 hpos_offset
 
 	defb 0x03		;5365 Element #0E: Purple car
 	defb 0x04		;5366
-	defb 0x28		;5367
+	defb 0x28		;5367 hpos_offset
 	defb 0x03		;5368 Purple car
 	defb 0x08		;5369
-	defb 0x20		;536a
-
-	defb 0x01		;536b Element #0F: Blue car
-	defb 0x0C		;536c
-	defb 0x01		;536d
-	defb 0x04		;536e Redneck hot rodder (but with the speed of a green car)
-	defb 0x01		;536f
-	defb 0x04		;5370
-
-	defb 0x01		;5371 Element #10: Blue car
-	defb 0x0D		;5372
-	defb 0x0B		;5373
-	defb 0x01		;5374 Blue car
-	defb 0x0B		;5375
-	defb 0x01		;5376
-
-	defb 0x01		;5377 Element #11: Blue car
-	defb 0x08		;5378
-	defb 0x01		;5379
-	defb 0x08		;537a Bonus fuel heart
-	defb 0x0F		;537b
-	defb 0x0D		;537c
+	defb 0x20		;536a hpos_offset
 
 
 
-; Data, see 0x50A7, 0x7036.
+; Referenced by:
+;   0x6FFE (from=6f25_something_with_loading_next_initial_moving_object_if_speed_is_high)
+536b_moving_object__type2sprite_colors:
+	defb 0x01		;536b Type #00: Sprite color 1 of green car: black (shadow)
+	defb 0x0C		;536c Type #00: Sprite color 2 of green car: dark green
+
+	defb 0x01		;536d Type #01: Sprite color 1 of blue car (regular version): black (shadow)
+	defb 0x04		;536e Type #01: Sprite color 2 of blue car (regular version): dark blue
+
+	defb 0x01		;536f Type #02: Sprite color 1 of blue car (speeding version): black (shadow)
+	defb 0x04		;5370 Type #02: Sprite color 2 of blue car (speeding version): dark blue
+
+	defb 0x01		;5371 Type #03: Sprite color 1 of purple car: black (shadow)
+	defb 0x0D		;5372 Type #03: Sprite color 2 of purple car: magenta
+
+	defb 0x0B		;5373 Type #04: Sprite color 1 of redneck hot rodder (unused): light yellow
+	defb 0x01		;5374 Type #04: Sprite color 2 of redneck hot rodder (unused): black
+
+	defb 0x0B		;5375 Type #05: Sprite color 1 of redneck hot rodder (unused): light yellow
+	defb 0x01		;5376 Type #05: Sprite color 2 of redneck hot rodder (unused): black
+
+	defb 0x01		;5377 Type #06: Sprite color 1 of truck (without oil drum): black (shadow)
+	defb 0x08		;5378 Type #06: Sprite color 2 of truck (without oil drum): medium red
+
+	defb 0x01		;5379 Type #07: Sprite color 1 of truck (without oil drum): black (shadow)
+	defb 0x08		;537a Type #07: Sprite color 2 of truck (without oil drum): medium red
+
+	defb 0x0F		;537b Type #08: Sprite color 1 of bonus fuel heart: white (letter 'B')
+	defb 0x0D		;537c Type #08: Sprite color 2 of bonus fuel heart: magenta (body)
+
+
+
+
+; Every stage has a different list of moving objects. The list wraps 
+; around, and is 16 bytes long. Each list element is 1 byte: the 1-based 
+; offset to 0x5311 (5311_moving_object_initial_data__2_per_element).
 ; 
+; Referenced by:
+;   0x50A7 [from=504c_init_stage]
+;   0x7036 [from=7020_moving_object__compute_and_set_next_pair_of_initial_values]
+; 
+537d_stage2moving_object_initial_data__idx
 ; Stage 01.
 	defb 0x01		;537d 0x5311: Green, green
 	defb 0x02		;537e 0x5317: Green, blue
@@ -6924,7 +6956,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; A = vpos of current rival car
 	ld c,006h		;53f3 C = 0x06
-	call 072f6h		;53f5 72f6_set_A_to_current_rival_car_index_C
+	call 072f6h		;53f5 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
 	ld a,(0e04ch_car_vpos)	;53f8
 	sub 010h		;53fb
@@ -7136,7 +7168,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x553D (call)
+;   0x553D (call) [from=553a_post_routine_for_all_stages_something]
 54af_oil_something:
 	ld hl,0e0b4h		;54af HL = 0xE0B4
 	ld a,(hl)		;54b2 A = *(0xE0B4)
@@ -7239,8 +7271,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x5242 (call)
-;   0x5289 (call)
+;   0x5242 (call) [from=5224_handle_race_substate]
+;   0x5289 (call) [from=527d_fixme]
 5501_if_distance_travelled_changed__add_to_score_and_update_hiscore:
 	ld a,(0e049h)		;5501 A = car_state
 	dec a			;5504 --A, updates Z/NZ flag
@@ -7270,7 +7302,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x428e (call) [from=4270_game_state_04__demo]
-551d_fixme:
+551d_init_next_coarse_line_and_jump_to_stage_specific_routine:
 	call 0592ah		;551d 592a_init_next_coarse_line
 	ld a,(0e043h)		;5520 A = stage
 	call 04045h		;5523 PC = PC[2 * A]
@@ -7285,23 +7317,24 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x5523 (jump) stage == 1
+;   0x5523 (call) [from=551d_init_next_coarse_line_and_jump_to_stage_specific_routine] stage == 1
 ;   0x56C9 (jump) stage == 6
+5534_stage_01_and_post_routine_for_stage_06:
 	call 058afh		;5534 58af_update_coarse_something_for_stage_1_2_6
 
 ; We can get here from:
 ;   0x5534 (fall) [stage 1+6]
 ;   0x5560 (jump) [stage 2]
 ;   0x55FD (jump) [stage 4]
-5537_fixme:
+5537_post_routine_for_stage_01_02_04_06:
 	call 056f7h		;5537 56f7_fixme
 
 ; We can get here from:
-;   0x5537 (fall) [stage 1,2,4,6]
+;   0x5537 (fall) [from=5537_post_routine_for_stage_01_02_04_06] [stage 1,2,4,6]
 ;   0x55D9 (jump) [stage 3]
 ;   0x55E1 (jump) [stage 3]
 ;   0x5699 (jump) [stage 5]
-553a_fixme:
+553a_post_routine_for_all_stages_something:
 	call 05944h		;553a 5944_if_finish_in_sight_then_write_checkpoint_or_goal_to_RAM_buffer
 	call 054afh		;553d 54af_oil_something
 	call 05716h		;5540 5716_fixme
@@ -7311,6 +7344,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Stage 2
+;
+; We can get here from:
+;   0x5523 (call) Jump table entry for stage 2.
+5545_stage_02_something:
 	call 058afh		;5545 58af_update_coarse_something_for_stage_1_2_6
 	ld hl,(0e08ah)		;5548
 	ld a,(hl)		;554b
@@ -7324,10 +7361,16 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (0e08ah),hl		;555d
 	jp 05537h		;5560
 
+
+
 ; Stage 3
+; 
+; We can get here from:
+;   0x5523 (call) Jump table entry for stage 3.
+5563_stage_03_specific_code:
 	ld de,0e058h		;5563
 	call 056cch		;5566 56cc_fixme
-	ld b,00ah		;5569
+	ld b,00ah		;5569 B = 0xA
 	call 056ceh		;556b 56ce_fixme
 	ld hl,(0e090h)		;556e
 	inc hl			;5571
@@ -7336,13 +7379,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;5576
 	inc a			;5577
 	jr nz,$+8		;5578 if (nz) jump to 0x5580
-	ld hl,07c85h		;557a
+	ld hl,07c85h		;557a HL = 0x7C85
 	ld (0e090h),hl		;557d
 	ld hl,(0e06fh)		;5580
 	ld a,(hl)		;5583
 	inc a			;5584
 	jr nz,$+46		;5585 if (nz) jump to 0x55B3
-	ld bc,0ffd0h		;5587
+	ld bc,0ffd0h		;5587 BC = 0xFFD0 (-0x30)
 	add hl,bc		;558a
 	ld (0e06fh),hl		;558b
 	ld hl,0e08ah		;558e
@@ -7350,10 +7393,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr nz,$+82		;5592 if (nz) jump to 0x55E4
 	ld de,0e07ch		;5594
 	ld a,(de)		;5597
-	and 001h		;5598
-	xor 001h		;559a
+	and 001h		;5598 A &= 0x01
+	xor 001h		;559a A ^= 0x01
 	ld (de),a		;559c
-	ld de,07c23h		;559d
+	ld de,07c23h		;559d DE = 0x7C23
 	ld bc,00601h		;55a0
 	and a			;55a3
 	jr z,$+7		;55a4 if (z) jump to 0x55AB
@@ -7392,6 +7435,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Stage 4
+; 
+; We can get here from:
+;   0x5523 (call) Jump table entry for stage 4.
+5539_stage_04_specific_code:
 	call 05600h		;55e9 5600_fixme
 	
 	; HL -= 7
@@ -7408,7 +7455,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	dec de			;55f9 --DE
 	inc hl			;55fa ++HL
 	djnz $-6		;55fb if (--B != 0) jump to 0x55F5 (55f5_djnz_loop)
-	jp 05537h		;55fd 5537_fixme
+	jp 05537h		;55fd 5537_post_routine_for_stage_01_02_04_06
 
 
 
@@ -7458,7 +7505,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x5604 (jump)
 ;   0x5630 (fall)
-5633_:
+5633_fixme:
 	; Copy scenery data for left side of the track.
 	; 
 	; Copy 7 bytes from *(0xE08E) to 0xE058.
@@ -7473,6 +7520,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Stage 5
+;
+; We can here from:
+;   0x5523 (call) Jump table entry for stage 5.
+5642_stage_05_specific_code:
 	call 056f7h		;5642 56f7_fixme
 	call 05600h		;5645 5600_fixme
 	ld hl,(0e094h)		;5648
@@ -7489,7 +7540,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld b,a			;565d
 	rra			;565e
 	rra			;565f
-	and 03fh		;5660
+	and 03fh	g	;5660
 	ld (0e092h),a		;5662
 	ld a,(hl)		;5665
 	and 003h		;5666
@@ -7520,7 +7571,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;5693
 	djnz $-4		;5694 if (--B != 0) jump to 0x5690
 	ld (0e094h),hl		;5696
-	jp 0553ah		;5699 553a_fixme
+	jp 0553ah		;5699 553a_post_routine_for_all_stages_something
 
 
 
@@ -7539,6 +7590,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Stage 6
+; 
+; We can get here from:
+;   0x5523 (call) Jump table entry for stage 6.
+56ac_stage_06_specific_code:
 	ld de,0e058h		;56ac DE = 0xE058
 	call 056cch		;56af 56cc_fixme
 	
@@ -7567,8 +7622,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x5566 (call) Stage == 3, DE == 0xE058
-;   0x56AF (call) Stage == 6, DE == 0xE058
+;   0x5566 (call) [from=5563_stage_03_specific_code] DE == 0xE058
+;   0x56AF (call) [from=56ac_stage_06_specific_code] DE == 0xE058
 56cc_fixme:
 	ld b,00ch		;56cc B = 0x0C (12)
 
@@ -7628,10 +7683,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x5537 (call)
-;   0x5642 (call)
-;   0x5890 (jump)
-;   0x58A8 (jump)
+;   0x5537 (call) [from=5537_post_routine_for_stage_01_02_04_06]
+;   0x5642 (call) [from=5642_stage_05_specific_code]
+;   0x5890 (jump) [from=5810_fixme]
+;   0x58A8 (jump) [from=5810_fixme]
 56f7_fixme:
 	ld a,(0e07ah)		;56f7 A = *(0xE07A)
 	; Special value 0xFE is seen at:
@@ -7664,7 +7719,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x5540 (call)
+;   0x5540 (call) [from=553a_post_routine_for_all_stages_something]
 5716_fixme:
 	ld hl,(0e046h)		;5716 HL = *(0xE046)
 	ld bc,0ffeah		;5719 BC = -0x16
@@ -8163,7 +8218,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; ID).
 ; 
 ; We can get here from:
-;   0x551D (call) [from=551d_fixme]
+;   0x551D (call) [from=551d_init_next_coarse_line_and_jump_to_stage_specific_routine]
 592a_init_next_coarse_line:
 	ld hl,0e058h		;592a HL = 0xE058
 	ld de,0e059h		;592d DE = &stage_specific_default_coarse_pattern_ID
@@ -16707,7 +16762,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;6c57
 	and 007h		;6c58
 	call 06ab5h		;6c5a 6ab5_set_car_orientation_to_regA
-	ld hl,0e04ch_car_vpos	;6c5d
+	ld hl,0e04ch		;6c5d HL = &car_vpos
 	call 06dc1h		;6c60 6dc1_fixme
 	ret nc			;6c63
 	jp 06f18h		;6c64 6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge
@@ -16809,11 +16864,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (hl),a		;6cb4 Store speed
 	
 	ld a,001h		;6cb5 A = 1
-	ld (0e038h),a		;6cb7
-	ld hl,(e04bh_car_vpos)	;6cba
+	ld (0e038h),a		;6cb7 ???
+	ld hl,(0e04bh)		;6cba HL = &car_vpos_word
 	ld a,h			;6cbd
 	cp 09ah			;6cbe
-	jp nc,06e1dh		;6cc0 if (A >= 9) jump to 6e1d_store_car_sprite_attributes
+	jp nc,06e1dh		;6cc0 if (A >= 0x9A) jump to 6e1d_store_car_sprite_attributes
 	call 6c93_speed_test	;6cc3
 	ret nc			;6cc6
 	ld bc,00048h		;6cc7 BC = 0x0048
@@ -16825,7 +16880,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x6A90 (call) [from=6a90_car_state_00__all_okay]
-;   0x6BB3 (call)
+;   0x6BB3 (call) [from=6b90_car_state_04__skidding]
 6cd1_side_bounce_checker_and_actioner:
 	ld hl,0e04ch_car_vpos	;6cd1
 	call 06dc1h		;6cd4 6dc1_fixme
@@ -16847,16 +16902,16 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,0bch		;6cf5 A = 0xBC
 	ld (0e051h),a		;6cf7 ???
 	ld a,018h		;6cfa A = 0x18
-	ld (0e004h),a		;6cfc
+	ld (0e004h),a		;6cfc game_state_bits_or_counter_or_timer = 0x18
 	xor a			;6cff A = 0x00
-	ld (0e053h),a		;6d00
+	ld (0e053h),a		;6d00 car_sprite_pattern = 0x00 (face north)
 	ret			;6d03
 	
 	; We can get here from:
-	;   0x6CED (jump)
+	;   0x6CED (jump) [from=self]
 	pop hl			;6d04 Remove return address.
 	pop hl			;6d05 Remove return address.
-	jp 06f1eh		;6d06
+	jp 06f1eh		;6d06 6f1e_stop_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge
 
 
 
@@ -16901,32 +16956,51 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 6d2a_fixme:
 	ld b,00ch		;6d2a B = 0x0C
 	call 06d8bh		;6d2c 6d8b_fixme
-	ret nc			;6d2f
-	ld a,b			;6d30 A = B
+	ret nc			;6d2f if (asphalt) return
+	
+	ld a,b			;6d30 A = VDP_byte (from 0x6DA5)
+	; XXX: shouldn't it be "cp 0d0h"?
 	cp 0cfh			;6d31 Compute A - 0xCF and update C/NC flag.
 	jr c,$+22		;6d33 if (c) jump to 0x6D49
 
 	sub 0d9h		;6d35 A -= 0xD9
 	cp 008h			;6d37 Compute A - 0x08 and update C/NC flag.
-	jr nc,$+20		;6d39 if ((B-0xCF) < 0xD9 || (B-0xCF) > 0xE0) jump to 0x6D4D
-	; Post: 0xD9 <= (B-0xCF) <= 0xE0
+	jr nc,$+20		;6d39 if (B < 0xD9 || B > 0xE0) jump to 0x6D4D
+	; Post: 0xD9 <= B <= 0xE0
 	
+	; We can get here from:
+	;   0x6D39 (fall) [from=self]
+	;   0x6D54 (jump) [from=self]
 	ld a,c			;6d3b A = C
-	push af			;6d3c Store A.
-	add a,00ch		;6d3d
-	and 0f8h		;6d3f
-	ld c,a			;6d41
-	pop af			;6d42
-	sub c			;6d43
-	add a,b			;6d44
-	sub 0d4h		;6d45
-	jr c,$+62		;6d47 if (c) jump to 0x6D85
-	ld b,001h		;6d49
-	jr $+62			;6d4b jump to 0x6D89
-	ld a,b			;6d4d
-	cp 0ech			;6d4e
-	jr nz,$-7		;6d50 if (nz) jump to 0x6D49
-	ld b,0e0h		;6d52
+	push af			;6d3c Store A. Restore at 0x6D42.
+		add a,00ch	;6d3d A = C + 0x0C
+		and 0f8h	;6d3f A = (C + 0x0C) & 0xF8 (keep upper 5 bits)
+		ld c,a		;6d41 C = A
+	pop af			;6d42 Restore A. Stored at 0x6D3C.
+	sub c			;6d43 A -= C
+	add a,b			;6d44 A += B
+	sub 0d4h		;6d45 A -= 0xD4
+	jr c,$+62		;6d47 if (c) jump to 0x6D85 (6d85_set_regB_to_0x00_and_clear_carry_flag_and_return)
+	
+	; We can get here from:
+	;   0x6D47 (fall) [from=self]
+	;   0x6D50 (jump) [from=self]
+	ld b,001h		;6d49 B = 0x01
+	
+	; We can get here from:
+	;   0x6D33 (jump) [from=self]
+	;   0x6D49 (fall) [from=self]
+	jr $+62			;6d4b jump to 0x6D89 (6d89_scf_ret)
+	
+	
+	
+	; We can get here from:
+	;   0x6D39 (jump) [from=self]
+	ld a,b			;6d4d A = B
+	cp 0ech			;6d4e Compute A - 0xEC and update Z/NZ flag.
+	jr nz,$-7		;6d50 if (nz) jump to 0x6D49	
+	
+	ld b,0e0h		;6d52 B = 0xE0
 	jr $-25			;6d54 jump to 0x6D3B
 
 
@@ -16937,6 +17011,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld b,004h		;6d56 B = 0x04
 	call 06d8bh		;6d58 6d8b_fixme
 	ret nc			;6d5b
+	
 	ld a,b			;6d5c A = B
 	cp 0fch			;6d5d Compute A - 0xFC and update C/NC flag.
 	jr nc,$+25		;6d5f if (nc) jump to 0x6D78
@@ -16959,59 +17034,95 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	sub b			;6d76
 	ret nc			;6d77
 	ld b,002h		;6d78
-	jr $+15			;6d7a jump to 0x6D89
+	jr $+15			;6d7a jump to 0x6D89 (6d89_scf_ret)
 	ld a,b			;6d7c
 	cp 0f3h			;6d7d
 	jr nz,$-7		;6d7f if (nz) jump to 0x6D78
 	ld b,0e1h		;6d81
 	jr $-28			;6d83 jump to 0x6D67
-	ld b,000h		;6d85
-	and a			;6d87
+
+
+
+; We can get here from:
+;   0x6D47 (jump) [from=6d2a_fixme]
+;   0x6DB8 (jump) [from=6da2_clear_carry_flag_if_HL_is_asphalt]
+6d85_set_regB_to_0x00_and_clear_carry_flag_and_return:
+	ld b,000h		;6d85 B = 0x00
+	and a			;6d87 Clear carry flag.
 	ret			;6d88
 
-	scf			;6d89
+
+; We can get here from:
+;   0x6D4B (jump) [from=6d2a_fixme]
+;   0x6D7A (jump) [from=6d56_fixme]
+6d89_scf_ret:
+	scf			;6d89 Set carry flag.
 	ret			;6d8a
 
 
 
 ; Input:
 ;   HL: ???
+;     0xE04C: Observed value, car_vpos
+;     0xE0EB: Observed value, moving object #00, vpos
+;     0xE0FB: Observed value, moving object #01, vpos
 ; 
 ; We can get here from:
-;   0x6D2C (call)
-;   0x6D58 (call)
+;   0x6D2C (call) [from=6d2a_fixme] B == 0x0C
+;   0x6D58 (call) [from=6d56_fixme] B == 0x04
 6d8b_fixme:
-	ld a,(hl)		;6d8b
+	ld a,(hl)		;6d8b A = vpos
 	inc hl			;6d8c
 	inc hl			;6d8d
-	ld h,(hl)		;6d8e
-	add a,004h		;6d8f
-	ld l,a			;6d91
-	sub 0c0h		;6d92
-	jr c,$+10		;6d94 if (c) jump to 0x6D9E
-	cp 018h			;6d96
-	ld l,000h		;6d98
-	jr nc,$+4		;6d9a if (nc) jump to 0x6D9E
-	ld l,0b8h		;6d9c
+	ld h,(hl)		;6d8e H = hpos
+	add a,004h		;6d8f A = vpos + 0x04
+	ld l,a			;6d91 L = A
+	sub 0c0h		;6d92 A -= 0xC0
+	; vpos | vpos + 0x04 | vpos + 0x04 - 0xC0 | Carry? | Remarks
+	; -----+-------------+--------------------+--------+--------
+	; 0xBA |        0xBE |               0xFE | C      | 6 sprite lines visible.
+	; 0xBB |        0xBF |               0xFF | C      | 5 sprite lines visible.
+	; 0xBC |        0xC0 |               0x00 | NC     | Only 4 sprite lines visible.
+	; 0xBD |        0xC1 |               0x01 | NC     | Only 3 sprite lines visible.
+	; 0xBE |        0xC2 |               0x02 | NC     | Only 2 sprite lines visible.
+	; 0xBF |        0xC3 |               0x03 | NC     | Only 1 sprite line visible.
+	; 0xC0 |        0xC4 |               0x04 | NC     | Completely invisible.
+	; (..) |             |                    |        |
+	; 0xD2 |        0xD6 |               0x16 | NC     | C  for (vpos + 0x04 - 0xC0) - 0x18 (see 0x6D96)
+	; 0xD3 |        0xD7 |               0x17 | NC     | C  for (vpos + 0x04 - 0xC0) - 0x18 (see 0x6D96)
+	; 0xD4 |        0xD8 |               0x18 | NC     | NC for (vpos + 0x04 - 0xC0) - 0x18 (see 0x6D96)
+	; 0xD5 |        0xD9 |               0x19 | NC     | NC for (vpos + 0x04 - 0xC0) - 0x18 (see 0x6D96)
+	; -----+-------------+--------------------+--------+--------
+	jr c,$+10		;6d94 if (vpos < 0xBC) jump to 0x6D9E
+	;
+	; Post: sprite is for a large part or completely below the bottom of the screen.	
+	cp 018h			;6d96 Compute A - 0x18 and update C/NC flag.
+	ld l,000h		;6d98 L = 0x00
+	jr nc,$+4		;6d9a if (vpos >= 0xD4) jump to 0x6D9E
+	ld l,0b8h		;6d9c L = 0xB8
 	
 	; We can get here from:
-	;   0x6D94 (jump)
-	;   0x6D9A (jump)
-	;   0x6D9C (fall)
-	ld a,h			;6d9e
-	ld c,a			;6d9f
-	add a,b			;6da0
-	ld h,a			;6da1
-				;fall to 6da2_fixme
+	;   0x6D94 (jump) [from=self] L == vpos + 0x04, much or all of the sprite is visible.
+	;   0x6D9A (jump) [from=self] L == 0x00, sprite is way below the bottom of the screen.
+	;   0x6D9C (fall) [from=self] L == 0xB8, sprite is for a large part or completely below the bottom of the screen.
+	ld a,h			;6d9e A = hpos (see 0x6D8E)
+	ld c,a			;6d9f C = hpos
+	add a,b			;6da0 A = hpos + ???B???
+	ld h,a			;6da1 H = A
+				;fall to 6da2_clear_carry_flag_if_HL_is_asphalt
 
 
 
+; Input: HL
+;   H: horizontal position (of whatever)
+;   L: vertical   position (of whatever)
+; 
 ; We can get here from:
 ;   0x6DA1 (fall) [from=6d8b_fixme]
 ;   0x6DE9 (jump) [from=6dc1_fixme]
-6da2_fixme:
+6da2_clear_carry_flag_if_HL_is_asphalt:
 	call 04561h		;6da2 4561_compute_vdp_address_of_HL_coordinates
-	call 0050_SETRD		;6da5
+	call 0050_SETRD		;6da5 SETRD(VRAM_address=HL)
 	ld a,(00007h)		;6da8 A = 0x98 (VDP writing port #0)
 	
 	; Read 1 byte from VDP into register A.
@@ -17020,31 +17131,47 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	in a,(c)		;6dad
 	exx			;6daf
 
-	ld b,a			;6db0
-	ld d,a			;6db1
-	cp 0cfh			;6db2
-	jr c,$-43		;6db4 if (c) jump to 0x6D89
-	cp 0d9h			;6db6
-	jr c,$-51		;6db8 if (c) jump to 0x6D85
-
+	ld b,a			;6db0 B = A
+	ld d,a			;6db1 D = A
+	
+	; Patterns [0xD0 .. 0xD8]: asphalt
+	; Patterns [0xD9 .. 0xE8]: side of the road
+	; Patterns [0xE8 .. 0xFF]: scenery
+	;
+	; XXX: shouldn't it be "cp 0d0h" then?
+	cp 0cfh			;6db2 Compute A - 0xCF and update C/NC flag.
+	; XXX: wouldn't "ret c" be faster then?
+	jr c,$-43		;6db4 if (cant_be_road_related_pattern) jump to 0x6D89 (6d89_scf_ret)
+	;
+	; Post: it can still be a road related pattern.
+	;
+	; Patterns for asphalt end at 0xD8 (inclusive), end at 0xD9 
+	; (exclusive), so everything below 0xD9 is asphalt.
+	cp 0d9h			;6db6 Compute A - 0xD9 and update C/NC flag.
+	jr c,$-51		;6db8 if (asphalt) jump to 0x6D85 (6d85_set_regB_to_0x00_and_clear_carry_flag_and_return)
+	
+	; Patterns for side of the road start at 0xD9. There are 0x10 
+	; different patterns. (Last pattern is 0xE8.)
 	sub 0d9h		;6dba A -= 0xD9
 	cp 010h			;6dbc Compute A - 0x10 and update C/NC flag.
-	jr nc,$-53		;6dbe if (nc) jump to 0x6D89
-	; Post: 0xD9 <= VDP_byte <= 0xE8
-
+	jr nc,$-53		;6dbe if (cant_be_road_related_pattern) jump to 0x6D89 (6d89_scf_ret)
+	;
+	; Post:
+	;   0xD9 <= VDP_byte <= 0xE8: a pattern for side of the road
+	;   Carry flag is already set.
 	ret			;6dc0
 
 
 
 ; We can get here from:
-;   0x6C60 (call) HL == 0xE04C
-;   0x6CD4 (call) HL == 0xE04C
-;   0x6FB8 (call) HL == ??????
-;   0x7133 (call) HL == ??????
-;   0x71A7 (call) HL == ??????
+;   0x6C60 (call) [from=6c3a_car_state_07__spinning]           HL == 0xE04C (&car_vpos)
+;   0x6CD4 (call) [from=6cd1_side_bounce_checker_and_actioner] HL == 0xE04C (&car_vpos)
+;   0x6FB8 (call) [from=6f25_something_with_loading_next_initial_moving_object_if_speed_is_high]                            HL == ???
+;   0x7133 (call) [from=7123_fixme]                            HL == ???
+;   0x71A7 (call) [from=71a2_moving_object_state_02]           HL == ???
 6dc1_fixme:
 	push hl			;6dc1 Store HL (restored at 0x6DE5).
-	ld a,(hl)		;6dc2 A = car's vertical position on screen
+	ld a,(hl)		;6dc2 A = vpos
 	ld b,a			;6dc3 B = A
 	sub 0c0h		;6dc4 A -= 0xC0
 	jr c,$+10		;6dc6 if (c) jump to 0x6DD0
@@ -17442,8 +17569,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Set car ?substate? to 0x0C.
 	ld hl,00c01h		;6f18 HL = 0x0C01
 	ld (0e049h),hl		;6f1b car_state = 0x01, car_substate = 0x0C
-	
-	; Set speed to 0.
+
+
+
+; We can get here from:
+;   0x6D06 (jump) [from=6cd1_side_bounce_checker_and_actioner]
+;   0x6F1B (fall) [from=6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge]
+6f1e_stop_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge:
+	; car_speed = 0x00
 	xor a			;6f1e A = 0x00
 	ld (0e04fh),a		;6f1f car_speed = 0x00
 
@@ -17453,28 +17586,34 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x524B (call) [from=5224_handle_race_substate]
-6f25_fixme:
-	ld a,(e04fh_speed)	;6f25
-	cp 0b8h			;6f28
+6f25_something_with_loading_next_initial_moving_object_if_speed_is_high:
+	ld a,(0e04fh)		;6f25 A = car_speed
+	cp 0b8h			;6f28 Compute car_speed - 0xB8 and update C/NC flag.
 	ret c			;6f2a if (speed < 0xB8) return
-	; Post: speed >= 0xB8
+	; Post: car_speed >= 0xB8
 	
-	; if (*(0xE0C1) == 0) return.
-	ld hl,0e0c1h		;6f2b HL = 0xE0C1
-	ld a,(hl)		;6f2e
-	and a			;6f2f
-	ret z			;6f30
-
-	inc hl			;6f31 HL = 0xE0C2
-	ld (hl),000h		;6f32
-
-
+	; if (num_initial_moving_objects_on_spare == 0) return
+	ld hl,0e0c1h		;6f2b HL = &num_initial_moving_objects_on_spare
+	ld a,(hl)		;6f2e A = num_initial_moving_objects_on_spare
+	and a			;6f2f Update Z/NZ flag.
+	ret z			;6f30 if (num_initial_moving_objects_on_spare == 0x00) return
 	
-; We can get here from:
-;   0x6F32 (fall)
-;   0x6F64 (jump)
-6f34_fixme:
-	; A = *(0xE0C2) * 16
+	
+	
+	; initial_moving_object_loop_counter = 0x00
+	inc hl			;6f31 HL = &initial_moving_object_loop_counter
+	ld (hl),000h		;6f32 initial_moving_object_loop_counter = 0x00
+
+	; We can get here from:
+	;   0x6F32 (fall) [from=self] initial_moving_object_loop_counter == 0x00
+	;   0x6F64 (jump) [from=self] initial_moving_object_loop_counter == 0x01
+	; 
+	; Calculate the offset from 0xE0C3 to where the current initial 
+	; moving object begins. Since there are only 2 initial moving 
+	; objects, and since both have length 0x10, we set this:
+	; 
+	;   if (counter == 0x00) A = 0x00
+	;   if (counter == 0x01) A = 0x10
 	ld hl,0e0c2h		;6f34 HL = 0xE0C2
 	ld a,(hl)		;6f37
 	add a,a			;6f38
@@ -17482,100 +17621,136 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,a			;6f3a
 	add a,a			;6f3b
 	
-	; HL = 0xE0C3 + *(0xE0C2) * 16
+	; HL = &current_initial_moving_object
 	inc hl			;6f3c HL = 0xE0C3
 	ld b,000h		;6f3d B = 0
-	ld c,a			;6f3f C = A
+	ld c,a			;6f3f C = A (so BC == A)
 	add hl,bc		;6f40 HL += A
 
-	ld (0e0bfh),hl		;6f41
-	inc hl			;6f44 Point to offset #01.
-	ld a,(hl)		;6f45
+	ld (0e0bfh),hl		;6f41 &current_moving_object = &current_initial_moving_object
+	inc hl			;6f44 HL = &current_initial_moving_object.???
+	ld a,(hl)		;6f45 A = current_initial_moving_object.???
 	and a			;6f46
-	jr z,$+22		;6f47 if (z) jump to 0x6F5D
-	inc hl			;6f49 Point to offset #02.
-	inc hl			;6f4a Point to offset #03.
+	jr z,$+22		;6f47 if (z) jump to 6f5d_next_initial_moving_object_or_return
+	
+	inc hl			;6f49 HL = &current_initial_moving_object[2]
+	inc hl			;6f4a HL = &current_initial_moving_object.wait_ticks
 	ld a,(hl)		;6f4b
 	and a			;6f4c
-	jr z,$+26		;6f4d if (z) jump to 0x6F67
-	ld a,(e04fh_speed)	;6f4f
-	cp 0c8h			;6f52
-	jr nc,$+8		;6f54 if (speed >= 0xC8) jump to 0x6F5C
-	ld a,(0e003h)		;6f56
-	rra			;6f59 carry flag = *(0xE003) & 0x01
-	jr nc,$+3		;6f5a if (nc) jump to 0x6F5D
+	jr z,$+26		;6f4d if (wait_ticks == 0x00) jump to 0x6F67
+	
+	ld a,(0e04fh)		;6f4f A = car_speed
+	cp 0c8h			;6f52 Compute car_speed - 0xC8 and update C/NC flag.
+	jr nc,$+8		;6f54 if (car_speed >= 0xC8) jump to 0x6F5C
+	
+	ld a,(0e003h)		;6f56 A = game_state_ticker
+	rra			;6f59 carry flag = game_state_ticker & 0x01
+	jr nc,$+3		;6f5a if (nc) jump to 6f5d_next_initial_moving_object_or_return
 
 	; We can get here from:
-	;   0x6F54 (jump)
-	;   0x6F5A (fall)
-	dec (hl)		;6f5c
+	;   0x6F54 (jump) car_speed >= 0xC8
+	;   0x6F5A (fall) car_speed <  0xC8 (but only in 1 out of 2 frames)
+	dec (hl)		;6f5c --current_initial_moving_object.wait_ticks
 	
 	
 	
 	; We can get here from:
-	;   0x6F47 (jump)
-	;   0x6F5A (jump)
-	;   0x6F5C (fall)
-	;   0x6F96 (jump)
-	ld hl,0e0c2h		;6f5d HL = 0xE0C2
-	inc (hl)		;6f60
-	ld a,002h		;6f61 A = 2
-	cp (hl)			;6f63
-	jr nz,$-48		;6f64 if (nz) jump to 0x6F34 (6f34_fixme)
-	ret			;6f66 ?Done with all moving objects?
+	;   0x6F47 (jump) [from=self] ???
+	;   0x6F5A (jump) [from=self] ???
+	;   0x6F5C (fall) [from=self] current_initial_moving_object.wait_ticks was decreased
+	;   0x6F96 (jump) [from=self]
+	;   0x701D (jump) [from=self]
+	6f5d_next_initial_moving_object_or_return:
+	ld hl,0e0c2h		;6f5d HL = &initial_moving_object_loop_counter
+	inc (hl)		;6f60 ++initial_moving_object_loop_counter
+	ld a,002h		;6f61 A = 0x02
+	cp (hl)			;6f63 Compute 0x02 - initial_moving_object_loop_counter and update Z/NZ flag.
+	jr nz,$-48		;6f64 if (initial_moving_object_loop_counter < 0x02) jump to 0x6F34 (self)
+	;
+	; Post: initial_moving_object_loop_counter == 0x02
+	;
+	ret			;6f66 Done with setup of both initial moving objects.
 	
 	
 	; We can get here from:
-	;   0x6F4D (jump)
-	ld a,(0e0c2h)		;6f67
+	;   0x6F4D (jump) [from=self] wait_ticks == 0x00
+	ld a,(0e0c2h)		;6f67 A = initial_moving_object_loop_counter
 	or a			;6f6a
-	ld hl,0e0c6h		;6f6b HL = 0xE0C6
+	ld hl,0e0c6h		;6f6b HL = &initial_moving_object_00.wait_ticks6
 	jr nz,$+4		;6f6e if (nz) jump to 0x6F72
-	ld l,0d6h		;6f70 HL = 0xE0D6
-	ld a,(0e03bh_levelAB)	;6f72
-	dec a			;6f75
+	ld l,0d6h		;6f70 HL = &initial_moving_object_01.wait_ticks
+	
+	; We can get here from:
+	;   0x6F6E (jump) [from=self] HL == &initial_moving_object_00.wait_ticks (initial_moving_object_loop_counter == 0x01)
+	;   0x6F70 (fall) [from=self] HL == &initial_moving_object_01.wait_ticks (initial_moving_object_loop_counter == 0x00)
+	;
+	; Let's call HL 'other_initial_moving_object'.
+	ld a,(0e03bh_levelAB)	;6f72 A = level (0x00: 'A', 0x01: 'B')
+	dec a			;6f75 Update Z/NZ flag.
 	ld a,007h		;6f76 A = 0x07
 	jr z,$+4		;6f78 if (playing at level B) jump to 0x6F7C
 	ld a,00ch		;6f7a A = 0x0C
-	ld (hl),a		;6f7c
-	xor a			;6f7d A = 0
 	
 	; We can get here from:
-	;   0x6F7D (fall) Entering loop.
-	;   0x6F94 (jump) Next loop.
-	push af			;6f7e
-	ld hl,0e0e5h		;6f7f HL = 0xE0E5
+	;   0x6F78 (jump) A == 0x07 (value for level B)
+	;   0x6F7A (fall) A == 0x0C (value for level A)
+	ld (hl),a		;6f7c other_initial_moving_object.wait_ticks = A
+	xor a			;6f7d A = 0x00
+	
+	
+	
+	; We can get here from:
+	;   0x6F7D (fall) Entering loop. A == 0x00
+	;   0x6F94 (jump) Next loop.     A == 0x01
+	push af			;6f7e Store A. Restore at 0x6F90 or 0x6F98.
+	ld hl,0e0e5h		;6f7f HL = &moving_object_table
+	
+	; A *= 16
 	add a,a			;6f82
 	add a,a			;6f83
 	add a,a			;6f84
 	add a,a			;6f85
+	
+	; BC = A + 1
 	ld b,000h		;6f86 B = 0
-	add a,001h		;6f88 A += 1 ?WHY NOT "inc a"?
+	add a,001h		;6f88 A += 1 ?XXX: WHY NOT "inc a"?
 	ld c,a			;6f8a C = A
-	add hl,bc		;6f8b HL = 0xE0E5 + A
-	ld a,(hl)		;6f8c
-	and a			;6f8d
-	jr z,$+10		;6f8e if (z) jump to 0x6F98
-	pop af			;6f90
-	inc a			;6f91
-	cp 002h			;6f92
-	jr nz,$-22		;6f94 if (nz) jump to 0x6F7E
-	jr $-57			;6f96 jump to 0x6F5D
+	
+	add hl,bc		;6f8b HL = &moving_object.state
+	ld a,(hl)		;6f8c A = moving_object.state
+	and a			;6f8d Update Z/NZ flag.
+	jr z,$+10		;6f8e if (not visible) jump to 0x6F98
+	
+	; Object is visible, no need to copy in a new one.
+	pop af			;6f90 Restore A. Stored at 0x6F7E.
+	inc a			;6f91 ++A
+	cp 002h			;6f92 Compute A - 0x02 and update Z/NZ flag.
+	jr nz,$-22		;6f94 if (A < 0x02) jump to 0x6F7E
+	jr $-57			;6f96 jump to 6f5d_next_initial_moving_object_or_return
+	
+	
 	
 	; We can get here from:
-	;   0x6F96 (fall) End of loop.
-	;   0x6F8E (jump) ?Bail out of loop?
-	pop af			;6f98
+	;   0x6F8E (jump) [from=self] Moving object is not visible.
+	pop af			;6f98 Restore A. Stored at 0x6F7E.
 	ld (0e0b0h),a		;6f99
-	push hl			;6f9c
+	push hl			;6f9c Store &moving_object.state. Restore at 0x6FEF.
 
-	; A = ? of current rival car
+	; C = current_moving_object.hpos_offset (index #04)
 	ld c,004h		;6f9d C = 0x04
-	call 072f6h		;6f9f 72f6_set_A_to_current_rival_car_index_C
-
-	ld c,(hl)		;6fa2
-
-	; A = 8 * (*(0xE098) / 4) + C
+	call 072f6h		;6f9f 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
+	ld c,(hl)		;6fa2 C = moving_object.hpos_offset
+	
+	; Compute final hpos.
+	; 
+	; A = 8 * (left_side_of_road_ish_table[0] / 4) + moving_object.hpos_offset
+	; 
+	;          || hpos_offset, see 0x5311 + (3 * idx) + 2
+	; *(0x098) || 0x10 | 0x18 | 0x1C | 0x20 | 0x28 | 0x30 | Remarks
+	; =========||======+======+======+======+======+======+========
+	;     0x10 || 0x30 | 0x38 | 0x3C | 0x40 | 0x48 | 0x50 | 0x10==Utmost left position
+	;     0x20 || 0x40 | 0x48 | 0x4C | 0x50 | 0x58 | 0x60 | 0x20==Value at start of stage 1
+	;     0x2C || 0x68 | 0x70 | 0x74 | 0x78 | 0x80 | 0x88 | 0x2C==Utmost right position (observed in stage 2)
 	ld a,(0e098h)		;6fa3
 	rra			;6fa6
 	rra			;6fa7
@@ -17584,68 +17759,98 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,a			;6fab
 	add a,a			;6fac
 	add a,c			;6fad
-
+	
+	; current_moving_object.vpos = 0x00 (top of screen)
 	inc hl			;6fae
 	inc hl			;6faf
 	ld (hl),000h		;6fb0
+
+	; current_moving_object.hpos = A
 	inc hl			;6fb2
 	inc hl			;6fb3
 	ld (hl),a		;6fb4
+	
+	; HL = &current_moving_object.vpos
 	dec hl			;6fb5
 	dec hl			;6fb6
+	
+	; We can get here from:
+	;   0x6FB6 (fall) [from=self] HL == &current_moving_object.vpos
+	;   0x6FC6 (jump) [from=self] HL == &current_moving_object.vpos
 	push hl			;6fb7
-	call 06dc1h		;6fb8 6dc1_fixme
+		call 06dc1h	;6fb8 6dc1_fixme
 	pop hl			;6fbb
-	jr nc,$+12		;6fbc if (nc) jump to 0x6FC8
+	jr nc,$+12		;6fbc if (nc) jump to 0x6FC8 (self)
+	
+	; A = current_moving_object.hpos
 	inc hl			;6fbe
 	inc hl			;6fbf
 	ld a,(hl)		;6fc0
+	
 	sub 008h		;6fc1
-	ld (hl),a		;6fc3.
+	ld (hl),a		;6fc3
+	
+	; HL = &current_moving_object.vpos
 	dec hl			;6fc4
 	dec hl			;6fc5
-	jr $-15			;6fc6 jump to 0x6FB7
+	
+	jr $-15			;6fc6 jump to 0x6FB7 (self)
 
 
 	; We can get here from:
-	;   0x6FBC (jump)
-	ld hl,(0e0bfh)		;6fc8
-	ld d,(hl)		;6fcb
-	ld a,(0e03bh_levelAB)	;6fcc
+	;   0x6FBC (jump) [from=self]
+	ld hl,(0e0bfh)		;6fc8 HL = &current_moving_object
+	ld d,(hl)		;6fcb D = current_moving_object.type
+	ld a,(0e03bh)		;6fcc A = level (0x00: level A, 0x01: level B)
 	or a			;6fcf Update Z/NZ flag.
 	jr nz,$+3		;6fd0 if (playing at level B) jump to 0x6FD3
-	ld d,a			;6fd2 D = A
-
-	; HL = &vpos_of_current_rival_car
+	ld d,a			;6fd2 D = 0x00 (since this is the branch for level A)
+	
+	; We can get here from:
+	;   0x6FD0 (jump) [from=self] D == current_moving_object.type (level B)
+	;   0x6FD2 (fall) [from=self] D == 0x00                       (level A)
+	; 
+	; HL = &current_moving_object.vpos
 	ld c,006h		;6fd3 C = 0x06
-	call 072f6h		;6fd5 72f6_set_A_to_current_rival_car_index_C
+	call 072f6h		;6fd5 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
-	ld a,d			;6fd8 A = D (D is set at 0x6FD2)
-	cp 002h			;6fd9 A -= 2
-	ld (hl),0f0h		;6fdb Store vpos
-	jr z,$+6		;6fdd if (levelAB == 0x02) jump to 0x6FE3
+	ld a,d			;6fd8 A = D
+	cp 002h			;6fd9 Compute A - 2 and update Z/NZ flag.
+	ld (hl),0f0h		;6fdb current_moving_object.vpos = 0xF0 (last line of sprite is just outside top of screen)
+	jr z,$+6		;6fdd if (current_moving_object.type == MO__BLUE_CAR__SPEEDING) jump to 0x6FE3 (self)
 	cp 005h			;6fdf
-	jr nz,$+11		;6fe1 if (nz) jump to 0x6FEC
-
+	jr nz,$+11		;6fe1 if (current_moving_object.type != MO__REDNECK_HOT_RODDER) jump to 0x6FEC (self)
+	
+	; We can get here from:
+	;   0x6FDD (jump) current_moving_object.type == MO__BLUE_CAR__SPEEDING
+	;   0x6FE1 (fall) current_moving_object.type == MO__REDNECK_HOT_RODDER
 	ld a,(0e000h)		;6fe3 A = game_state
 	cp 006h			;6fe6
 	jr z,$+4		;6fe8 if (game_state == CRASHED) jump to 0x6FEC
-	ld (hl),0bfh		;6fea
-
-	ld hl,(0e0bfh)		;6fec
-	pop de			;6fef Restore. Stored at 0x6FB7.
-	dec de			;6ff0
+	ld (hl),0bfh		;6fea current_moving_object.vpos = 0xBF (bottom/last line of screen)
+	
+	; We can get here from:
+	;   0x6FE8 (jump) [from=self] game_state == CRASHED
+	;   0x6FEA (fall) [from=self] game_state != CRASHED
+	; 
+	; Remember 0x6F41:
+	;   ld (0e0bfh),hl ---> &current_moving_object = &current_initial_moving_object
+	ld hl,(0e0bfh)		;6fec HL = &current_initial_moving_object
+	pop de			;6fef DE = &moving_object.state. Stored at 0x6F9C.
+	dec de			;6ff0 DE = &moving_object (offset #00)
 	ld bc,00010h		;6ff1 BC = 0x0010 (copy 16 bytes with ldir)  
 	; Init moving object by copying from 0xE0C3 or 0xE0D3.
 	ldir			;6ff4 Copy HL to DE, 0x10 times.
 	
-	ld hl,(0e0bfh)		;6ff6
-	ld a,(hl)		;6ff9
-	inc hl			;6ffa
-	ld (hl),000h		;6ffb
-	add a,a			;6ffd
 	
-	; HL = 0x536B + 2 * FIXME
+	
+	ld hl,(0e0bfh)		;6ff6 HL = &current_moving_object
+	ld a,(hl)		;6ff9 A = current_moving_object.type
+	inc hl			;6ffa HL = &current_moving_object.state
+	ld (hl),000h		;6ffb current_moving_object.state = 0x00 (not visible/outside screen)
+	add a,a			;6ffd A = 2 * current_moving_object.type
+	
+	; HL = 536b_moving_object__type2sprite_colors + 2 * current_moving_object.type
 	ld hl,0536bh		;6ffe
 	call 0403bh		;7001 HL += A
 	
@@ -17654,41 +17859,46 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Every moving object consists of 2 sprites, each sprite is 4 
 	; bytes. That explains the multiple of eight.
 	; 
-	; Offset 3 is the pattern (of the shadow/1st sprite).
+	; Offset 3 is the color (of the 1st sprite).
 	ld a,(0e0b0h)		;7004
 	add a,a			;7007 A *= 2
 	add a,a			;7008 A *= 2
 	add a,a			;7009 A *= 2
 	add a,003h		;700a A += 3
 
+	; Copy sprite color #00.
 	ld de,0e11ah		;700c DE = 0xE11A (start of sprite #03)
-	call 04040h		;700f DE += A, DE now points to the sprite pattern
+	call 04040h		;700f DE += A, DE now points to the sprite color
 	ldi			;7012 *(DE++) = *(HL++), --BC
+	
+	; Copy sprite color #01.
 	inc de			;7014 ++DE, offset 4->5
 	inc de			;7015 ++DE, offset 5->6
-	inc de			;7016 ++DE, offset 6->7 (sprite pattern)
+	inc de			;7016 ++DE, offset 6->7 (sprite color)
 	ldi			;7017 *(DE++) = *(HL++), --BC
 
-	ld hl,0e0c1h		;7019 HL = 0xE0C1
-	dec (hl)		;701c
-	jp nz,06f5dh		;701d
+	ld hl,0e0c1h		;7019 HL = &num_initial_moving_objects_on_spare
+	dec (hl)		;701c --num_initial_moving_objects_on_spare
+	jp nz,06f5dh		;701d if (num_initial_moving_objects_on_spare != 0) jump 6f5d_next_initial_moving_object_or_return
+	; Fall to 7020_moving_object__compute_and_set_next_pair_of_initial_values
 
 
 
 ; We can get here from:
 ;   0x50AE (call) [from=504c_init_stage]
 ;   0x51D5 (jump) [from=51c5_car_crashed_something]
-;   0x701D (fall) [from=6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge]
-7020_fixme:
-	; Increase *(0xE0BD).
-	ld hl,(0e0bdh)		;7020
-	inc hl			;7023
-	ld (0e0bdh),hl		;7024
+;   0x701D (fall) [from=6f25_something_with_loading_next_initial_moving_object_if_speed_is_high]
+7020_moving_object__compute_and_set_next_pair_of_initial_values:
+	; ++&current_moving_object_initial_data__idx
+	ld hl,(0e0bdh)		;7020 HL = &current_moving_object_initial_data__idx
+	inc hl			;7023 ++HL
+	ld (0e0bdh),hl		;7024 ++&current_moving_object_initial_data__idx
 	
-	; Check for special value 0xFF.
-	ld a,(hl)		;7027
-	inc a			;7028
-	jr nz,$+20		;7029 if (nz) jump to 0x703D
+	; Check for special value 0xFF. 0xFF means we are at the end, so 
+	; must wraparound to offset 0x00.
+	ld a,(hl)		;7027 A = current_moving_object_initial_data__idx
+	inc a			;7028 Note: 0xFF -> 0x00
+	jr nz,$+20		;7029 if (current_moving_object_initial_data__idx != 0xFF) jump to 0x703D
 	; Post: this is special value 0xFF.
 	
 	; A = stage - 1 (makes stage 0-based).
@@ -17703,128 +17913,180 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add hl,hl		;7034
 	add hl,hl		;7035
 	
-	; HL = 0x537D + stage_0based * 16
-	ld de,0537dh		;7036
+	; HL = 0x537D + stage_0based * 16 (the start of the table for this stage)
+	ld de,0537dh		;7036 DE = 537d_stage2moving_object_initial_data__idx
 	add hl,de		;7039
 	
-	ld (0e0bdh),hl		;703a
+	; Do the actual wraparound.
+	ld (0e0bdh),hl		;703a &current_moving_object_initial_data__idx = HL
+	
+	
 	
 	; We can get here from:
-	;   0x7029 (jump) Not special value 0xFF
-	;   0x703A (fall) Special value 0xFF, but handled.
-	ld a,(0e03bh_levelAB)	;703d A == 0: Level A, A == 1: Level B
-	
+	;   0x7029 (jump) HL == &current_moving_object_initial_data__idx
+	;   0x703A (fall) HL == &current_moving_object_initial_data__idx (special value 0xFF was handled)
+	703d_all_cases:
+	ld a,(0e03bh)		;703d A == 0: Level A, A == 1: Level B
 	or a			;7040 Update Z/NZ flag.
-	ld a,(hl)		;7041 A = *(HL)
+	ld a,(hl)		;7041 A = current_moving_object_initial_data__idx
 	jr nz,$+7		;7042 if (level_B) jump to 0x7049
 	
-	; Level A: do not use element 0x0A (0x09 as 0-based), use element 0x09 (0x08 as 0-based) instead.
-	cp 00ah			;7044 Compute A - 0x0A and set flags.
-	jr nz,$+3		;7046 if (A != 0x0A) jump to 0x7049
+	; A is 1-based index. So element 0x0A (1-based) is element 0x09 
+	; in 0-based. Element 0x09 of 
+	; 5311_moving_object_initial_data__2_per_element is "green car + 
+	; truck WITH spinning oil drum". That is unwanted at level A 
+	; apparently, so fudge to element 0x08: "green car + truck 
+	; WITHOUT spinning oil drum".
+	cp 00ah			;7044 Compute current_moving_object_initial_data__idx - 0x0A and set flags.
+	jr nz,$+3		;7046 if (current_moving_object_initial_data__idx != 0x0A) jump to 0x7049
 	; Post: A == 0x0A
 	dec a			;7048 A = 0x09
 	
 	; We can get here from:
-	;   0x7042 (jump) A == *(HL), and playing on level B
-	;   0x7046 (jump) A == *(HL) && A != 0x0A, and playing on level A
-	;   0x7048 (fall) A == 0x09, and playing on level A
+	;   0x7042 (jump) [from=self] A == *(HL), and playing on level B
+	;   0x7046 (jump) [from=self] A == *(HL) && A != 0x0A, and playing on level A
+	;   0x7048 (fall) [from=self] A == 0x09, and playing on level A
 	; 
+	7049_all_cases:
 	; Make A 0-based instead of 1-based.
 	dec a			;7049 --A
 	
-	; A *= 6
+	; A *= 6, since each element of 
+	; 5311_moving_object_initial_data__2_per_element is 6 bytes 
+	; long.
 	add a,a			;704a A *= 2
 	ld b,a			;704b B = A
 	add a,a			;704c A *= 2
 	add a,b			;704d A += B
-
-	ld hl,05311h		;704e HL = 0x5311
-	call 0403bh		;7051 HL = 0x5311 + 6 * something
-	ex de,hl		;7054 DE = 0x5311 + 6 * something
-	ld hl,0e0c1h		;7055 HL = 0xE0C1
-	ld (hl),002h		;7058 *(0xE0C1) = 0x02
-	inc hl			;705a HL = 0xE0C2
-	ld (hl),000h		;705b *(0xE0C2) = 0x00
+	
+	; DE = 5311_moving_object_initial_data__2_per_element + 6 * requested_element
+	ld hl,05311h		;704e HL = 5311_moving_object_initial_data__2_per_element
+	call 0403bh		;7051 HL = 5311_moving_object_initial_data__2_per_element + 6 * requested_element
+	ex de,hl		;7054 DE = 5311_moving_object_initial_data__2_per_element + 6 * requested_element
+	
+	ld hl,0e0c1h		;7055 HL = &num_initial_moving_objects_on_spare
+	ld (hl),002h		;7058 num_initial_moving_objects_on_spare = 0x02
+	inc hl			;705a HL = &initial_moving_object_loop_counter
+	ld (hl),000h		;705b initial_moving_object_loop_counter = 0x00
 	
 	inc hl			;705d HL = 0xE0C3
-	ex de,hl		;705e DE = 0xE0C3, HL = 0x5311 + 6 * something
-	; Fall to 705f_fixme.
-
-
-
-; Compute initial values of moving object.
-;
-; We can get here from:
-;   0x705E (fall) [from=7020_fixme] DE == 0xE0C3, HL == 0x5311 + A
-;   0x70A5 (jump) [from=705f_fixme] DE == 0xE0D3, HL += 3
-705f_fixme:
+	ex de,hl		;705e DE = 0xE0C3, HL = 5311_moving_object_initial_data__2_per_element + 6 * requested_element
+		
+	; Compute and set initial values of both moving objects.
+	; 
+	; Input:
+	;   HL: address of the moving object data, i.e. the start of an element of table 5311_moving_object_initial_data__2_per_element.
+	;   DE: address of where to store the computed initial values.
+	;
+	; We can get here from:
+	;   0x705E (fall) [from=self] DE == &initial_moving_object_00, HL == 5311_moving_object_initial_data__2_per_element + 6 * requested_element
+	;   0x70A5 (jump) [from=self] DE == &initial_moving_object_01, HL += 3 (wrt to HL@0x705E, i.e. moving object #01
+	705f_moving_object__compute_and_set_initial_values:
+	;
+	; Call HL &moving_object_initial_data__src
+	; Call DE &moving_object_initial_data__dst
+	;
+	; HL points to an array of 3 bytes.
+	; DE points to an array of 16 bytes.
+	;
+	A_shadow = moving_object_initial_data__src[0]
 	ex af,af'		;705f Store A+F, restored at 0x7061.
-	ld a,(hl)		;7060 Store A, restored at 0x707B.
+		ld a,(hl)	;7060 This A will be restored at 0x707B.
 	ex af,af'		;7061 Restore A+F, stored at 0x705F.
+	
+	; moving_object_initial_data__dst[0] = moving_object_initial_data__src[0]
 	ldi			;7062 *(DE++) = *(HL++), --BC
+	;
 	; Post:
-	;   DE points to second dst element, DE in [0xE0C4, 0xE0D4]
-	;   HL points to second src element
-
+	;   HL = &moving_object_initial_data__src[1]
+	;   DE = &moving_object_initial_data__dst[1]
+	;
+	; moving_object_initial_data__dst[1] = 0x01
 	ld a,001h		;7064 A = 0x01
-	ld (de),a		;7066 *(0xE0C4) = 0x01
-	inc de			;7067 DE = 0xE0C5
-	inc de			;7068 DE = 0xE0C6
+	ld (de),a		;7066 moving_object_initial_data__dst[1] = 0x01
+	
+	;
+	inc de			;7067 DE = &moving_object_initial_data__dst[2]
+	inc de			;7068 DE = &moving_object_initial_data__dst[3]
 	ld a,(0e03bh_levelAB)	;7069 A == 0x00: Level A, A == 0x01: Level B
 	dec a			;706c A == 0xFF: Level A, A == 0x00: Level B, updates Z/NZ flag.
-	ld a,(hl)		;706d A = *(HL)
-	jr z,$+3		;706e if (playing at level B) jump to 0x7071
+	ld a,(hl)		;706d A = moving_object_initial_data__src[1]
+	jr z,$+3		;706e if (levelB) jump to 0x7071
 	add a,a			;7070 A *= 2
 	
 	; We can get here from:
-	;   0x706E (jump) Playing at level B. A == ?
-	;   0x7070 (fall) Playing at level A. A == ?
-	ld (de),a		;7071 *(0xE0C6) = A
-	inc de			;7072 DE = 0xE0C7
-	inc hl			;7073 HL = start_value@7051 + 2
+	;   0x706E (jump) At level B. A == 1 * moving_object_initial_data__src[1]
+	;   0x7070 (fall) At level A. A == 2 * moving_object_initial_data__src[1]
+	ld (de),a		;7071 moving_object_initial_data__dst[3] = A
+	
+	; moving_object_initial_data__dst[4] = moving_object_initial_data__src[2]
+	inc de			;7072 DE = &moving_object_initial_data__dst[4]
+	inc hl			;7073 HL = &moving_object_initial_data__src[2]
 	ldi			;7074 *(DE++) = *(HL++), --BC
-	ex de,hl		;7076 HL = 0xE0C8, DE = start_value@7051 + 3
+	
+	; HL = &moving_object_initial_data__dst[5]
+	; DE = &moving_object_initial_data__src[3] (next element)
+	ex de,hl		;7076
+	
+	; HL = &moving_object_initial_data__dst[9]
 	ld bc,00004h		;7077 BC = 0x0004
-	add hl,bc		;707a HL = 0xE0CC
-	ex af,af'		;707b Restore A+F. Stored at 0x7060.
+	add hl,bc		;707a HL = &moving_object_initial_data__dst[9]
+	
+	; B = moving_object_initial_data[0]
+	ex af,af'		;707b Restore A. Stored at 0x7060.
 	ld b,a			;707c B = A
+	
 	ld a,(0e043h)		;707d A = stage
-	cp 003h			;7080 Compute A - 0x03 and update Z/NZ flag.
-	ld (hl),080h		;7082 *(0xE0CC) = 0x80
+	cp 003h			;7080 Compute stage - 0x03 and update Z/NZ flag.
+	ld (hl),080h		;7082 moving_object_initial_data__dst[9] = 0x80
 	jr nz,$+4		;7084 if (stage != 0x03) jump to 0x7088
 	; Only for stage 3. ?oil?
-	ld (hl),06ch		;7086 *(0xE0CC) = 0x6C
+	ld (hl),06ch		;7086 moving_object_initial_data__dst[9] = 0x6C
 	
 	; We can get here from:
-	;   0x7084 (jump) A != 0x03
-	;   0x7086 (fall) A == 0x03
-	ld a,b			;7088 A = B
+	;   0x7084 (jump) [from=self] stage != 0x03
+	;   0x7086 (fall) [from=self] stage == 0x03
+	; 
+	; A = moving_object_initial_data[0]
+	ld a,b			;7088 A = B (see 0x707C)
+	
 	cp 002h			;7089 Compute A - 0x02 and update Z/NZ flag.
-	jr z,$+6		;708b if (A == 0x02) jump to 0x7091
+	jr z,$+6		;708b if (type == MO__BLUE_CAR__SPEEDING) jump to 0x7091
+	
 	cp 005h			;708d Compute A - 0x05 and update Z/NZ flag.
-	jr nz,$+4		;708f if (A != 0x05) jump to 0x7093
+	jr nz,$+4		;708f if (type != MO__REDNECK_HOT_RODDER) jump to 0x7093
 	
 	; We can get here from:
-	;   0x708B (jump) A == 2
-	;   0x708F (fall) A == 5
-	ld (hl),0e4h		;7091 *(0xE0CC) = 0xE4
+	;   0x708B (jump) moving_object_initial_data.type = MO__BLUE_CAR__SPEEDING
+	;   0x708F (fall) moving_object_initial_data.type = MO__REDNECK_HOT_RODDER
+	;
+	; ??Set different/longer timer??
+	ld (hl),0e4h		;7091 moving_object_initial_data__dst[9] = 0xE4
 	
+	
+	
+	; All cases.
+	;
 	; We can get here from:
 	;   0x708F (jump)
 	;   0x7091 (fall)
 	ex af,af'		;7093
-	inc hl			;7094 HL = 0xE0CD
-	ld (hl),000h		;7095 *(0xE0CD) = 0x00
+	inc hl			;7094 HL = &moving_object_initial_data__dst[0xA]
+	ld (hl),000h		;7095 moving_object_initial_data__dst[0x0A] = 0x00
+	
+	; DE = &moving_object_initial_data__dst[0x10] (next element)
+	; HL = &moving_object_initial_data__src[3]    (next element)
 	ld bc,00006h		;7097 BC = 0x0006
-	add hl,bc		;709a HL = 0xE0D3
-	ex de,hl		;709b DE = 0xE0D3, HL = start_value@7051 + 3
+	add hl,bc		;709a HL = &moving_object_initial_data__dst[0x10]
+	ex de,hl		;709b
+	
 	exx			;709c Exchange BC, DE, HL with shadow registers.
 		ld hl,0e0c2h	;709d HL = 0xE0C2
 		inc (hl)	;70a0
 		ld a,002	;70a1 A = 0x02
 		cp (hl)		;70a3 Compute A - *(0xE0C2) and update Z/NZ flag.
 	exx			;70a4 Exchange BC, DE, HL with shadow registers.
-	jr nz,$-70		;70a5 if (*(0xE0C2) != 0x02) jump to 0x705F
+	jr nz,$-70		;70a5 if (*(0xE0C2) != 0x02) jump to 0x705F (self.start)
 	
 	ret			;70a7
 
@@ -17837,8 +18099,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (0e0e4h),a		;70a9 moving_object_idx = 0x00
 
 ; We can get here from:
-;   0x70A9 (fall) [from=70a8_fixme] moving_object_idx == 0
-;   0x72a0 (jump) [from=7298_fixme]
+;   0x70A9 (fall) [from=70a8_fixme] moving_object_idx == 0x00
+;   0x72a0 (jump) [from=7298_moving_objects__handle_next]
 70ac_handle_moving_object_something:
 	ld hl,0e0e4h		;70ac HL = &moving_object_idx
 	ld a,(hl)		;70af A = moving_object_idx
@@ -17859,7 +18121,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;70bc HL = current_moving_object + 1
 	ld a,(hl)		;70bd A = current_moving_object.state
 	and a			;70be Update Z/NZ flag.
-	jp z,07298h		;70bf if (!current_moving_object.state) jump to 0x7298 (7298_fixme)
+	jp z,07298h		;70bf if (!current_moving_object.state) jump to 0x7298 (7298_moving_objects__handle_next)
 
 	ld hl,0728ah		;70c2 HL = 728a_moving_object_state__post_state_specific_routine (0x728A)
 	push hl			;70c5 Return to 728a_moving_object_state__post_state_specific_routine after jump table routine.
@@ -17880,21 +18142,23 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x70C6 (jump) [from=70ac_handle_moving_object_something] jump table, index 0x01
 ;   0x70C6 (jump) [from=70ac_handle_moving_object_something] jump table, index 0x04
 70d9_moving_object_state_01_and_04:
-	call 072b8h		;70d9 72b8_fixme
+	call 072b8h		;70d9 72b8_play_sound_if_regular_blue_car_is_near
 	call 071c6h		;70dc 71c6_moving_object_state_03_and_partly_01_and_04
 	call 053ddh		;70df 53dd_fixme
 	call 0716dh		;70e2 716d_purple_car_something
 
+
+
 ; We can get here from:
 ;   0x70E2 (fall) [from=70d9_moving_object_state_01_and_04]
 ;   0x7226 (jump) [from=7209_moving_object_state_05_and_07]
-70e5_fixme:
+70e5_moving_object_state_common_for_01_and_04_and_05_and_07:
 	call 072feh		;70e5 72fe_fixme
 	call 07123h		;70e8 7123_fixme
-	call 07154h		;70eb 7154_fixme
+	call 07154h		;70eb 7154_current_moving_object_bump_forwards_something
 
 	ld c,006h		;70ee C = 0x06 (vpos)
-	call 072f6h		;70f0 72f6_set_A_to_current_rival_car_index_C
+	call 072f6h		;70f0 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
 	sub 0c0h		;70f3 A -= 0xC0
 	cp 040h			;70f5 Compute A - 0x40 and update C/NC flag.
@@ -17914,59 +18178,66 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add hl,bc		;7105 HL = 0xE098 + BC
 	ld d,(hl)		;7106 D = *(0xE098 + BC)
 
-	ld c,009h		;7107 C = 0x09
-	call 072f6h		;7109 72f6_set_A_to_current_rival_car_index_C
+	ld c,009h		;7107 C = 0x09 (delta_vpos_per_frame)
+	call 072f6h		;7109 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
-	ld a,d			;710c
+	ld a,d			;710c A = D
 	and 003h		;710d A &= 0x03, and update Z/NZ flag.
 	ld c,a			;710f C = A
 	; ?collision detection?
 	jp z,07289h		;7110 if (z) jump to 0x7289 (7289_moving_object_state_00__not_visible_so_return) (ret)
 
-	ld a,(e04fh_speed)	;7113 A = speed
-	sub (hl)		;7116 A -= ?rival car speed?
+	ld a,(e04fh_speed)	;7113 A = car_speed
+	sub (hl)		;7116 A = car_speed - current_moving_object.delta_vpos_per_frame_lo_byte
 	
 	; Make speed difference absolute/positive.
 	jr nc,$+4		;7117 if (nc) jump to 0x711B
 	neg			;7119
 
 	add a,a			;711b A *= 2
+	
+	; DE = A
 	ld e,a			;711c E = A
 	ld d,000h		;711d D = 0x00
-	ld a,c			;711f
+	
+	ld a,c			;711f A = C
 	jp 07145h		;7120
 
 
 
 ; We can get here from:
-;   0x70E8 (call)
+;   0x70E8 (call) [from=70e5_moving_object_state_common_for_01_and_04_and_05_and_07]
 7123_fixme:
 	ld hl,(0e078h)		;7123 HL = distance_travelled (middle and high byte)
-	and a			;7126
-	ld bc,00f09h		;7127 BC = 0x0F09
-	and a			;712a
-	sbc hl,bc		;712b
-	ret nc			;712d
-
-	ld c,006h		;712e C = 0x06
-	call 072f6h		;7130 72f6_set_A_to_current_rival_car_index_C
-
+	and a			;7126 XXX: useless
+	ld bc,00f09h		;7127 BC = 0x0F09 (?checkpoint/goal?)
+	and a			;712a Clear carry flag.
+	sbc hl,bc		;712b HL -= BC
+	ret nc			;712d if (at or beyond checkpoint) return
+	
+	ld c,006h		;712e C = 0x06 (vpos)
+	call 072f6h		;7130 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
+	
 	call 06dc1h		;7133 6dc1_fixme
 	ret nc			;7136
-	ld hl,(0e0bfh)		;7137
+	
+	ld hl,(0e0bfh)		;7137 HL = &current_moving_object
 	ld de,0000fh		;713a DE = 0x000F
-	add hl,de		;713d HL = *(0xE0BF) + 0x000F, pointer to last byte of rival car struct.
-	ld (hl),000h		;713e
+	add hl,de		;713d HL = &current_moving_object.state_02__timer
+	ld (hl),000h		;713e current_moving_object.state_02__timer = 0x00
+	
+	; DE = 0x02F0
 	ld e,0f0h		;7140 E = 0xF0
 	ld d,002h		;7142 D = 0x02
+	
 	ld a,b			;7144 A = B
 
 
 
 ; We can get here from:
-;   0x7120 (jump) D == 0x00, E == 2 * abs(own speed - rival car speed)
-;   0x7144 (fall) D == 0x02, E == 0xF0
-;   0x71B9 (call) D == 0x01, E == 0x00, A == ?
+;   0x7120 (jump) DE == 2 * abs(car_speed - current_moving_object_rival.delta_vpos_per_frame_lo_byte)
+;   0x7144 (fall) DE == 0x02F0, A == ?
+;   0x71B9 (call) DE == 0x0100, A == ?
 7145_fixme:
 	dec a			;7145 --A and update Z/NZ flag.
 
@@ -18006,26 +18277,47 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; Input:
+;   B: ???
+;     0x00: Seen due to 0x6D85 (6d85_set_regB_to_0x00_and_clear_carry_flag_and_return)
+; 
 ; We can get here from:
-;   0x70EB (call)
-7154_fixme:
+;   0x70EB (call) [from=70e5_moving_object_state_common_for_01_and_04_and_05_and_07]
+7154_current_moving_object_bump_forwards_something:
+	; HL = &current_moving_object.delta_vpos_per_frame
 	ld c,009h		;7154 C = 0x09
-	call 072f6h		;7156 72f6_set_A_to_current_rival_car_index_C
-
+	call 072f6h		;7156 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
+	
+	; DE = current_moving_object.delta_vpos_per_frame
 	ld e,(hl)		;7159
 	inc hl			;715a
 	ld d,(hl)		;715b
+	
+	; H = B ???which B???0x00???
+	; Possibly means: HL = car_speed
 	ld h,b			;715c
-	ld a,(e04fh_speed)	;715d
+	ld a,(0e04fh)		;715d A = car_speed
 	ld l,a			;7160
-	and a			;7161
-	sbc hl,de		;7162
-	add hl,hl		;7164
-	add hl,hl		;7165
-	add hl,hl		;7166
+
+	and a			;7161 Reset carry flag, for 0x7162.
+	sbc hl,de		;7162 HL -= current_moving_object.delta_vpos_per_frame
+	
+	; HL *= 8
+	add hl,hl		;7164 HL *= 2
+	add hl,hl		;7165 HL *= 2
+	add hl,hl		;7166 HL *= 2
+	
 	ex de,hl		;7167
+	; Fall to 7168_current_moving_object__change_vpos_by_DE.
+
+
+
+; We can get here from:
+;   0x7167 (fall) [from=7154_current_moving_object_bump_forwards_something] DE == ???
+;   0x71BF (jump) [from=71a2_moving_object_state_02]                        DE == 0xFF00
+7168_current_moving_object__change_vpos_by_DE:
 	ld c,006h		;7168 C = 0x06
-	jp 072e7h		;716a
+	jp 072e7h		;716a 72e7_moving_object__change_position_by_DE
 
 
 
@@ -18123,22 +18415,23 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x70C6 (jump) [from=70ac_handle_moving_object_something] jump table, index 0x02
 71a2_moving_object_state_02:
 	ld c,006h		;71a2 C = 0x06
-	call 072f6h		;71a4 72f6_set_A_to_current_rival_car_index_C
+	call 072f6h		;71a4 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
 	call 06dc1h		;71a7 6dc1_fixme
 	jr c,$+24		;71aa if (c) jump to 0x71C2 (71c2_set_moving_object_state_to_01)
 
 	ld c,00fh		;71ac C = 0x0F
-	call 072f6h		;71ae 72f6_set_A_to_current_rival_car_index_C
+	call 072f6h		;71ae 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
-	dec (hl)		;71b1
-	jr z,$+16		;71b2 if (z) jump to 0x71C2 (71c2_set_moving_object_state_to_01)
-	dec hl			;71b4
-	ld a,(hl)		;71b5
-	ld de,00100h		;71b6
+	dec (hl)		;71b1 --current_moving_object.state_02__timer
+	jr z,$+16		;71b2 if (current_moving_object.state_02__timer == 0x00) jump to 0x71C2 (71c2_set_moving_object_state_to_01)
+	
+	dec hl			;71b4 HL = &current_moving_object.0E
+	ld a,(hl)		;71b5 A = current_moving_object.0E
+	ld de,00100h		;71b6 DE = 0x0100
 	call 07145h		;71b9 7145_fixme
-	ld de,0ff00h		;71bc
-	jp 07168h		;71bf
+	ld de,0ff00h		;71bc DE = 0xFF00
+	jp 07168h		;71bf 7168_current_moving_object__change_vpos_by_DE
 
 
 
@@ -18156,7 +18449,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x70DC (call) [from=70d9_moving_object_state_01_and_04]
 71c6_moving_object_state_03_and_partly_01_and_04:
 	ld c,009h		;71c6 C = 0x09
-	call 072f6h		;71c8 72f6_set_A_to_current_rival_car_index_C
+	call 072f6h		;71c8 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
 	ex de,hl		;71cb DE = current_moving_object + 0x09
 	ld a,(de)		;71cc A = *(DE)
@@ -18258,7 +18551,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	or a			;7222 A == 0: subtract DE
 				;     A == 1: add DE
 	call 07146h		;7223 7146_moving_object__horizontal_position__add_or_subtract_DE
-	jp 070e5h		;7226 jump to 0x70E5 (70e5_fixme)
+	jp 070e5h		;7226 jump to 0x70E5 (70e5_moving_object_state_common_for_01_and_04_and_05_and_07)
 
 
 
@@ -18266,7 +18559,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x728A (call) [from=728a_moving_object_state__post_state_specific_routine]
 ;   0x72AA (call) [from=72a4_continuation_of_728a_moving_object_state__post_state_specific_routine]
 7229_moving_object__set_vpos_hpos_pattern_and_fudge_if_truck:
-	call 0724bh		;7229 724b_moving_oject__set_vpos_hpos_pattern
+	call 0724bh		;7229 724b_moving_object__set_vpos_hpos_pattern
 	ex af,af'		;722c A = current_moving_object->type
 	cp 006h			;722d Compute A - 0x06 and update Z/NZ flag.
 	jr z,$+5		;722f if (current_moving_object->type == 0x06) jump to 0x7234
@@ -18317,7 +18610,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;
 ; We can get here from:
 ;   0x7229 (call) [from=7229_moving_object__set_vpos_hpos_pattern_and_fudge_if_truck]
-724b_moving_oject__set_vpos_hpos_pattern:
+724b_moving_object__set_vpos_hpos_pattern:
 	ld hl,(0e0bfh)		;724b HL = &current_moving_object
 	
 	; E = current_moving_object->type
@@ -18377,7 +18670,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;    C: New hpos for this sprite, and the shadow
 ; 
 ; We can get here from:
-;   0x727C (fall) [from=724b_moving_oject__set_vpos_hpos_pattern] HL == ???
+;   0x727C (fall) [from=724b_moving_object__set_vpos_hpos_pattern] HL == ???
 ;   0x723E (call) [from=7229_moving_object__set_vpos_hpos_pattern_and_fudge_if_truck] HL == 0xE132 (sprite #09), B == ?, C == ?, A == ?
 727d_sprite__set_vpos_hpos_pattern__for_double_sprite:
 	call 07282h		;727d 7282_sprite__set_vpos_hpos_pattern
@@ -18404,7 +18697,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x70C6 (jump) [from=70ac_handle_moving_object_something] jump table, index 0x00
-;   0x7110 (jump) [from=70e5_fixme]
+;   0x7110 (jump) [from=70e5_moving_object_state_common_for_01_and_04_and_05_and_07]
 ;   0x7288 (fall) [from=727d_sprite__set_vpos_hpos_pattern__for_double_sprite]
 7289_moving_object_state_00__not_visible_so_return:
 	ret			;7289
@@ -18419,12 +18712,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; A = current_moving_object.vpos
 	ld c,006h		;728d C = 0x06
-	call 072f6h		;728f 72f6_set_A_to_current_rival_car_index_C
+	call 072f6h		;728f 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
 	sub 0c3h		;7292 A -= 0xC3
 	cp 00ch			;7294 Compute A - 0x0C and update C/NC flag.
-	jr c,$+14		;7296 if (0xC3 <= A_pre7292 <= 0xCE) jump to 0x72A4 (72a4_continuation_of_728a_moving_object_state__post_state_specific_routine)
-	; Fall to 7298_fixme.
+	jr c,$+14		;7296 if (0xC3 <= current_moving_object.vpos <= 0xCE) jump to 0x72A4 (72a4_continuation_of_728a_moving_object_state__post_state_specific_routine)
+	; Fall to 7298_moving_objects__handle_next.
 
 
 
@@ -18432,7 +18725,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x70BF (jump) [from=70ac_handle_moving_object_something]
 ;   0x7296 (fall) [from=728a_moving_object_state__post_state_specific_routine]
 ;   0x72AD (jump) [from=72a4_continuation_of_728a_moving_object_state__post_state_specific_routine]
-7298_fixme:
+7298_moving_objects__handle_next:
 	ld hl,0e0e4h		;7298 HL = &moving_object_idx
 	inc (hl)		;729b ++moving_object_idx
 	ld a,(hl)		;729c A = moving_object_idx
@@ -18445,9 +18738,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x7296 (jump) [from=self] HL == ?
+;   0x7296 (jump) [from=self] HL == &current_moving_object.vpos, 0xC3 <= current_moving_object.vpos <= 0xCE
 72a4_continuation_of_728a_moving_object_state__post_state_specific_routine:
-	ld (hl),0dfh		;72a4 *(HL) = 0xDF
+	ld (hl),0dfh		;72a4 current_moving_object.vpos = 0xDF
 	xor a			;72a6 A = 0x00
 	call 0719ch		;72a7 719c_current_moving_object__set_state_to_regA
 	call 07229h		;72aa 7229_moving_object__set_vpos_hpos_pattern_and_fudge_if_truck
@@ -18458,7 +18751,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Data.
 ; 
 ; Referenced by:
-;   0x7276 [from=724b_moving_oject__set_vpos_hpos_pattern]
+;   0x7276 [from=724b_moving_object__set_vpos_hpos_pattern]
 72af_moving_object_type2sprite_pattern_id:
 	defb 0x7C		;72af #00 Green car
 	defb 0x00		;72b0 #01 Blue car (regular)
@@ -18474,38 +18767,60 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x70D9 (call) [from=70d9_moving_object_state_01_and_04]
-72b8_fixme:
+72b8_play_sound_if_regular_blue_car_is_near:
 	; if (demo) return
-	ld a,(0e002h)		;72b8
+	ld a,(0e002h)		;72b8 A = game_bits
 	bit 6,a			;72bb
-	ret z			;72bd
+	ret z			;72bd if (demo) return
 	
-	; if (car_state == CRASHED) return
-	ld a,(e049_car_state)	;72be
+	; if (car_state == CAR_STATE_CRASHED) return
+	ld a,(0e049h)		;72be A = car_state
 	dec a			;72c1
-	ret z			;72c2
+	ret z			;72c2 if (car_state == CAR_STATE_CRASHED) return
 	
-	if (car_state == REACHED_CHECKPOINT) return
+	if (car_state == CAR_STATE_REACHED_CHECKPOINT) return
 	dec a			;72c3
 	dec a			;72c4
 	ret z			;72c5
 
-	ld hl,(0e0bfh)		;72c6
-	ld a,(hl)		;72c9
+	ld hl,(0e0bfh)		;72c6 HL = &current_moving_object
+	ld a,(hl)		;72c9 A = current_moving_object.type
 	dec a			;72ca
-	ret nz			;72cb
-	ld a,006h		;72cc
-	call 0403bh		;72ce HL += 6, ?&vpos?
-	ld a,(0e04ch_car_vpos)	;72d1
-	sub 034h		;72d4 A -= 0x34
-	sub (hl)		;72d6
-	sub 008h		;72d7 A -= 0x08
-	add a,008h		;72d9
-	ret nc			;72db
-	ld a,(e04fh_speed)	;72dc
-	cp 090h			;72df
-	ret c			;72e1
-	ld a,009h		;72e2
+	ret nz			;72cb if (current_moving_object.type != 0x01) return
+	;
+	; Post: This is a regular blue car.
+	;
+	ld a,006h		;72cc A = 0x06
+	call 0403bh		;72ce HL = &current_moving_object.vpos
+	ld a,(0e04ch)		;72d1 A = car_vpos
+	sub 034h		;72d4 A = car_vpos - 0x34
+	sub (hl)		;72d6 A = car_vpos - 0x34 - current_moving_object.vpos
+	sub 008h		;72d7 A = car_vpos - 0x34 - current_moving_object.vpos - 0x08
+	add a,008h		;72d9 A = car_vpos - 0x34 - current_moving_object.vpos - 0x08 + 0x08
+	; car_vpos | current_moving_object.vpos | car_vpos - 0x34 - current_moving_object.vpos - 0x08 | car_vpos - 0x34 - current_moving_object.vpos - 0x08 + 0x08 | C? | Distance (front to front)
+	; ---------+----------------------------+-----------------------------------------------------+------------------------------------------------------------+----+--------------------------
+	;     0x9A |                       0x5D |                                                0x01 |                                                       0x09 | NC | 0x3D
+	;     0x9A |                       0x5E |                                                0x00 |                                                       0x08 | NC | 0x3C
+	;     0x9A |                       0x5F |                                                0xFF |                                                       0x07 | C  | 0x3B (0x34 + 7)
+	;     0x9A |                       0x60 |                                                0xFE |                                                       0x06 | C  | 0x3A (0x34 + 6)
+	;     0x9A |                       0x61 |                                                0xFD |                                                       0x05 | C  | 0x39 (0x34 + 5)
+	;     0x9A |                       0x62 |                                                0xFC |                                                       0x04 | C  | 0x38 (0x34 + 4)
+	;     0x9A |                       0x63 |                                                0xFB |                                                       0x03 | C  | 0x37 (0x34 + 3)
+	;     0x9A |                       0x64 |                                                0xFA |                                                       0x02 | C  | 0x36 (0x34 + 2)
+	;     0x9A |                       0x65 |                                                0xF9 |                                                       0x01 | C  | 0x35 (0x34 + 1)
+	;     0x9A |                       0x66 |                                                0xF8 |                                                       0x00 | C  | 0x34 (0x34 + 0)
+	;     0x9A |                       0x67 |                                                0xF7 |                                                       0xFF | NC | 0x33
+	;     0x9A |                       0x68 |                                                0xF6 |                                                       0xFE | NC | 0x32
+	ret nc			;72db if (not in sweet spot) return
+	
+	ld a,(0e04fh)		;72dc A = car_speed
+	cp 090h			;72df Compute A - 0x90 and update C/NC flag.
+	ret c			;72e1 if (car_speed < 0x90) return
+	;
+	; Post: car_speed >= 0x90
+	; 
+	; Play weird intermittent sound.
+	ld a,009h		;72e2 A = 0x09
 	jp 04b6eh		;72e4 4b6e_sound_something_with_D_is_0
 
 
@@ -18520,9 +18835,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;
 ; We can get here from:
 ;   0x7151 (jump) [from=7146_moving_object__horizontal_position__add_or_subtract_DE] C == 0x08 (horizontal position)
-;   0x716A (jump) [from=7154_fixme] C == 0x06 (vertical position)
+;   0x716A (jump) [from=7154_current_moving_object_bump_forwards_something] C == 0x06 (vertical position)
 72e7_moving_object__change_position_by_DE:
-	call 072f6h		;72e7 72f6_set_A_to_current_rival_car_index_C
+	call 072f6h		;72e7 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 	
 	; DE += *(HL)
 	push hl			;72ea Store HL. Restore at 0x72F1.
@@ -18545,79 +18860,87 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Compute A = *(*(0xE0BF) + C)
+; Compute A = *(&current_moving_object + C)
 ; 
 ; Input:
-;   C: wanted offset to *(0xE0BF)
+;   C: wanted offset to &current_moving_object
 ; 
 ; We can get here from:
-;   0x53F5 (call) C == 0x06
-;   0x6F9F (call) C == 0x04
-;   0x6FD5 (call) C == 0x06
-;   0x70F0 (call) C == 0x06
-;   0x7109 (call) C == 0x09
-;   0x7130 (call) C == 0x06
-;   0x7156 (call) C == 0x09
-;   0x71A4 (call) C == 0x06
-;   0x71AE (call) C == 0x0F
-;   0x71C8 (call) C == 0x09
-;   0x728F (call) C == 0x06
+;   0x53F5 (call) C == 0x06 (vpos)
+;   0x6F9F (call) C == 0x04 (hpos_offset)
+;   0x6FD5 (call) C == 0x06 (vpos)
+;   0x70F0 (call) C == 0x06 (vpos)
+;   0x7109 (call) C == 0x09 (?delta_vpos_per_frame?)
+;   0x7130 (call) C == 0x06 (vpos)
+;   0x7156 (call) C == 0x09 (?delta_vpos_per_frame?)
+;   0x71A4 (call) C == 0x06 (vpos)
+;   0x71AE (call) C == 0x0F (state_02_timer)
+;   0x71C8 (call) C == 0x09 (?delta_vpos_per_frame?)
+;   0x728F (call) C == 0x06 (vpos)
 ;   0x72E7 (call) C == 0x08 (see 0x7151) or C == 0x06 (see 0x716A)
-;   0x7307 (call) C == 0x09
-;   0x7349 (call) C == 0x0E
-72f6_set_A_to_current_rival_car_index_C:
-	ld b,000h		;72f6 B = 0
-	ld hl,(0e0bfh)		;72f8 HL = *(0xE0BF)
+;   0x7307 (call) C == 0x09 (?delta_vpos_per_frame?)
+;   0x7349 (call) C == 0x0E (???)
+72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address:
+	ld b,000h		;72f6 B = 0, so BC == C
+	ld hl,(0e0bfh)		;72f8 HL = &current_moving_object
 	add hl,bc		;72fb HL += BC
 	ld a,(hl)		;72fc A = *(HL)
 	ret			;72fd
 
 
+
 ; We can get here from:
-;   0x70E5 (call)
+;   0x70E5 (call) [from=70e5_moving_object_state_common_for_01_and_04_and_05_and_07]
 72fe_fixme:
 	; Return if current rival car is not in screen.
-	ld hl,(0e0bfh)		;72fe
-	inc hl			;7301
-	ld a,(hl)		;7302
+	ld hl,(0e0bfh)		;72fe HL = &current_moving_object
+	inc hl			;7301 HL = &current_moving_object.state
+	ld a,(hl)		;7302 A = current_moving_object.state
 	or a			;7303
-	ret z			;7304
+	ret z			;7304 if (current_moving_object.state == 0x00) return
 
 	ld c,009h		;7305 C = 0x09
-	call 072f6h		;7307 72f6_set_A_to_current_rival_car_index_C
+	call 072f6h		;7307 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
 	cp 0d7h			;730a Compute A - 0xD7 and update C/NC flag.
-	ret c			;730c
-	dec hl			;730d
-	dec hl			;730e
-	dec hl			;730f
-	ld a,(0e0e4h)		;7310 A = index_of_current_rival_car
-	ld de,0e0ebh		;7313 DE = 0xE0EB (address of vpos of rival car #00)
+	ret c			;730c ???
+	
+	; HL = &current_moving_object.vpos
+	dec hl			;730d HL = &current_moving_object + 0x08
+	dec hl			;730e HL = &current_moving_object + 0x07
+	dec hl			;730f HL = &current_moving_object + 0x06 (vpos)
+	
+	ld a,(0e0e4h)		;7310 A = moving_object_idx
+	ld de,0e0ebh		;7313 DE = &moving_object_00.vpos
 	or a			;7316
-	jr nz,$+4		;7317 if (nz) jump to 0x731B
-	ld e,0fbh		;7319 DE = 0xE0FB (address of vpos of rival car #01)
+	jr nz,$+4		;7317 if (moving_object_idx == 0x01) jump to 0x731B
+	ld e,0fbh		;7319 DE = &moving_object_01.vpos
 	
 	; We can get here from:
-	;   0x7317 (jump) DE == 0xE0EB (address of vpos of rival car #00)
-	;   0x7319 (fall) DE == 0xE0FB (address of vpos of rival car #01)
-	ld a,(de)		;731b A = vpos of current rival car
-	sub (hl)		;731c
-	sub 010h		;731d A -= 0x10
-	add a,020h		;731f A += 0x20
+	;   0x7317 (jump) moving_object_idx == 0x01, DE == &moving_object_00.vpos
+	;   0x7319 (fall) moving_object_idx == 0x00, DE == &moving_object_01.vpos
+	; 
+	; Let's call DE '&other_moving_object'.
+	ld a,(de)		;731b A = other_moving_object.vpos
+	sub (hl)		;731c A = other_moving_object.vpos - current_moving_object.vpos
+	sub 010h		;731d A = other_moving_object.vpos - current_moving_object.vpos - 0x10
+	add a,020h		;731f A = other_moving_object.vpos - current_moving_object.vpos - 0x10 + 0x20
 	ret nc			;7321
-	inc hl			;7322
-	inc hl			;7323
-	inc de			;7324
-	inc de			;7325
-	ld a,(de)		;7326
-	sub (hl)		;7327 A -= *(HL)
-	sub 00ah		;7328 A -= 0x0A
-	add a,014h		;732a A += 0x13
+	
+	inc hl			;7322 HL = &current_moving_object + 0x07
+	inc hl			;7323 HL = &current_moving_object + 0x08 (hpos)
+	inc de			;7324 DE = &other_moving_object + 0x07
+	inc de			;7325 DE = &other_moving_object + 0x08 (hpos)
+	ld a,(de)		;7326 A = other_moving_object.hpos
+	sub (hl)		;7327 A = other_moving_object.hpos - current_moving_object.hpos
+	sub 00ah		;7328 A = other_moving_object.hpos - current_moving_object.hpos - 0x0A
+	add a,014h		;732a A = other_moving_object.hpos - current_moving_object.hpos - 0x0A + 0x14
 	ret nc			;732c
-	ld a,(de)		;732d
-	sub (hl)		;732e A -= *(HL) and update C/NC flag.
+	
+	ld a,(de)		;732d A = other_moving_object.hpos
+	sub (hl)		;732e A = other_moving_object.hpos - current_moving_object.hpos
 	ld a,001h		;732f A = 0x01
-	jr c,$+3		;7331 if (c) jump to 0x7334
+	jr c,$+3		;7331 if (other_moving_object.hpos < current_moving_object.hpos) jump to 0x7334
 	xor a			;7333 A = 0x00
 	
 	; We can get here from:
@@ -18626,22 +18949,24 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ex de,hl		;7334
 	ld bc,0fff9h		;7335 BC = 0xFFF9
 	add hl,bc		;7338 HL -= 7
-	call 07352h		;7339 7352_update_bounce_something
+	call 07352h		;7339 7352_update_bounce_something, can increase A
 	ret z			;733c
-	dec a			;733d
-	ld hl,(0e0bfh)		;733e
-	inc hl			;7341
-	ld (hl),002h		;7342
+	
+	dec a			;733d --A
+	ld hl,(0e0bfh)		;733e HL = &current_moving_object
+	inc hl			;7341 HL = &current_moving_object.state
+	ld (hl),002h		;7342 current_moving_object.state = 0x02 (?collision?)
 	xor 001h		;7344 A ^= 0x01, flip bit 0
 
-	push af			;7346 ?why?
+	push af			;7346 Store A. Restore at 0x734C.
 	ld c,00eh		;7347 C = 0x0E
-	call 072f6h		;7349 72f6_set_A_to_current_rival_car_index_C
-	pop af			;734c ?why?
+	call 072f6h		;7349 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
+	pop af			;734c A in [0xFF,0x00]
 
-	ld (hl),a		;734d
-	inc hl			;734e
-	ld (hl),010h		;734f
+	ld (hl),a		;734d current_moving_object.0E = A
+	inc hl			;734e HL = &current_moving_object + 0x0F
+	ld (hl),010h		;734f current_moving_object.0F = 0x10
+	
 	ret			;7351
 
 
@@ -20251,13 +20576,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x5230 (call)
+;   0x5230 (call) [from=5224_handle_race_substate]
 7755_handle_grabbed_fuel_heart_state:
-	ld a,(0e0b8h)		;7755 A = *(0xE0B8)
+	ld a,(0e0b8h)		;7755 A = fuel_heart_state
 	dec a			;7758 --A
-	jr z,$+6		;7759 if (*(0xE0B8) == 1) jump to 0x775F (775f_grabbed_fuel_heart)
+	jr z,$+6		;7759 if (fuel_heart_state == 1) jump to 0x775F (775f_grabbed_fuel_heart)
 	dec a			;775b --A
-	jr z,$+58		;775c if (*(0xE0B8) == 2) jump to 0x7796 (7796_set_sprite_attributes_for_bonus_score_and_decrement_the_show_timer)
+	jr z,$+58		;775c if (fuel_heart_state == 2) jump to 0x7796 (7796_set_sprite_attributes_for_bonus_score_and_decrement_the_show_timer)
 	ret			;775e
 
 

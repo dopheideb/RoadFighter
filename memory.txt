@@ -240,7 +240,10 @@ This table was generated with:
 			 0x60 | 0x20+0x40 | Bit 5+6  | Player is playing at level B.
 			------+-----------+----------+------------------------------
 0xE003		[&game_state_ticker]
-		Game state ticker, increments
+		Game state ticker.
+		
+		Increments every frame, see:
+			0x4085 [from=4082_increment_ticker__read_input__jump_to_state_handler,4013_H_KEYINT_hook]
 	
 0xE004		[&game_state_bits_or_counter_or_timer]
 		State related bits or state related counter/timer.
@@ -352,7 +355,7 @@ This table was generated with:
 		
 		0x05  0x05 (2 channels) [0x4DEA] Sound of yellow traffic light (player must wait for green)
 		0x07  0x07 (2 channels) [0x4DEE] Sound of start (green traffic light in stage 1, just start in any other stage)
-		0x09  0x09 (2 channels) [0x4DF2] Weird intermittent sound during a level
+		0x09  0x09 (2 channels) [0x4DF2] Sound when regular blue car is near player's car.
 		0x0A  0x0A (2 channels) [0x4DF4] ??? Seen at 0x4CA4
 		0x0B  0x0B (2 channels) [0x4DF6] ??? Seen at 0x6C4A
 		0x0D  0x0D (2 channels) [0x4DFA] Skidding. Player bounced a car, but car is still controllable.
@@ -397,7 +400,8 @@ This table was generated with:
 0xE038		Seen at 0x4C57, 0x6C74
 0xE039		Seen at 0x46C1
 0xE03A		Seen at 0x43C6
-0xE03B		Level
+0xE03B		[&level]
+		Level
 			0x00: Level A
 			0x01: Level B
 0xE03C		[&bcd_score__tens_and_units]
@@ -434,17 +438,17 @@ This table was generated with:
 
 0xE049-0xE053	Car data. Initial values are at 0x5219.
 0xE049		[&car_state]
-			0x00 All okay
-			0x01 CAR_STATE_CRASHED Crashed
-			0x02 Out of fuel (but with speed)
-			0x03 Reached checkpoint, see 0x5265
-			0x04 Skidding (player can escape this by steering in correct direction)
-			0x05 Bounced against side of the road. (Not crashed since speed is too low.)
-			0x06 Respawn after crash.
-			0x07 Spinning (speed below threshold stops the spinning)
+			0x00 CAR_STATE_NOTHING_SPECIAL		All okay.
+			0x01 CAR_STATE_CRASHED			Crashed.
+			0x02 CAR_STATE_OUT_OF_FUEL_WITH_SPEED	Out of fuel (but with speed).
+			0x03 CAR_STATE_REACHED_CHECKPOINT	Reached checkpoint, see 0x5265.
+			0x04 CAR_STATE_SKIDDING			Skidding (player can escape this by steering in correct direction).
+			0x05 CAR_STATE_ROAD_BOUNCE		Bounced against side of the road. (Not crashed since speed is too low.)
+			0x06 CAR_STATE_RESPAWN			Respawn after crash.
+			0x07 CAR_STATE_SPINNING			Spinning (speed below threshold stops the spinning).
 0xE04A		[&car_substate]
 			0x0C ??? Seen at 0x6F18
-0xE04B-0xE04C	Car: vertical position
+0xE04B-0xE04C	[&car_vpos_word] Car: vertical position
 0xE04B		Car: vertical position: "decimals"
 			The word at 0xE04B is increased, and the high 
 			byte is used as the vertical position.
@@ -470,7 +474,8 @@ This table was generated with:
 0xE051		?Also car speed?
 		Seen at 0x6DEF, 0x73AA
 0xE052		?
-0xE053		Seen at 0x6E20. Sprite pattern ID. Car orientation:
+0xE053		[&car_sprite_pattern]
+		Seen at 0x6E20. Sprite pattern ID. Car orientation:
 			0x00 North
 			0x01 North/east
 			0x02 East
@@ -635,13 +640,16 @@ This table was generated with:
 		0x557D: set value to 0x7C85 (0x4092 or 0x9240)
 		0x56C6: set value to 0x7FE4 (0x0000)
 0xE092 (word)	Seen at 0x512E. Stage 5 specific!
-0xE098-0xE0AF	Table of 0x18 (24) bytes, keeps of (derivative of) left side of road
-                        Val |Remarks                       | Wanted hpos
-			----+------------------------------+----------
-			0x10 Utmost left                    0x3A (58)
-			0x20 Value at start of stage 1      0x5A (90)
-			0x2C Utmost right (seen in stage 2) 0x72 (114)
-0xE098		Entry #00
+0xE098-0xE0AF	[&left_side_of_road_ish_table]
+		Value seems to count from the first scenery pixel (i.e. hpos 8). But not per 1 pixel, not per character, but per 2 pixels.
+		Table of 0x18 (24) bytes, keeps of (derivative of) left side of road
+			See 0x6FA3 to 0x6FAD.
+                        Val  | Remarks                        | >> 2 << 3 | +0x10 | +0x18 | +0x1C | +0x20 | +0x28
+			-----+--------------------------------+-----------+-------+-------+-------+-------+------
+			0x10 | Utmost left                    | 0x20      | 0x30  | 0x38  | 0x3C  | 0x40  | 0x48
+			0x20 | Value at start of stage 1      | 0x40      | 0x50  | 0x58  | 0x5C  | 0x60  | 0x68
+			0x2C | Utmost right (seen in stage 2) | 0x58      | 0x68  | 0x70  | 0x74  | 0x78  | 0x80
+0xE098		Entry #00 Top/first line of the screen
 0xE099		Entry #01
 0xE09A		Entry #02
 0xE09B		Entry #03
@@ -664,7 +672,7 @@ This table was generated with:
 0xE0AC		Entry #14
 0xE0AD		Entry #15
 0xE0AE		Entry #16
-0xE0AF		Entry #17
+0xE0AF		Entry #17 Bottom/last line of the screen.
 
 
 		Seen at 0x6DD1, 0x7102. ?table, 1 byte per element, with (max) 32 elements?
@@ -694,40 +702,40 @@ This table was generated with:
 			0x03: Worth 800 points.
 			>= 0x04: Worth 1000 points.
 0xE0BA		Seen at 0x7796, ?Ticks remaining for playing fuel heart sound?
-0xE0BD (word)	Seen at 0x7020.
-			0x7020 Load
-			0x7024 Store
-			0x703A Store
-		
-		Pointer to data.
-		?Incremented when 0xE0C1 == 0?
+0xE0BD (word)	[&&current_moving_object_initial_data__idx]
+		Points to an element of 0x537D.
+			0x537D+0x00-0x0F: Stage #01
+			0x538D+0x00-0x0F: Stage #02
+			0x539D+0x00-0x0F: Stage #03
+			0x53AD+0x00-0x0F: Stage #04
+			0x53BD+0x00-0x0F: Stage #05
+			0x53CD+0x00-0x0F: Stage #06
 
-		Values:
-			0x537D At start of stage 1, but only very very briefly.
-			0x537E At start of stage 1.
-			
-			0x538D At start of stage 2, but only very very briefly.
-
-0xE0BF (word)	[&current_moving_object_address]
+0xE0BF (word)	[&&current_moving_object]
 		The address of the current moving object.
 		Typical values:
 			0xE0E5: start address of moving object #00
 			0xE0F5: start address of moving object #01
 			?0xE105: start address of moving object #02 (oil drum)?
 
-0xE0C1		Seen at 0x51E5 (init), 0x6F2B, 0x7019, 0x7055
+0xE0C1		[&num_initial_moving_objects_on_spare]
+		Seen at 0x51E5 (init), 0x6F2B, 0x7019, 0x7055
 		??Number of moving objects on spare??
 		Values:
 			0x02 Stored at 0x7058
-0xE0C2		Seen at 0x6F31
+0xE0C2		[&initial_moving_object_loop_counter]
+		Seen at 0x6F311
 		Values:
 			0x00 Stored at 0x705D
-0xE0C3-0xE0D2	Seen at 0x6F3C
+			0x02 Tested at 0x70A5
+0xE0C3-0xE0D2	[&initial_moving_object_00]
+		Initial values of moving object #00
+		Seen at 0x6F3C
 		Whole 16 bytes are copied to 0xE0E5 at 0x6FF4.
 0xE0C3		#00
 0xE0C4		#01 0x01 (set at 0x7066)
 0xE0C5		#02
-0xE0C6		#03 Level A: 2 times value 0x5312/0x5315/0x5318, level B: just the value.
+0xE0C6		#03 [wait_ticks] Level A: 2 times value 0x5312/0x5315/0x5318, level B: just the value.
 0xE0C7		#04 Value of 0x5313/0x5316/0x5319/... (value of third element)
 0xE0C8		#05
 0xE0C9		#06
@@ -740,8 +748,11 @@ This table was generated with:
 0xE0D0		#0D
 0xE0D1		#0E
 0xE0D2		#0F
-0xE0D3-0xE0E2	Seen as value in 0xE0BF
+0xE0D3-0xE0E2	[&initial_moving_object_01]
+		?Initial values of moving object #01?
+		Seen as value in 0xE0BF
 		Whole 16 bytes are copied to 0xE0F5 at 0x6FF4.
+
 0xE0E3		Seen at 0x6EE3, bonus fuel heart related
 0xE0E4		[&moving_object_idx]
 		Seen at 0x7298, 0x70AC.
@@ -758,15 +769,15 @@ This table was generated with:
 0xE0E5-0xE0F4	[&moving_object_00]
 		Moving object #00 (16 bytes)
 		0xE0E5 +0 [type] Type of moving object
-			0x00: Green car
-			0x01: Blue car (regular)
-			0x02: Blue car (overtaking player)
-			0x03: Purple car
-			0x04: Redneck hot rodder (regular, not used)
-			0x05: Redneck hot rodder
-			0x06: Truck (a.k.a. 18-wheeler), no oil drum
-			0x07: Truck (a.k.a. 18-wheeler), with spinning oil drum
-			0x08: Bonus fuel heart
+			0x00: ML__GREEN_CAR		Green car
+			0x01: MO__BLUE_CAR__REGULAR	Blue car (regular)
+			0x02: MO__BLUE_CAR__SPEEDING	Blue car (overtaking player)
+			0x03: MO__PURPLE_CAR		Purple car
+			0x04: MO__REDNECK_HOT_RODDER_X	Redneck hot rodder (regular, not used)
+			0x05: MO__REDNECK_HOT_RODDER	Redneck hot rodder
+			0x06: MO__TRUCK__NO_OIL_DRUM	Truck (a.k.a. 18-wheeler), no oil drum
+			0x07: MO__TRUCK__WITH_OIL_DRUM	Truck (a.k.a. 18-wheeler), with spinning oil drum
+			0x08: MO__BONUS_FUEL_HEART	Bonus fuel heart
 		0xE0E6 +1 [state]
 			0x00: This is NOT a VISIBLE moving object. I.e. don't draw it.
 			0x01: Moving object is visible in screen.
@@ -784,13 +795,14 @@ This table was generated with:
 			0x07: ? Set by 0x7207.
 		0xE0E7 +2 ?
 		0xE0E8 +3 Space between objects? See 0x706D
-		0xE0E9 +4 0x28: ?
+		0xE0E9 +4 [hpos_offset] Offset from left side of track
 		0xE0EA +5 Vertical position on screen, "decimals"
-		0xE0EB +6 Vertical position on screen
+		0xE0EB +6 [vpos] Vertical position on screen
 		0xE0EC +7 ?
-		0xE0ED +8 Horizontal position on screen
-		0xE0EE +9 ?
-		0xE0EF +A ?
+		0xE0ED +8 [hpos] Horizontal position on screen
+		0xE0EE +9 (word) [?delta_vpos_per_frame?]
+			0xE0EF +9 [?delta_vpos_lo_byte?]
+			0xE0EF +A [?delta_vpos_hi_byte?]
 		0xE0F0 +B ?
 		0xE0F1 +C 0x03: ?
 		0xE0F2 +D ?
@@ -801,8 +813,10 @@ This table was generated with:
 			0x00 Player is left  of purple car
 			0x01 Player is right of purple car (or equal hpos)
 
-		0xE0F4 +F
+		0xE0F4 +F [state_02__timer]
+			0x00: Seen at 0x713E
 			0x0C: Seen at 0x7367
+			0x10: Seen at 0x734F
 			0x20: Seen at 0x7198 (716d_purple_car_something)
 0xE0F5-0xE104	[&moving_object_01]
 		Moving object #01 (16 bytes)
