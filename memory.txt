@@ -490,7 +490,8 @@ This table was generated with:
 
 
 
-0xE054		Car state #04: Skid turning direction.
+0xE054		[&car_04_skid_turning_direction_or_07_spinning_orientation]
+		Car state #04: Skid turning direction.
 			0x00 Counter clockwise, must steer right to stop skidding. Moving sideways to the RIGHT.
 			0x01 Clockwise, must steer left to stop skidding. Moving sideways to the LEFT.
 		Car state #07: Orientation of car:
@@ -644,11 +645,12 @@ This table was generated with:
 		Value seems to count from the first scenery pixel (i.e. hpos 8). But not per 1 pixel, not per character, but per 2 pixels.
 		Table of 0x18 (24) bytes, keeps of (derivative of) left side of road
 			See 0x6FA3 to 0x6FAD.
-                        Val  | Remarks                        | >> 2 << 3 | +0x10 | +0x18 | +0x1C | +0x20 | +0x28
-			-----+--------------------------------+-----------+-------+-------+-------+-------+------
-			0x10 | Utmost left                    | 0x20      | 0x30  | 0x38  | 0x3C  | 0x40  | 0x48
-			0x20 | Value at start of stage 1      | 0x40      | 0x50  | 0x58  | 0x5C  | 0x60  | 0x68
-			0x2C | Utmost right (seen in stage 2) | 0x58      | 0x68  | 0x70  | 0x74  | 0x78  | 0x80
+                        Val        | Remarks                        | >> 2 << 3 | +0x10 | +0x18 | +0x1C | +0x20 | +0x28
+			-----------+--------------------------------+-----------+-------+-------+-------+-------+------
+			0x10..0x13 | Utmost left                    | 0x20      | 0x30  | 0x38  | 0x3C  | 0x40  | 0x48
+			0x14..0x17 | (none)                         | 0x28      | 0x38  | 0x40  | 0x44  | 0x48  | 0x50
+			0x20       | Value at start of stage 1      | 0x40      | 0x50  | 0x58  | 0x5C  | 0x60  | 0x68
+			0x2C       | Utmost right (seen in stage 2) | 0x58      | 0x68  | 0x70  | 0x74  | 0x78  | 0x80
 0xE098		Entry #00 Top/first line of the screen
 0xE099		Entry #01
 0xE09A		Entry #02
@@ -761,7 +763,7 @@ This table was generated with:
 			0x01 means 0xE0F5-0xE104
 			0x02 means 0xE105-0xE10D???
 			0x03 means all moving object are handled, see 0x6F0F.
-0xE0E5-0xE104	[moving_object_table]
+0xE0E5-0xE104	[&moving_object_table]
 		Number of element: 3
 		Size of element #00: 16 bytes
 		Size of element #01: 16 bytes
@@ -769,7 +771,7 @@ This table was generated with:
 0xE0E5-0xE0F4	[&moving_object_00]
 		Moving object #00 (16 bytes)
 		0xE0E5 +0 [type] Type of moving object
-			0x00: ML__GREEN_CAR		Green car
+			0x00: MO__GREEN_CAR		Green car
 			0x01: MO__BLUE_CAR__REGULAR	Blue car (regular)
 			0x02: MO__BLUE_CAR__SPEEDING	Blue car (overtaking player)
 			0x03: MO__PURPLE_CAR		Purple car
@@ -779,7 +781,7 @@ This table was generated with:
 			0x07: MO__TRUCK__WITH_OIL_DRUM	Truck (a.k.a. 18-wheeler), with spinning oil drum
 			0x08: MO__BONUS_FUEL_HEART	Bonus fuel heart
 		0xE0E6 +1 [state]
-			0x00: This is NOT a VISIBLE moving object. I.e. don't draw it.
+			0x00: MO_STATE__INVISIBLE	This is NOT a VISIBLE moving object. I.e. don't draw it.
 			0x01: Moving object is visible in screen.
 			0x02: Colliding with other object. See 0x735F.
 			0x03: Not observed by these debug commands:
@@ -817,7 +819,10 @@ This table was generated with:
 			0x00: Seen at 0x713E
 			0x0C: Seen at 0x7367
 			0x10: Seen at 0x734F
-			0x20: Seen at 0x7198 (716d_purple_car_something)
+			
+			State #05:
+				0x20: Seen at 0x7198 (716d_purple_car_something)
+			
 0xE0F5-0xE104	[&moving_object_01]
 		Moving object #01 (16 bytes)
 		0xE0F5 +0 See 0xE0E5

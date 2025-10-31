@@ -7703,7 +7703,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x56FC (jump) *(0xE07A) != 0xFE (call to 0x50BF is SKIPPED)
 	;   0x56FE (fall) *(0xE07A) == 0xFE (call to 0x50BF is DONE)
-	call 0590eh		;5701 590e_fixme
+	call 0590eh		;5701 590e_update_left_side_of_the_road
 
 	ld a,(0e07ah)		;5704 A = *(0xE07A)
 	and 00fh		;5707 A &= 0x0F (extract low nybble)
@@ -7821,7 +7821,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x584B (call)
+;   0x584B (call) [from=5810_fixme
 5784_copy_track_something:
 	; Copy left border of track.
 	ldi			;5784 *(DE++) = *(HL++), --BC
@@ -8182,13 +8182,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x5701 (call)
-590e_fixme:
+;   0x5701 (call) [from=56f7_fixme]
+590e_update_left_side_of_the_road:
 	; The left side of the road changes, so copy current values 
 	; "downwards" in time, i.e.:
 	;   *(0xE0AE) -->copy to--> (0xE0AF)
 	;   (...)
-	;   *(0xE099) -->copy to--> (0xE098)
+	;   *(0xE098) -->copy to--> (0xE099)
 	ld hl,0e0aeh		;590e LDDR: source
 	ld de,0e0afh		;5911 LDDR: destination
 	ld bc,00017h		;5914 LDDR: count (0x18)
@@ -8246,7 +8246,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x553A (call)
+;   0x553A (call) [from=553a_post_routine_for_all_stages_something]
 5944_if_finish_in_sight_then_write_checkpoint_or_goal_to_RAM_buffer:
 	ld hl,(0e078h)		;5944 HL = distance travelled (high+mid byte)
 	ld bc,00f09h		;5947 DE = distance where checkpoint/goal is
@@ -15980,8 +15980,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x419B (call)
-;   0x42D9 (call)
+;   0x419B (call) [from=4197_game_state_03_substate_03]
+;   0x42D9 (call) [from=4294_game_state_04_substate_06]
 68aa_push_much_stuff_to_VRAM:
 	ld de,05dech		;68aa DE = 0x5DEC, pattern source
 	ld hl,02200h		;68ad HL = 0x2200, VRAM destination
@@ -16286,7 +16286,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;6a7b HL = car_state (0xE049)
 	ld a,(hl)		;6a7c A = car_state
 	call 04045h		;6a7d PC = PC[2 * A]
-	defw 0x6A90		;6a80 #00: 6a90_car_state_00__all_okay
+	defw 0x6A90		;6a80 #00: 6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining
 	defw 0x6ABB		;6a82 #01: 6abb_car_state_01__crashed
 	defw 0x6B05		;6a84 #02: 6b05_car_state_02__no_fuel_remaining
 	defw 0x6B5E		;6a86 #03: 6b5e_car_state_03__reached_checkpoint
@@ -16296,41 +16296,56 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defw 0x6C3A		;6a8e #07: 6c3a_car_state_07__spinning, recoverable by lowering speed
 
 
-
+C
 ; We can get here from:
 ;   0x6A7D (jump table entry #00) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 ;   0x6B0C (call)                 [from=6b05_car_state_02__no_fuel_remaining]
-6a90_car_state_00__all_okay:
+6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining:
 	call 06cd1h		;6a90 6cd1_side_bounce_checker_and_actioner
-	ld a,(0e055h)		;6a93
+	
+	; ?Something with left/right keys?
+	;
+	; C = (*(0xE055) * 4) & (0x08 | 0x04)
+	ld a,(0e055h)		;6a93 A = *(0xE055)
 	add a,a			;6a96 A *= 2
 	add a,a			;6a97 A *= 2
 	and 00ch		;6a98 A &= 0x0C
 	ld c,a			;6a9a C = A
+	
 	ld a,(0e009h)		;6a9b A = *(0xE009)
-	and 00ch		;6a9e
-	and c			;6aa0
+	and 00ch		;6a9e A &= 0x0C (keep left+right keys)
+	and c			;6aa0 A &= C
+	
 	call nz,06dech		;6aa1 6dec_fixme
-	ld a,(0e002h)		;6aa4
-	bit 6,a			;6aa7
-	jr z,$+11		;6aa9 if (z) jump to 0x6AB4
-	ld a,(0e010h)		;6aab
+	
+	ld a,(0e002h)		;6aa4 A = game_bits
+	bit 6,a			;6aa7 Test if player is playing.
+	jr z,$+11		;6aa9 if (game_bits & GAME_BITS__IS_PLAYING) jump to 0x6AB4
+	; Post: This is a demo, player is not playing.
+	;
+	ld a,(0e010h)		;6aab A = ?sound_duration_left?
 	or a			;6aae
-	ld a,001h		;6aaf
+	ld a,001h		;6aaf A = 0x01 (the sound of silence)
 	call z,04b6eh		;6ab1 4b6e_sound_something_with_D_is_0
+	; Fall to 6ab4_set_car_orientation_to_0.
+
+
 
 ; We can get here from:
-;   0x6AB1 (fall)
+;   0x6AA9 (jump) [from=6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining]
+;   0x6AB1 (fall) [from=6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining
 ;   0x6B6A (call) [from=6b5e_car_state_03__reached_checkpoint]
 6ab4_set_car_orientation_to_0:
-	xor a			;6ab4 A = 0
+	xor a			;6ab4 A = 0x00
 
 ; We can get here from:
-;   0x6AB4 (fall) A == 0x00, from car state #00 (all okay), or #02 (no fuel remaining)
-;   0x6AD4 (jump) A == 0x09, from car state #01 (crashed)
-;   0x6ADD (jump) A == 0x08, from car state #01 (crashed)
-;   0x6BDF (jump) A == 0x00, from car state #04 (skidding, just recovered)
-;   0x6C5A (call) A == ????, from car state #07 (spinning)
+;   0x6AB4 (fall) [from=6ab4_set_car_orientation_to_0,6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining] A == 0x00, from car state #00 (all okay)
+;   0x6AB4 (fall) [from=6ab4_set_car_orientation_to_0,6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining] A == 0x00, from car state #02 (no fuel remaining)
+;   0x6AB4 (fall) [from=6ab4_set_car_orientation_to_0,6b5e_car_state_03__reached_checkpoint]                                   A == 0x00, from car state #03 (reached checkpoint)
+;   0x6AD4 (jump) [from=6abb_car_state_01__crashed]                                                                            A == 0x09, from car state #01 (crashed)
+;   0x6ADD (jump) [from=6abb_car_state_01__crashed]                                                                            A == 0x08, from car state #01 (crashed)
+;   0x6BDF (jump) [from=6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00]                                               A == 0x00, from car state #04 (skidding, just recovered)
+;   0x6C5A (call) [from=6c3a_car_state_07__spinning]                                                                           A == ????, from car state #07 (spinning)
 6ab5_set_car_orientation_to_regA:
 	ld (0e053h),a		;6ab5
 	jp 06e1dh		;6ab8 6e1d_store_car_sprite_attributes
@@ -16427,7 +16442,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jp nz,06c2ch		;6b09 if (fuel_remainig) jump to 0x6C2C (6c2c_set_car_state_to_00)
 	; Post: no fuel remaining.
 
-	call 06a90h		;6b0c 6a90_car_state_00__all_okay
+	call 06a90h		;6b0c 6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining
 	ld hl,e04fh_speed	;6b0f 
 	ld a,(hl)		;6b12 A = speed
 	
@@ -16612,21 +16627,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr z,$+7		;6bd1 if (*(0xE054) == 0) jump to 0x6BD8 (6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00)
 	
 	; Skidding north-east. Recoverable by pressing to the left.
-	and 004h		;6bd3 A &= 0x04
+	and 004h		;6bd3 A &= 0x04 and update Z/NZ flag.
 	ret z			;6bd5 if (not pressed left) return
 	jr $+5			;6bd6 Jump to 0x6BDB (6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00)
 	
 	; We can get here from:
 	;   0x6BD1 (jump) Skidding north-west. Recoverable by pressing to the right.
-	and 008h		;6bd8
+	and 008h		;6bd8 A &= 0x08 and update Z/NZ flag.
 	ret z			;6bda if (not pressed right) return
 
 
 	                 
 ; We can get here from:
-;   0x6BD6 (jump) Recovered from skidding, north-east.
-;   0x6BDA (fall) Recovered from skidding, north-west.
-;   0x6EE7 (call)
+;   0x6BD6 (jump) [from=6b90_car_state_04__skidding] Recovered from skidding, north-east.
+;   0x6BDA (fall) [from=6b90_car_state_04__skidding] Recovered from skidding, north-west.
+;   0x6EE7 (call) [from=6e54_handling_moving_objects_something]
 6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00:
 	xor a			;6bdb Car state #00: All okay, nothing special.
 	ld (e049_car_state),a	;6bdc Save car state.
@@ -16745,37 +16760,55 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x6A7D (jump table entry #07) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 6c3a_car_state_07__spinning:
 	call 06be2h		;6c3a 6be2_car_is_skidding_or_spinning
-	ld a,(0e003h)		;6c3d
-	and 003h		;6c40
-	ld hl,0e0b1h		;6c42
-	jr nz,$+18		;6c45 if (nz) jump to 0x6C57
+	
+	; A = game_state_ticker & 0x03
+	ld a,(0e003h)		;6c3d A = game_state_ticker
+	and 003h		;6c40 A = game_state_ticker & 0x03
+	
+	ld hl,0e0b1h		;6c42 HL = &skid_ticks_remaining
+	jr nz,$+18		;6c45 if (game_state_ticker & 0x03 != 0x00) jump to 0x6C57
+	
+	; Play sound of ???spinning???.
 	push hl			;6c47
-	ld a,00bh		;6c48 A = 0x0B
-	call 04b6eh		;6c4a 4b6e_sound_something_with_D_is_0
-	pop hl			;6c4d
-	ld a,(0e054h)		;6c4e
-	dec (hl)		;6c51
-	or a			;6c52
-	jr z,$+4		;6c53 if (z) jump to 0x6C57
-	inc (hl)		;6c55
-	inc (hl)		;6c56
-	ld a,(hl)		;6c57
-	and 007h		;6c58
+		ld a,00bh	;6c48 A = 0x0B
+		call 04b6eh	;6c4a 4b6e_sound_something_with_D_is_0
+	pop hl			;6c4d HL = &skid_ticks_remaining
+	
+	ld a,(0e054h)		;6c4e A = car_04_skid_turning_direction_or_07_spinning_orientation
+	dec (hl)		;6c51 --skid_ticks_remaining
+	or a			;6c52 Test car orientation
+	jr z,$+4		;6c53 if (car_04_skid_turning_direction_or_07_spinning_orientation == 0) jump to 0x6C57
+	inc (hl)		;6c55 ++skid_ticks_remaining
+	inc (hl)		;6c56 ++skid_ticks_remaining
+	
+	; We can get here from:
+	;   0x6C45 (jump) [from=self] HL == &skid_ticks_remaining, game_state_ticker & 0x03 != 0x00
+	;   0x6C53 (jump) [from=self] HL == &skid_ticks_remaining, facing north
+	;   0x6C56 (fall) [from=self] HL == &skid_ticks_remaining
+	ld a,(hl)		;6c57 A = skid_ticks_remaining
+	and 007h		;6c58 A = skid_ticks_remaining & 0x07
 	call 06ab5h		;6c5a 6ab5_set_car_orientation_to_regA
 	ld hl,0e04ch		;6c5d HL = &car_vpos
 	call 06dc1h		;6c60 6dc1_fixme
 	ret nc			;6c63
-	jp 06f18h		;6c64 6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge
-	call 6c89_Z_if_car_s127	;6c67
 	
-	; We can get here from:
-	;   0x6C67 (fall)
-	;   0x6CAA (jump)
-	ret z			;6c6a
-	ld hl,e04fh_speed	;6c6b
-	ld a,(hl)		;6c6e A = speed
-	and a			;6c6f Set flags
-	ret z			;6c70 if (speed == 0) return
+	; Crashed.
+	jp 06f18h		;6c64 6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge
+	call 06c89h		;6c67 6c89_Z_if_car_state_01_or_02_or_07_else_NZ
+	; Fall to 6c6a_fixme.
+
+
+
+; We can get here from:
+;   0x6C67 (fall) [from=6c3a_car_state_07__spinning]
+;   0x6CAA (jump) [from=6ca1_fixme]
+6c6a_fixme:
+	ret z			;6c6a if (car_state in [CAR_STATE_CRASHED, CAR_STATE_OUT_OF_FUEL_WITH_SPEED, CAR_STATE_SPINNING]) return
+	
+	ld hl,0e04fh		;6c6b HL = &car_speed
+	ld a,(hl)		;6c6e A = car_speed
+	and a			;6c6f Update Z/NZ flag.
+	ret z			;6c70 if (car_speed == 0) return
 	dec a			;6c71 Decrease speed
 	ld (hl),a		;6c72 Store speed
 	; Fall to 6c73_fixme.
@@ -16783,40 +16816,43 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get from:
-;   0x6B19 (jump)
-;   0x6C72 (fall)
+;   0x6B19 (jump) [from=6b05_car_state_02__no_fuel_remaining]
+;   0x6C72 (fall) [from=6c6a_fixme]
 6c73_fixme:
-	xor a			;6c73 A = 0
-	ld (0e038h),a		;6c74
-	ld hl,(e04bh_car_vpos)	;6c77 Load car vertical position
-	ld a,h			;6c7a A = vertical position on screen
-	cp 0f8h			;6c7b
+	xor a			;6c73 A = 0x00
+	ld (0e038h),a		;6c74 ???
+	
+	ld hl,(0e04bh)		;6c77 HL = car_vpos_word
+	ld a,h			;6c7a A = car_vpos
+	cp 0f8h			;6c7b ?Check for leaving top of screen?
 	jp nc,06e1dh		;6c7d if (car_vpos >= 0xF8) jump to 6e1d_store_car_sprite_attributes
-	call 6c93_speed_test	;6c80 Set carry or not, depending on speed.
+	
+	call 06c93h		;6c80 6c93_speed_test. Set carry or not, depending on speed.
 	ret nc			;6c83
-	ld bc,0ffb8h		;6c84 BC = 0xFFB8
-	jr $+67			;6c87 Jump to 0x6CCA
+	
+	ld bc,0ffb8h		;6c84 BC = 0xFFB8 (-0x0048)
+	jr $+67			;6c87 Jump to 0x6CCA (6cca_add_BC_to_car_vpos_word_and_jump_to_6e1d_store_car_sprite_attributes)
 
 
 
 ; Set/unset Z flag depending on car state.
 ; 
-; Car state #01: Z flag is set (player crashed)
-; Car state #02: Z flag is set (player has no remaining fuel)
-; Car state #07: Z flag is set (player is spinning out of control)
+; Car state #01: Z flag is set (CAR_STATE_CRASHED)
+; Car state #02: Z flag is set (CAR_STATE_OUT_OF_FUEL_WITH_SPEED)
+; Car state #07: Z flag is set (CAR_STATE_SPINNING)
 ;
-; Car state #00: Z flag is UNset
-; Car state #03: Z flag is UNset
-; Car state #04: Z flag is UNset
-; Car state #05: Z flag is UNset
-; Car state #06: Z flag is UNset
-6c89_Z_if_car_s127:
-	ld a,(e049_car_state)	;6c89 A = car_state
-	dec a			;6c8c
-	ret z			;6c8d if (car_state == 1) return
-	dec a			;6c8e
-	ret z			;6c8f if (car_state == 2) return
-	cp 005h			;6c90
+; Car state #00: NZ
+; Car state #03: NZ
+; Car state #04: NZ
+; Car state #05: NZ
+; Car state #06: NZ
+6c89_Z_if_car_state_01_or_02_or_07_else_NZ:
+	ld a,(0e049h)		;6c89 A = car_state
+	dec a			;6c8c --A and update Z/NZ flag.
+	ret z			;6c8d if (car_state == CAR_STATE_CRASHED) return
+	dec a			;6c8e --A and update Z/NZ flag.
+	ret z			;6c8f if (car_state == CAR_STATE_OUT_OF_FUEL_WITH_SPEED) return
+	cp 005h			;6c90 Compute A - 0x05 and update Z/NZ flag.
 	ret			;6c92
 
 
@@ -16828,14 +16864,16 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; 0x50 <= Speed <  0x7E: carry flag NOT set (NC)
 ; 0x7E <= Speed        : carry flag set     (C ) ?HIGH GEAR?
 6c93_speed_test:
-	ld a,(e04fh_speed)	;6c93 A = speed	
+	ld a,(0e04fh)		;6c93 A = car_speed	
 	cp 018h			;6c96 carry flag = A <  0x18, no carry flag if A >= 0x18
 	ccf			;6c98 carry flag = A >= 0x18, no carry flag if A <  0x18
-	ret nc			;6c99 if (speed < 0x18) return
+	ret nc			;6c99 if (car_speed < 0x18) return
+	
 	cp 050h			;6c9a
-	ret c			;6c9c if (speed < 0x50) return
+	ret c			;6c9c if (car_speed < 0x50) return
 	cp 07eh			;6c9d carry flag = A <  0x7E, no carry flag if A >= 0x7E
 	ccf			;6c9f carry flag = A >= 0x7E, no carry flag if A <  0x7E
+	
 	ret			;6ca0
 
 
@@ -16844,9 +16882,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x5248 (call) [from=5224_handle_race_substate]
 ;   0x5283 (call) [from=527d_fixme]
 6ca1_fixme:
-	call 6c89_Z_if_car_s127	;6ca1
-	ret z			;6ca4
-	; Car is driveable.
+	call 06c89h		;6ca1 6c89_Z_if_car_state_01_or_02_or_07_else_NZ
+	ret z			;6ca4 if (car_state in [CAR_STATE_CRASHED, CAR_STATE_OUT_OF_FUEL_WITH_SPEED, CAR_STATE_SPINNING]) return
+	
+	; Car is steerable.
 	ld a,(0e009h)		;6ca5 Load pressed keys
 	and 010h		;6ca8 Check if space/trigger 1 is pressed.
 	
@@ -16872,30 +16911,41 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 6c93_speed_test	;6cc3
 	ret nc			;6cc6
 	ld bc,00048h		;6cc7 BC = 0x0048
+	; Fall to 6cca_add_BC_to_car_vpos_word_and_jump_to_6e1d_store_car_sprite_attributes
+
+
+
+; We can get here from:
+;   0x6C87 (jump) HL == &car_vpos_word, BC == 0xFFB8 (-0x0048)
+;   0x6CC7 (fall) HL == &car_vpos_word, BC == 0x0048 (+0x0048)
+6cca_add_BC_to_car_vpos_word_and_jump_to_6e1d_store_car_sprite_attributes:
 	add hl,bc		;6cca HL += BC
-	ld (e04bh_car_vpos),hl	;6ccb Store car vpos
+	ld (0e04bh),hl		;6ccb car_vpos_word = HL
 	jp 06e1dh		;6cce 6e1d_store_car_sprite_attributes
 
 
 
 ; We can get here from:
-;   0x6A90 (call) [from=6a90_car_state_00__all_okay]
+;   0x6A90 (call) [from=6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining]
 ;   0x6BB3 (call) [from=6b90_car_state_04__skidding]
 6cd1_side_bounce_checker_and_actioner:
-	ld hl,0e04ch_car_vpos	;6cd1
+	ld hl,0e04ch		;6cd1 HL = &car_vpos
 	call 06dc1h		;6cd4 6dc1_fixme
 	ld hl,0e055h		;6cd7 HL = 0xE055
 	ld (hl),0ffh		;6cda
 	ret nc			;6cdc
+	
 	ld (hl),b		;6cdd
 	call 06d09h		;6cde 6d09_fixme
 	ret nc			;6ce1
-	ld hl,00c01h		;6ce2
-	ld (e049_car_state),hl	;6ce5
 	
-	ld a,(e04fh_speed)	;6ce8
-	cp 0a0h			;6ceb
+	ld hl,00c01h		;6ce2 HL = 0x0C01
+	ld (0e049h),hl		;6ce5 car_state = CAR_STATE_CRASHED, car_substate = 0x0C
+	
+	ld a,(0e04fh)		;6ce8 A = car_speed
+	cp 0a0h			;6ceb Compute car_speed - 0xA0 and update C/NC flag
 	jp nc,06d04h		;6ced if (car speed >= 0xA0) jump
+	
 	ld a,005h		;6cf0 A = 0x05
 	ld (e049_car_state),a	;6cf2 Set car state to #05, bounced against side of the road.
 	
@@ -16952,65 +17002,87 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x6DE9 (jump) [from=6dc1_fixme]
+;   0x6DE9 (jump) [from=6dc1_fixme] hpos > ???
 6d2a_fixme:
+	; Note:
+	;   Patterns [0xD0 .. 0xD8]: asphalt
+	;   Patterns [0xD9 .. 0xE0]: side of the road, with asphalt, right side of the road
+	;   Patterns [0xE1 .. 0xE8]: side of the road, with asphalt, left side of the road
+	;   Patterns [0xE9 .. 0xFF]: side of the road, with scenery.
+	;
+	; The moving object is a 16x16 sprite, but the moving objects 
+	; end at width 0x0C (12). To check for a collission with the 
+	; right side of the road, add 0x0C to hpos.
 	ld b,00ch		;6d2a B = 0x0C
-	call 06d8bh		;6d2c 6d8b_fixme
-	ret nc			;6d2f if (asphalt) return
-	
+	call 06d8bh		;6d2c 6d8b_nc_if_hpos_plus_regB_is_asphalt
+	ret nc			;6d2f if (asphalt_only_character) return
+	; Post:
+	;   C == hpos (see 0x6D9F in 6d8b_nc_if_hpos_plus_regB_is_asphalt)
+	;   B not in range [0xD0 .. 0xD8]
+	;
+	; if (no_asphalt_at_all_character) jump
 	ld a,b			;6d30 A = VDP_byte (from 0x6DA5)
-	; XXX: shouldn't it be "cp 0d0h"?
+	; XXX: shouldn't it be "cp 0d0h"?.
 	cp 0cfh			;6d31 Compute A - 0xCF and update C/NC flag.
-	jr c,$+22		;6d33 if (c) jump to 0x6D49
+	jr c,$+22		;6d33 if (A < 0xCF) jump to 0x6D49
 
 	sub 0d9h		;6d35 A -= 0xD9
 	cp 008h			;6d37 Compute A - 0x08 and update C/NC flag.
 	jr nc,$+20		;6d39 if (B < 0xD9 || B > 0xE0) jump to 0x6D4D
-	; Post: 0xD9 <= B <= 0xE0
+	; Post: 0xD9 <= B <= 0xE0: Right side of the road, with asphalt.
 	
+	; We get here if hpos + 0x0C is a character of the right side of 
+	; the road, with at least 1 bar of asphalt on it.
+	;
 	; We can get here from:
-	;   0x6D39 (fall) [from=self]
-	;   0x6D54 (jump) [from=self]
-	ld a,c			;6d3b A = C
+	;   0x6D39 (fall) [from=self] B in [0xD9 .. 0xE0]
+	;   0x6D54 (jump) [from=self] B == 0xE0
+	ld a,c			;6d3b A = hpos (see 0x6D9F in 6d8b_nc_if_hpos_plus_regB_is_asphalt)
 	push af			;6d3c Store A. Restore at 0x6D42.
-		add a,00ch	;6d3d A = C + 0x0C
-		and 0f8h	;6d3f A = (C + 0x0C) & 0xF8 (keep upper 5 bits)
+		add a,00ch	;6d3d A = hpos + 0x0C
+		and 0f8h	;6d3f A = (hpos + 0x0C) & 0xF8 (keep upper 5 bits)
 		ld c,a		;6d41 C = A
 	pop af			;6d42 Restore A. Stored at 0x6D3C.
-	sub c			;6d43 A -= C
+	sub c			;6d43 A = hpos - C
 	add a,b			;6d44 A += B
 	sub 0d4h		;6d45 A -= 0xD4
 	jr c,$+62		;6d47 if (c) jump to 0x6D85 (6d85_set_regB_to_0x00_and_clear_carry_flag_and_return)
 	
 	; We can get here from:
-	;   0x6D47 (fall) [from=self]
+	;   0x6D47 (fall) [from=self] ???
 	;   0x6D50 (jump) [from=self]
 	ld b,001h		;6d49 B = 0x01
 	
 	; We can get here from:
-	;   0x6D33 (jump) [from=self]
-	;   0x6D49 (fall) [from=self]
+	;   0x6D33 (jump) [from=self] B == 0x0C
+	;   0x6D49 (fall) [from=self] B == 0x01
 	jr $+62			;6d4b jump to 0x6D89 (6d89_scf_ret)
 	
 	
 	
 	; We can get here from:
-	;   0x6D39 (jump) [from=self]
+	;   0x6D39 (jump) [from=self] B < 0xD9 || B > 0xE0
 	ld a,b			;6d4d A = B
 	cp 0ech			;6d4e Compute A - 0xEC and update Z/NZ flag.
-	jr nz,$-7		;6d50 if (nz) jump to 0x6D49	
-	
+	jr nz,$-7		;6d50 if (A != 0xEC) jump to 0x6D49	
+	; Post: A == 0xEC
+	;
 	ld b,0e0h		;6d52 B = 0xE0
 	jr $-25			;6d54 jump to 0x6D3B
 
 
 
+; This routine is quite similar to 6d2a_fixme.
+; 
+; 
 ; We can get here from:
-;   0x6DE6 (jump) [from=6dc1_fixme]
+;   0x6DE6 (jump) [from=6dc1_fixme] hpos <= ???
 6d56_fixme:
-	ld b,004h		;6d56 B = 0x04
-	call 06d8bh		;6d58 6d8b_fixme
-	ret nc			;6d5b
+	ld b,004h		;6d56 B = 0x04 (the first 4 pixels of the sprite are not part of the moving object)
+	call 06d8bh		;6d58 6d8b_nc_if_hpos_plus_regB_is_asphalt
+	ret nc			;6d5b if (asphalt) return
+	; Post:
+	;   C == hpos (see 0x6D9F in 6d8b_nc_if_hpos_plus_regB_is_asphalt)
 	
 	ld a,b			;6d5c A = B
 	cp 0fch			;6d5d Compute A - 0xFC and update C/NC flag.
@@ -17020,25 +17092,34 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr nc,$+23		;6d65 if ((B-0xFC) < 0xE1 || (B-0xFC) > 0xE8) jump to 0x6D7C
 	; Post: 0xE1 <= (B-0xFC) <= 0xE8
 	
-	ld a,c			;6d67 A = C
+	; We can get here from:
+	;   0x6D65 (fall) [from=self]
+	;   0x6D83 (jump) [from=self]
+	ld a,c			;6d67 A = hpos
 	push af			;6d68 Store A.
-	add a,004h		;6d69
-	and 0f8h		;6d6b
-	ld c,a			;6d6d
-	ld a,b			;6d6e
-	and 00fh		;6d6f
-	ld b,a			;6d71
-	pop af			;6d72
-	add a,004h		;6d73
-	sub c			;6d75
-	sub b			;6d76
+	add a,004h		;6d69 A = hpos + 0x04
+	and 0f8h		;6d6b A &= 0xF8
+	ld c,a			;6d6d C = A
+	ld a,b			;6d6e A = B
+	and 00fh		;6d6f A &= 0x0F
+	ld b,a			;6d71 B = A
+	
+	pop af			;6d72 A = hpos. Stored at 0x6D68.
+	add a,004h		;6d73 A = hpos + 0x04
+	sub c			;6d75 A = hpos + 0x04 - C
+	sub b			;6d76 A = hpos + 0x04 - C - B
 	ret nc			;6d77
-	ld b,002h		;6d78
+	
+	ld b,002h		;6d78 B = 0x02
 	jr $+15			;6d7a jump to 0x6D89 (6d89_scf_ret)
-	ld a,b			;6d7c
-	cp 0f3h			;6d7d
+	
+	
+	; We can get here from:
+	;   0x6D65 (jump) [from=self]
+	ld a,b			;6d7c A = B
+	cp 0f3h			;6d7d Compute A - 0xF3 and update Z/NZ flag.
 	jr nz,$-7		;6d7f if (nz) jump to 0x6D78
-	ld b,0e1h		;6d81
+	ld b,0e1h		;6d81 B = 0xE1
 	jr $-28			;6d83 jump to 0x6D67
 
 
@@ -17062,15 +17143,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Input:
-;   HL: ???
+;   HL: &vpos
 ;     0xE04C: Observed value, car_vpos
 ;     0xE0EB: Observed value, moving object #00, vpos
 ;     0xE0FB: Observed value, moving object #01, vpos
 ; 
 ; We can get here from:
-;   0x6D2C (call) [from=6d2a_fixme] B == 0x0C
-;   0x6D58 (call) [from=6d56_fixme] B == 0x04
-6d8b_fixme:
+;   0x6D2C (call) [from=6d2a_fixme] B == 0x0C (check if right side of moving object is asphalt)
+;   0x6D58 (call) [from=6d56_fixme] B == 0x04 (check if left side of moving object is asphalt)
+6d8b_nc_if_hpos_plus_regB_is_asphalt:
 	ld a,(hl)		;6d8b A = vpos
 	inc hl			;6d8c
 	inc hl			;6d8d
@@ -17103,11 +17184,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; We can get here from:
 	;   0x6D94 (jump) [from=self] L == vpos + 0x04, much or all of the sprite is visible.
-	;   0x6D9A (jump) [from=self] L == 0x00, sprite is way below the bottom of the screen.
-	;   0x6D9C (fall) [from=self] L == 0xB8, sprite is for a large part or completely below the bottom of the screen.
+	;   0x6D9A (jump) [from=self] L == 0x00 (top of screen), sprite is way below the bottom of the screen.
+	;   0x6D9C (fall) [from=self] L == 0xB8 (bottom of screen), sprite is for a large part or completely below the bottom of the screen.
 	ld a,h			;6d9e A = hpos (see 0x6D8E)
 	ld c,a			;6d9f C = hpos
-	add a,b			;6da0 A = hpos + ???B???
+	add a,b			;6da0 A = hpos + B
 	ld h,a			;6da1 H = A
 				;fall to 6da2_clear_carry_flag_if_HL_is_asphalt
 
@@ -17118,7 +17199,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   L: vertical   position (of whatever)
 ; 
 ; We can get here from:
-;   0x6DA1 (fall) [from=6d8b_fixme]
+;   0x6DA1 (fall) [from=6d8b_nc_if_hpos_plus_regB_is_asphalt]
 ;   0x6DE9 (jump) [from=6dc1_fixme]
 6da2_clear_carry_flag_if_HL_is_asphalt:
 	call 04561h		;6da2 4561_compute_vdp_address_of_HL_coordinates
@@ -17127,16 +17208,16 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; Read 1 byte from VDP into register A.
 	exx			;6dab
-	ld c,a			;6dac
-	in a,(c)		;6dad
+		ld c,a		;6dac
+		in a,(c)	;6dad
 	exx			;6daf
 
 	ld b,a			;6db0 B = A
 	ld d,a			;6db1 D = A
 	
 	; Patterns [0xD0 .. 0xD8]: asphalt
-	; Patterns [0xD9 .. 0xE8]: side of the road
-	; Patterns [0xE8 .. 0xFF]: scenery
+	; Patterns [0xD9 .. 0xE8]: side of the road (with asphalt)
+	; Patterns [0xE9 .. 0xFF]: side of the road (with scenery)
 	;
 	; XXX: shouldn't it be "cp 0d0h" then?
 	cp 0cfh			;6db2 Compute A - 0xCF and update C/NC flag.
@@ -17163,52 +17244,79 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; Output:
+;   C/NC flag: Determined by:
+;     6d56_fixme
+;     6d2a_fixme
+;
 ; We can get here from:
-;   0x6C60 (call) [from=6c3a_car_state_07__spinning]           HL == 0xE04C (&car_vpos)
-;   0x6CD4 (call) [from=6cd1_side_bounce_checker_and_actioner] HL == 0xE04C (&car_vpos)
-;   0x6FB8 (call) [from=6f25_something_with_loading_next_initial_moving_object_if_speed_is_high]                            HL == ???
-;   0x7133 (call) [from=7123_fixme]                            HL == ???
-;   0x71A7 (call) [from=71a2_moving_object_state_02]           HL == ???
+;   0x6C60 (call) [from=6c3a_car_state_07__spinning]                                             HL == &car_vpos
+;   0x6CD4 (call) [from=6cd1_side_bounce_checker_and_actioner]                                   HL == &car_vpos
+;   0x6FB8 (call) [from=6f25_something_with_loading_next_initial_moving_object_if_speed_is_high] HL == &current_moving_object.vpos
+;   0x7133 (call) [from=7123_fixme]                                                              HL == &current_moving_object.vpos
+;   0x71A7 (call) [from=71a2_moving_object_state_02]                                             HL == &current_moving_object.vpos
 6dc1_fixme:
-	push hl			;6dc1 Store HL (restored at 0x6DE5).
+	push hl			;6dc1 Store &vpos (restored at 0x6DE5).
 	ld a,(hl)		;6dc2 A = vpos
-	ld b,a			;6dc3 B = A
-	sub 0c0h		;6dc4 A -= 0xC0
-	jr c,$+10		;6dc6 if (c) jump to 0x6DD0
+	ld b,a			;6dc3 B = vpos
+	sub 0c0h		;6dc4 A = vpos - 0xC0
+	jr c,$+10		;6dc6 if (vpos < 0xC0) jump to 0x6DD0
 	ld b,000h		;6dc8 B = 0x00
 	cp 010h			;6dca Compute A - 0x10 and update C/NC flag.
-	jr nc,$+4		;6dcc if (nc) jump to 0x6DD0
+	jr nc,$+4		;6dcc if (vpos - 0xC0 >= 0x10) jump to 0x6DD0
 	ld b,0b8h		;6dce B = 0xB8
 	
 	; We can get here from:
-	;   0x6DC6 (jump) B == *(HL)
-	;   0x6DCC (jump) B == 0x00
-	;   0x6DCE (fall) B == 0xB8
+	;   0x6DC6 (jump) B == vpos, vpos < 0xC0
+	;   0x6DCC (jump) B == 0x00, vpos >= 0xD0
+	;   0x6DCE (fall) B == 0xB8, 0xC0 <= vpos < 0xD0
 	ld a,b			;6dd0 A = B
-	ld de,0e098h		;6dd1 DE = 0x0E098
+	ld de,0e098h		;6dd1 DE = &left_side_of_road_ish_table
 	
+	; Convert A from number of vertical pixels to numer vertical characters.
+	;   0x00-0x07 --> Line #00 (first line of VDP)
+	;   0x08-0x0F --> Line #01
+	;   (...)
+	;   0xB8-0xBF --> Line #23 (last line of VDP)
+	; 
 	; A /= 8.
 	rra			;6dd4 Rotate right (via carry)
 	rra			;6dd5 Rotate right (via carry)
 	rra			;6dd6 Rotate right (via carry)
 	and 01fh		;6dd7 A &= 0x1F
-
+	
+	; A = ???
+	;
+	; left_side_of_road_ish_table | ((2 * val) & 0xF8) + 0x20
+	; ----------------------------+--------------------------
+	;                0x10 .. 0x13 | 0x40
+	;                0x14 .. 0x17 | 0x48
+	;                0x18 .. 0x1B | 0x50
+	;                0x1C .. 0x1F | 0x58
+	;                0x20 .. 0x23 | 0x60
+	;                0x24 .. 0x27 | 0x68
+	;                0x28 .. 0x2B | 0x70
+	;                0x2C .. 0x2F | 0x78
+	;
 	call 04040h		;6dd9 DE += A
 	ld a,(de)		;6ddc A = *(DE)
 	add a,a			;6ddd A *= 2
-	and 0f8h		;6dde A &= 0xF8
+	and 0f8h		;6dde A &= 0xF8 (zero least significant 3 bits)
 	add a,020h		;6de0 A += 0x20
+	
+	; HL = &hpos
 	inc hl			;6de2 ++HL
 	inc hl			;6de3 ++HL
-	cp (hl)			;6de4 Compute A - *(HL) and update C/NC flag.
-	pop hl			;6de5 Restore HL (stored at 0x6DC1).
-	jp nc,06d56h		;6de6 6d56_fixme
+	
+	cp (hl)			;6de4 Compute ??? - hpos and update C/NC flag.
+	pop hl			;6de5 HL = &vpos (stored at 0x6DC1).
+	jp nc,06d56h		;6de6 if (hpos <= ???) jump to 6d56_fixme
 	jp 06d2ah		;6de9 6d2a_fixme
 
 
 
 ; We can get here from:
-;   0x6AA1 (call) [from=6a90_car_state_00__all_okay]
+;   0x6AA1 (call) [from=6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining]
 6dec_fixme:
 	ld hl,(0e04dh)		;6dec HL = *(0xE04D)
 	ld a,(0e051h)		;6def A = *(0xE051) ?car speed?
@@ -17312,33 +17420,37 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x6E3F).
 ; 
 ; We can get here from:
-;   0x41F7 (call)
-;   0x4257 (call)
-;   0x4294 (call)
-;   0x51CB (call)
-;   0x520A (call)
-;   0x6AB8 (jump)
-;   0x6BB6 (call)
-;   0x6C21 (jump)
-;   0x6C7D (jump)
-;   0x6CC0 (jump)
-;   0x6CCE (jump)
-;   0x6ED9 (call)
+;   0x41F7 (call) [from=41e6_game_state_03_substate_09]
+;   0x4257 (call) [from=424a_game_state_03_substate_09_subsubstate_01]
+;   0x4294 (call) [from=4294_game_state_04_substate_03]
+;   0x51CB (call) [from=51c5_car_crashed_something]
+;   0x520A (call) [from=51ff_initialize_variables]
+;   0x6AB8 (jump) [from=6ab5_set_car_orientation_to_regA]
+;   0x6BB6 (call) [from=6b90_car_state_04__skidding]
+;   0x6C21 (jump) [from=6c05_car_state_05__bounce_against_side_of_road]
+;   0x6C7D (jump) [from=6c73_fixme]
+;   0x6CC0 (jump) [from=6ca1_fixme]
+;   0x6CCE (jump) [from=6cca_add_BC_to_car_vpos_word_and_jump_to_6e1d_store_car_sprite_attributes]
+;   0x6ED9 (call) [from=6e54_handling_moving_objects_something]
 ;   0x747D (call) [from=747d_game_state_08_substate_02]
 ;   0x7495 (call) [from=7495_game_state_08_substate_03__blink_minicar_in_stages_overview_at_correct_checkpoint_or_goal]
 6e1d_store_car_sprite_attributes:
+	; A = sprite_pattern_id
 	ld hl,06e3fh		;6e1d HL = 0x6E3F (table of sprite pattern IDs)
-	ld a,(0e053h)		;6e20 A = *0xE053
-	ld b,000h		;6e23 B = 0
-	ld c,a			;6e25 C = *0xE053
-	add hl,bc		;6e26 HL = 0x6E3F + *(0xE053)
+	ld a,(0e053h)		;6e20 A = car_sprite_pattern
+	ld b,000h		;6e23 B = 0x00
+	ld c,a			;6e25 C = car_sprite_pattern
+	add hl,bc		;6e26 HL = 0x6E3F + car_sprite_pattern
 	ld a,(hl)		;6e27 A = sprite_pattern_id
-	ld hl,0e04ch_car_vpos	;6e28 HL = 0xE04C
-	ld c,(hl)		;6e2b C = vpos of car
 	
+	; C = car_vpos
+	ld hl,0e04ch		;6e28 HL = &car_vpos
+	ld c,(hl)		;6e2b C = car_vpos
+	
+	; B = car_hpos
 	inc hl			;6e2c HL = 0xE04D
-	inc hl			;6e2d HL = 0xE04E
-	ld b,(hl)		;6e2e B = hpos of car
+	inc hl			;6e2d HL = &car_hpos
+	ld b,(hl)		;6e2e B = car_hpos
 	
 	ld hl,0e112h		;6e2f HL = 0xE112
 	call 06e37h		;6e32 6e37_store_sprite_attributes_and_advance_to_next_sprite_address(start=HL, vpos=C, hpos=B, pattern=A)
@@ -17394,103 +17506,230 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x523F (call)
+;   0x523F (call) [from=5224_handle_race_substate]
 6e4a_handling_moving_objects_something_if_not_crashed:
-	; if (car_state == CRASHED) return
-	ld a,(e049_car_state)	;6e4a
+	; if (car_state == CAR_STATE_CRASHED) return
+	ld a,(0e049h)		;6e4a A = car_state
 	dec a			;6e4d
 	ret z			;6e4e
-	
-	; Not crashed.
-	ld hl,0e0e4h		;6e4f HL = 0xE0E4
-	xor a			;6e52 A = 0
-	ld (hl),a		;6e53 *(0xE0E4) = 0
-				;fall 6e54_handling_moving_objects_something
+	; Post: not crashed.
+	;
+	ld hl,0e0e4h		;6e4f HL = &moving_object_idx
+	xor a			;6e52 A = 0x00
+	ld (hl),a		;6e53 moving_object_idx = 0x00
+	; Fall to 6e54_handling_moving_objects_something
 
 
 
 ; We can get here from:
-;   0x6E53 (fall) *(0xE0E4) == 0	
-;   0x6F11 (jump)
+;   0x6E53 (fall) moving_object_idx == 0x00	
+;   0x6F11 (jump) moving_object_idx in [0x01, 0x02]
 6e54_handling_moving_objects_something:
-	ld hl,0e0e4h		;6e54 HL = 0xE0E4
-	ld a,(hl)		;6e57 A = *(0xE0E4)
+	; A = moving_object_idx
+	ld hl,0e0e4h		;6e54 HL = &moving_object_idx
+	ld a,(hl)		;6e57 A = moving_object_idx
 	
 	push af			;6e58 Store A. Restore at 0x6E65.
-	inc hl			;6e59 HL = 0xE0E5
+	inc hl			;6e59 HL = &moving_object_table (0xE0E5)
 	
-	; A *= 16
-	add a,a			;6e5a
-	add a,a			;6e5b
-	add a,a			;6e5c
-	add a,a			;6e5d
+	; BC = moving_object_idx * 16
+	add a,a			;6e5a A *= 2
+	add a,a			;6e5b A *= 2
+	add a,a			;6e5c A *= 2
+	add a,a			;6e5d A *= 2
+	ld b,000h		;6e5e B = 0x00
+	ld c,a			;6e60 C = A
 	
-	; BC = A
-	ld b,000h		;6e5e
-	ld c,a			;6e60
+	add hl,bc		;6e61 HL = &moving_object_table + 16 * moving_object_idx
+	ld (0e0bfh),hl		;6e62 &current_moving_object = &moving_object_table + 16 * moving_object_idx
 	
-	add hl,bc		;6e61 HL = 0xE0E5 + *(0xE0E4) * 16
-	ld (0e0bfh),hl		;6e62 *(0xE0BF) = HL
-	pop af			;6e65 Restore A. Stored at 0x6E58.
+	pop af			;6e65 A = moving_object_idx. Stored at 0x6E58.
 	
-	ld b,a			;6e66 B = *(0xE0E4)
-	ld hl,(0e0bfh)		;6e67 HL = *(0xE0BF)
-	inc hl			;6e6a HL = *(0xE0BF) + 1
-	ld a,(hl)		;6e6b
-	or a			;6e6c
-	jp z,06f0ah		;6e6d if (A == 0) jump to 0x6F0A
-	ld a,b			;6e70 A = *(0xE0E4)
+	ld b,a			;6e66 B = moving_object_idx
+	ld hl,(0e0bfh)		;6e67 HL = &current_moving_object
+	inc hl			;6e6a HL = &current_moving_object.state
+	ld a,(hl)		;6e6b A = current_moving_object.state
+	or a			;6e6c Update Z/NZ flag.
+	jp z,06f0ah		;6e6d if (current_moving_object.state == MO_STATE__INVISIBLE) jump to 0x6F0A (6f0a_no_overlap_so_move_to_next_moving_object)
+	; Post: Current moving object is visible.
+	;
+	ld a,b			;6e70 A = moving_object_idx
 	call 0736bh		;6e71 736b_set_HL_to_the_start_of_sprite_attributes_of_moving_object_regA
-	ld a,(0e04ch_car_vpos)	;6e74 A = car_vertical_position
-	sub (hl)		;6e77 A -= *HL
-	sub 010h		;6e78 A -= 0x10
+	ld a,(0e04ch)		;6e74 A = car_vpos
+	sub (hl)		;6e77 A = car_vpos - moving_object.vpos
+	sub 010h		;6e78 A = car_vpos - moving_object.vpos - 0x10
 	add a,020h		;6e7a A += 0x20 and update C/NC flag.
-	inc hl			;6e7c
-	jp nc,06f0ah		;6e7d
+	; Sprites in Road Fighter are 16x16 pixels. Vertically, all 16 
+	; pixels are used for the player's car. (The green is only 14 
+	; pixels long though, but the shadow does seem to count, so it 
+	; still counts as 16 pixels long.)
+	;
+	; car_vpos | moving_object.vpos | car_vpos - moving_object.vpos - 0x10 | car_vpos - moving_object.vpos - 0x10 + 0x20 | Carry flag? | Meaning
+	; ---------+--------------------+--------------------------------------+---------------------------------------------+-------------+-------------------
+	;     0x95 |               0x85 |                                 0x00 |                                        0x20 | NC          | No overlap in vpos
+	;     0x95 |               0x86 |                                 0xFF |                                        0x1F | C           | Overlap in vpos (barely)
+	;     0x95 |         0x86..0xA5 |                           0xFF..0xE0 |                                  0x1F..0x00 | C           | Overlap in vpos (generic)
+	;     0x95 |               0xA5 |                                 0xE0 |                                        0x00 | C           | Overlap in vpos (barely)
+	;     0x95 |               0xA6 |                                 0xDF |                                        0xFF | NC          | No overlap in vpos
+	;
+	inc hl			;6e7c HL = &moving_object.hpos
+	jp nc,06f0ah		;6e7d 6f0a_no_overlap_so_move_to_next_moving_object
 	
-	ld a,(0e04eh)		;6e80 Get car's horizontal position on screen.
-	sub (hl)		;6e83
-	ld c,000h		;6e84 C = 0
-	jr nc,$+3		;6e86 if (nc) jump to 0x6E89
-	inc c			;6e88
-	sub 00ah		;6e89
-	add a,016h		;6e8b
-	jp nc,06f0ah		;6e8d
+	; Compute skidding direction.
+	ld a,(0e04eh)		;6e80 A = car_hpos
+	sub (hl)		;6e83 A = car_hpos - moving_object.hpos
+	ld c,000h		;6e84 C = 0x00
+	jr nc,$+3		;6e86 if (car_hpos >= moving_object.hpos) jump to 0x6E89
+	inc c			;6e88 ++C
 	
-	ld a,c			;6e90
-	ld (0e054h),a		;6e91
-	ld a,(0e0e4h)		;6e94
-	cp 003h			;6e97
-	jp z,06f18h		;6e99 6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge
+	; We can get here from:
+	;   0x6E86 (jump) [from=self] C == 0x00 car is right of moving object (or dead behind moving object)
+	;   0x6E88 (fall) [from=self] C == 0x01 car is left of moving object
+	;
+	; Sprites in Road Fighter are 16x16 pixels. Horizontally, not 
+	; all 16 pixels are used.
+	;
+	;             |   WIDTH=8   |         BLUE CAR|    WIDTH=9    |
+	;   GREEN CAR |             |         RED CAR |               |
+	;             V             V                 V               V
+	;   0 1 2 3 4 5 6 7 8 9 A B C D E F   0 1 2 3 4 5 6 7 8 9 A B C D E F
+	; 0             x x x x x x                       x x x x x          
+	; 1           x x   x x x . x                   x x x x x x x . .    
+	; 2           x   x x x x . x                 x   x x x x x . x .    
+	; 3           x   x x x x x x .               x   x x x x x . x .    
+	; 4           x   x x x x x x .               x   x x x x x x x .    
+	; 5           x x x x x x x x .               x x x x x x x x x .    
+	; 6             x . . . . x   . .             x x x . . . x x x . .  
+	; 7           x . . . . . . x . .               x . . . . . x   . .  
+	; 8           x . x x x x . x . .               . . x x x . .   . .  
+	; 9           x x x x x x x x . .               x x x x x x x   . .  
+	; A           x   x x x x . x . .             x x x x x x x x x . .  
+	; B           x   x x x x . x .               x   . . . . . x x . .  
+	; C           x x   x x x x x .               x   x . . . x . x . .  
+	; D           x x x x x x x x .               x x x x x x x . x .    
+	; E           .             . .               x x x x x x x x x .    
+	; F             . . . . . .                   x x . . . . . x x      
+	;   0 1 2 3 4 5 6 7 8 9 A B C D E F   0 1 2 3 4 5 6 7 8 9 A B C D E F
+	;
+	; The right side of the green car can be computed easily:
+	; 
+	;     hpos_right_side_of_green_car = moving_object.hpos + 0x0C
+	;
+	; The left side of the red car can be computed easily:
+	; 
+	;     hpos_left_side_of_red_car = car_hpos + 0x04
+	;
+	; If the right side of the green car and the left side of the 
+	; red car are touching, they are colliding. I.e., if this holds:
+	; 
+	;      hpos_left_side_of_red_car = hpos_right_side_of_green_car + 1
+	;   => car_hpos + 0x04           = moving_object.hpos + 0x0C    + 1
+	;   => car_hpos - moving_object.hpos - 9 = 0
+	;
+	; The closest they can get to eachother WITHOUT touching:
+	;
+	;     hpos_left_side_of_red_car = hpos_right_side_of_green_car + 2
+	;  => car_hpos + 0x04           = moving_object.hpos + 0x0C    + 2
+	;  => car_hpos - moving_object.hpos - 0x0A = 0
+	;                                     ^^^^
+	;                                 See 0x6E89
+	;
+	sub 00ah		;6e89 A = car_hpos - moving_object.hpos - 0x0A
+	;
+	;
+	;
+	; The cars can also touch with their other sides, i.e. when the 
+	; left side of the green car touches the right side of the red 
+	; car. However, Konami did the computations WRONG: they forgot 
+	; that the green car start at offset 5 (they used offset 0). Set 
+	; a breakpoint at 0x6e90 and drive into a green.blue car 
+	; (approach from the left, steer to the right).
 
-	ld hl,(0e0bfh)		;6e9c
-	ld a,(hl)		;6e9f
+	; The left side of the green car can be computed easily:
+	;     hpos_left_side_of_green_car = moving_object.hpos + 0x00
+	;
+	; The right side of the red car can be computed easily:
+	;     hpos_right_side_of_red_car = car_hpos + 0x0C
+	;
+	; If the left side of the green car and the right side of the 
+	; red car are touching, they are colliding. I.e., if this holds:
+	; 
+	;      hpos_right_side_of_red_car + 1 = hpos_left_side_of_green_car
+	;   => car_hpos + 0x0C            + 1 = moving_object.hpos + 0x00 (should have been 0x04)
+	;   => car_hpos - moving_object.hpos + 0x0D = 0
+	;   => car_hpos - moving_object.hpos + 0x0D + 9 - 9 = 0
+	;   => car_hpos - moving_object.hpos + 0x16     - 9 = 0
+	;                                      ^^^^
+	;                                  See 0x6E8B
+	;
+	add a,016h		;6e8b A += 0x16
+	;
+	;
+	;
+	; Example of letting the player's car crash into the green car.
+	; 
+	; car_hpos   | moving_object.hpos | car_hpos - moving_object.hpos - 0x0A | car_hpos - moving_object.hpos - 0x0A + 0x16 | Carry flag? | Meaning
+	; -----------+--------------------+--------------------------------------+---------------------------------------------+-------------+-------------------
+	;       0x41 |               0x37 |                                 0x00 |                                        0x16 | NC          | No overlap in hpos
+	;       0x40 |               0x37 |                                 0xFF |                                        0x15 | C           | Overlap in hpos (barely)
+	; 0x2B..0x40 |               0x37 |                           0xEA..0xFF |                                  0x00..0x15 | C           | Overlap in hpos (generic)
+	; 0x2B       |               0x37 |                           0xEA       |                                  0x00       | C           | Overlap in hpos (barely)
+	; 0x2A       |               0x37 |                           0xE9       |                                  0xFF       | NC          | No overlap in hpos
+	;
+	;
+	;
+	; Example of letting the moving object crash into the player's car.
+	; 
+	; car_hpos | moving_object.hpos | car_hpos - moving_object.hpos - 0x0A | car_hpos - moving_object.hpos - 0x0A + 0x16 | Carry flag? | Meaning
+	; ---------+--------------------+--------------------------------------+---------------------------------------------+-------------+-------------------
+	;     0x41 |         0x37       |                           0x00       |                                  0x16       | NC          | No overlap in hpos
+	;     0x41 |         0x38       |                           0xFF       |                                  0x15       | C           | Overlap in hpos (barely)
+	;     0x41 |         0x38..0x4D |                           0xFF..0xEA |                                  0x15..0x00 | C           | Overlap in hpos (generic)
+	;     0x41 |               0x4D |                                 0xEA |                                        0x00 | C           | Overlap in hpos (barely)
+	;     0x41 |               0x4E |                                 0xE9 |                                        0xFF | NC          | No overlap in hpos
+	;
+	jp nc,06f0ah		;6e8d 6f0a_no_overlap_so_move_to_next_moving_object
+	
+	ld a,c			;6e90 A = C
+	ld (0e054h),a		;6e91 car_04_skid_turning_direction_or_07_spinning_orientation = A
+	
+	ld a,(0e0e4h)		;6e94 A = moving_object_idx
+	cp 003h			;6e97 Compute A - moving_object_idx and update Z/NZ flag.
+	jp z,06f18h		;6e99 6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge ???
+
+	ld hl,(0e0bfh)		;6e9c HL = &current_moving_object.type
+	ld a,(hl)		;6e9f A = current_moving_object.type
 	sub 006h		;6ea0 A -= 0x06
 	cp 002h			;6ea2 Compute A - 0x02 and update C/NC flag.
-	jp c,06f18h		;6ea4 if (*(HL) == 0x06 || *(HL) == 0x07) jump to 0x6F18 (6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge)
+	jp c,06f18h		;6ea4 if (current_moving_object.type in [MO__TRUCK__NO_OIL_DRUM, MO__TRUCK__WITH_OIL_DRUM]) jump to 0x6F18 (6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge) ???
 
-	inc hl			;6ea7
-	ld (hl),001h		;6ea8
+	inc hl			;6ea7 HL = &current_moving_object.state
+	ld (hl),001h		;6ea8 current_moving_object.state = 0x01
+
 	inc hl			;6eaa
-	ld (hl),005h		;6eab
-	ld a,009h		;6ead
+	ld (hl),005h		;6eab current_moving_object.??? = 0x05
+
+	ld a,009h		;6ead A = 0x09
 	call 0403bh		;6eaf HL += A
 	inc hl			;6eb2
 	ld a,c			;6eb3
 	and a			;6eb4
-	ld (hl),003h		;6eb5
+	ld (hl),003h		;6eb5 ???
 	jr nz,$+4		;6eb7 if (nz) jump to 0x6EBB
-	ld (hl),0fdh		;6eb9
+	ld (hl),0fdh		;6eb9 ???
+	
+	; We can get here from:
+	;   0x6EB7 (jump) [from=self]
+	;   0x6EB9 (fall) [from=self]
+	ld hl,0e049h		;6ebb HL = &car_state
+	ld a,(hl)		;6ebe A = car_state
+	cp 007h			;6ebf Compute A - 0x07 and update Z/NZ flag.
+	jr z,$+84		;6ec1 if (car_state == CAR_STATE_SPINNING) jump to 0x6F15
 
-	ld hl,e049_car_state	;6ebb
-	ld a,(hl)		;6ebe
-	cp 007h			;6ebf
-	jr z,$+84		;6ec1 if (car_state == 0x07) jump to 0x6F15
-
-	ld a,(0e054h)		;6ec3 A = skid_turning_direction
+	ld a,(0e054h)		;6ec3 A = car_04_skid_turning_direction_or_07_spinning_orientation
 	xor 001h		;6ec6 A ^= 0x01 (flip bit 0)
-	ld hl,(0e0bfh)		;6ec8 HL = current_moving_object
-	inc hl			;6ecb HL = current_moving_object + 1
+	ld hl,(0e0bfh)		;6ec8 HL = &current_moving_object
+	inc hl			;6ecb HL = &current_moving_object.state
 	call 07352h		;6ecc 7352_update_bounce_something
 	ld a,020h		;6ecf A = 0x20
 	ld (0e0b1h),a		;6ed1 Store skid ticks remaining for recoverability by steering.
@@ -17502,22 +17741,24 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	
 	; Bonus fuel heart (type == 0x08).
-	ld hl,(0e0bfh)		;6edc HL = current_moving_object
-	ld a,(hl)		;6edf A = current_moving_object[TYPE]
+	ld hl,(0e0bfh)		;6edc HL = &current_moving_object
+	ld a,(hl)		;6edf A = current_moving_object.type
 	cp 008h			;6ee0 Type 0x08: bonus fuel heart
-	ret nz			;6ee2 if (is not bonus fuel heart) return
+	ret nz			;6ee2 if (current_moving_object.type != MO__BONUS_FUEL_HEART) return
 	ld hl,0e0e3h		;6ee3 HL = 0xE0E3
 	dec (hl)		;6ee6
 	call 06bdbh		;6ee7 6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00 (does return)
-	ld hl,(0e0bfh)		;6eea HL = current_moving_object
-	inc hl			;6eed HL = current_moving_object + 1
-	ld (hl),000h		;6eee current_moving_object[VISIBLE] = 0x00
 	
-	; A = *(0xE0E4) * 8
+	; Set bonus fuel heart to invisible (0x00).
+	ld hl,(0e0bfh)		;6eea HL = &current_moving_object
+	inc hl			;6eed HL = &current_moving_object.state
+	ld (hl),000h		;6eee current_moving_object.state = 0x00
+	
+	; A = 8 * moving_object_idx
 	;
 	; Each set of sprite attributes is 4 bytes, and each moving 
 	; object is made up of 2 sprites.
-	ld a,(0e0e4h)		;6ef0 A = current_moving_object_index
+	ld a,(0e0e4h)		;6ef0 A = moving_object_idx
 	add a,a			;6ef3 A *= 2
 	add a,a			;6ef4 A *= 2
 	add a,a			;6ef5 A *= 2
@@ -17526,7 +17767,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,0e11ah		;6ef6 HL = 0xE11A, start of sprite attributes of moving objects.
 	call 0403bh		;6ef9 HL += A
 	
-	; Hide fuel heart.
+	; Hide fuel heart (both sprites), by setting vpos to outside of screen.
 	ld (hl),0e0h		;6efc vpos = 0xE0 (don't show "B" in bonus fuel heart)
 	inc hl			;6efe
 	inc hl			;6eff
@@ -17534,27 +17775,30 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;6f01
 	ld (hl),0e0h		;6f02 vpos = 0xE0 (don't show the bonus fuel heart)
 
-	ld hl,0e0b8h		;6f04
-	ld (hl),001h		;6f07 ?Request to play sound of grabbing a bonus fuel heart.?
+	ld hl,0e0b8h		;6f04 HL = &fuel_heart_state
+	ld (hl),001h		;6f07 fuel_heart_state = 0x01
 
 	ret			;6f09
 
 
 
 	; We can get here from:
-	;   0x6E6D (jump) [from=self]
-	;   0x6E7D (jump) [from=self]
-	;   0x6E8D (jump) [from=self]
+	;   0x6E6D (jump) [from=self] current_moving_object.state == MO_STATE__INVISIBLE
+	;   0x6E7D (jump) [from=self] current_moving_object.state != MO_STATE__INVISIBLE, car vpos has no overlap with current moving object
+	;   0x6E8D (jump) [from=self] current_moving_object.state != MO_STATE__INVISIBLE, car vpos has overlap with current moving object, but car hpos has no overlap with current moving object
+	6f0a_no_overlap_so_move_to_next_moving_object:
 	ld hl,0e0e4h		;6f0a HL = &moving_object_idx
-	inc (hl)		;6f0d Time for next moving object.
+	inc (hl)		;6f0d ++moving_object_idx, time for next moving object.
 	ld a,(hl)		;6f0e A = moving_object_idx
 	cp 003h			;6f0f Compute moving_object_idx - 0x03 and update Z/NZ flag.
 	jp nz,06e54h		;6f11 if (moving_object_idx != 0x03) jump to 0x6E54 (6e54_handling_moving_objects_something)
 	ret			;6f14 Handled all moving objects.
-
+	
+	
+	
 	; We can get here from:
-	;   0x6EC1 (jump) car_state == 0x07
-	ld (hl),000h		;6f15 car_state = 0x00: all okay
+	;   0x6EC1 (jump) car_state == CAR_STATE_SPINNING (0x07)
+	ld (hl),000h		;6f15 car_state = CAR_STATE_NOTHING_SPECIAL
 	ret			;6f17
 
 
@@ -17779,7 +18023,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   0x6FC6 (jump) [from=self] HL == &current_moving_object.vpos
 	push hl			;6fb7
 		call 06dc1h	;6fb8 6dc1_fixme
-	pop hl			;6fbb
+	pop hl			;6fbb HL = &current_moving_object.vpos
 	jr nc,$+12		;6fbc if (nc) jump to 0x6FC8 (self)
 	
 	; A = current_moving_object.hpos
@@ -17795,10 +18039,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	dec hl			;6fc5
 	
 	jr $-15			;6fc6 jump to 0x6FB7 (self)
-
-
+	
+	
+	
 	; We can get here from:
 	;   0x6FBC (jump) [from=self]
+	6fc8_fixme:
 	ld hl,(0e0bfh)		;6fc8 HL = &current_moving_object
 	ld d,(hl)		;6fcb D = current_moving_object.type
 	ld a,(0e03bh)		;6fcc A = level (0x00: level A, 0x01: level B)
@@ -18389,8 +18635,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   0x7195 (fall) [from=self] A == 0x00 car_hpos <  moving_object.hpos (player is left  of purple car)
 	ld (hl),a		;7196
 	
-	inc hl			;7197 Offset #0F: ???
-	ld (hl),020h		;7198
+	inc hl			;7197 HL = &moving_object.state_02__timer
+	ld (hl),020h		;7198 moving_object.state_02__timer = 0x20
 	
 	; State #05: ?purple car is moving?
 	ld a,005h		;719a A = 0x05
@@ -18414,7 +18660,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x70C6 (jump) [from=70ac_handle_moving_object_something] jump table, index 0x02
 71a2_moving_object_state_02:
-	ld c,006h		;71a2 C = 0x06
+	; HL = &current_moving_object.vpos
+	ld c,006h		;71a2 C = 0x06 (vpos)
 	call 072f6h		;71a4 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
 	call 06dc1h		;71a7 6dc1_fixme
@@ -18439,7 +18686,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x71AA (jump) [from=71a2_moving_object_state_02]
 ;   0x71B2 (jump) [from=71a2_moving_object_state_02]
 71c2_set_moving_object_state_to_01:
-	ld a,001h		;71c2 A = 1
+	ld a,001h		;71c2 A = 0x01
 	jr $-40			;71c4 jump to 0x719C (719c_current_moving_object__set_state_to_regA)
 
 
@@ -19003,9 +19250,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld bc,0000dh		;7361 BC = 0x000D
 	add hl,bc		;7364 HL += 0x0D, so HL == moving_object + 0x0E
 	ld (hl),a		;7365 ?Moving object is moving sideways, because of bounce or because of being purple?
-	inc hl			;7366 HL = moving_object + 0x0F
-	ld (hl),00ch		;7367 moving_object[0x0F] = 0x0C
-	inc a			;7369 ++A
+	
+	; Set timer.
+	inc hl			;7366 HL = &moving_object.state_02__timer
+	ld (hl),00ch		;7367 moving_object.state_02__timer = 0x0C
+
+	inc a			;7369 ++A ?why?
 	ret			;736a
 
 
@@ -20808,7 +21058,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; [stage 01] Draw parasol #02.
 	ld de,0e338h		;783c DE = 0xE338 (lower right)
-	; Fall to
+	; Fall to 783f_copy_to_course_memory.
 
 
 
