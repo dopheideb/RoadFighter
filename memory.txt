@@ -446,8 +446,10 @@ This table was generated with:
 			0x05 CAR_STATE_ROAD_BOUNCE		Bounced against side of the road. (Not crashed since speed is too low.)
 			0x06 CAR_STATE_RESPAWN			Respawn after crash.
 			0x07 CAR_STATE_SPINNING			Spinning (speed below threshold stops the spinning).
-0xE04A		[&car_substate]
-			0x0C ??? Seen at 0x6F18
+0xE04A		[&car_crashed_timer]
+			0x0B Seen at 0x6ACD: time to play the crash sound
+			0x0C Seen at 0x6CE5: Initial value when collision with side of road is detected
+			0x0C Seen at 0x6F18: Initial value when collision with moving object is detected
 0xE04B-0xE04C	[&car_vpos_word] Car: vertical position
 0xE04B		Car: vertical position: "decimals"
 			The word at 0xE04B is increased, and the high 
@@ -633,14 +635,22 @@ This table was generated with:
 		Default coarse pattern name, see 0x592A.
 			Stage 04: pattern 0x06 (completely dark red)
 0xE08A-0xE095	Seen at 0x510D.
+0xE08A (word)	?
+			stage 2: 0x7DC5 (see 0x50EB)
+			stage 4: 0x7E7C (see 0x5116)
+			stage 5: 0x7E7C (see 0x5116)
 0xE08D		Number of rows of 0xE08E
 0xE08E (word)	Pointer to some coarse data, probably scenery on the left. See 0x5639.
-0xE090 (word)	Seen at 0x56CE
+0xE090 (word)	Seen at 0x56CE, pointer to data
 		0x50D8: set value to 0x7FE4 (0x0000)
 		0x50F2: set value to 0x7C85 (0x4092 or 0x9240)
 		0x557D: set value to 0x7C85 (0x4092 or 0x9240)
 		0x56C6: set value to 0x7FE4 (0x0000)
-0xE092 (word)	Seen at 0x512E. Stage 5 specific!
+0xE092		?
+0xE093		?
+0xE094 (word)	Seen at 0x5648. Stage 5 specific? Pointer to byte. Example values:
+			0x7DC5
+			0x7E25
 0xE098-0xE0AF	[&left_side_of_road_ish_table]
 		Value seems to count from the first scenery pixel (i.e. hpos 8). But not per 1 pixel, not per character, but per 2 pixels.
 		Table of 0x18 (24) bytes, keeps of (derivative of) left side of road

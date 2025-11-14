@@ -2349,25 +2349,48 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-4652_something_with_vram_copy_with_reverse_bits:
+; Horizontally mirror a number of VRAM patterns, in all three VDP 
+; patterns band.
+; 
+; Input:
+;   HL: source VRAM address (must be the first VDP pattern band)
+;   DE: destination VRAM address (must be the first VDP pattern band)
+;   C: count - the number of patterns horizontally mirror
+4652_horizontally_mirror_VRAM_patterns:
+	; B = 3, the number of VDP bands.
 	ld b,003h		;4652 B = 3
+	
+	4654_djnz_vdp_band_loop:
 	push bc			;4654
-	push hl			;4655
+	push hl			;4655 Store HL, restore at 0x4663.
 	push de			;4656
-	ld b,008h		;4657 B = 8
-	call 04679h		;4659 4679_vram_copy_reverse_bits_to_vram_de
-	inc hl			;465c
-	inc de			;465d
-	djnz $-5		;465e if (--B != 0) jump to 0x4659
+	
+	4657_pattern_loop:
+	; Each pattern consists of 8 bytes.
+	ld b,008h		;4657 DJNZ@465E: B = 8
+		
+		4659_djnz_pattern_line_loop:
+		call 04679h	;4659 4679_vram_copy_reverse_bits_to_vram_de
+		inc hl		;465c Increase source VRAM address
+		inc de		;465d Increase destination VRAM address
+		djnz $-5	;465e if (--B != 0) jump to 0x4659 (4659_djnz_pattern_line_loop)
+	
+	; 1 pattern done, decrease number of patterns left.
 	dec c			;4660
-	jr nz,$-10		;4661 if (nz) jump to 0x4657
-	pop hl			;4663
-	ld de,00800h		;4664
+	
+	jr nz,$-10		;4661 if (not done) jump to 0x4657 (4657_pattern_loop)
+
+	pop hl			;4663 Restore HL, was stored as DE at 0x4656.
+	
+	; Switch to next VDP band.
+	ld de,00800h		;4664 DE = 0x0800
 	add hl,de		;4667
-	ex de,hl		;4668
+	
+	ex de,hl		;4668 
 	pop hl			;4669
-	pop bc			;466a
-	djnz $-23		;466b if (--B != 0) jump to 0x4654
+	pop bc			;466a Restore BC, was stored at 0x4654.
+	djnz $-23		;466b if (--B != 0) jump to 0x4654 (4654_djnz_vdp_band_loop)
+	
 	ret			;466d
 
 
@@ -4687,14 +4710,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Hence: A can only be 0 or 2.
 	cp 002h			;4c32
 	jr z,$+77		;4c34 if (A == 2) jump to 0x4C81
-	ld a,(e04fh_speed)	;4c36 A = speed
+	ld a,(0e04fh)		;4c36 A = car_speed
 	
-	; HL = speed
+	; HL = car_speed
 	ld h,000h		;4c39 H = 0x00
-	ld l,a			;4c3b L = speed
+	ld l,a			;4c3b L = car_speed
 	
-	; DE = speed
-	ld e,l			;4c3c E = speed
+	; DE = car_speed
+	ld e,l			;4c3c E = car_speed
 	ld d,h			;4c3d D = 0x00
 	
 	; HL *= 4
@@ -4705,12 +4728,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	cp 000h			;4c43
 	jr z,$+34		;4c45 if (*0xE038 == 0) jump to 0x4C67
 	
-	ld a,(e04fh_speed)	;4c47 A = speed
+	ld a,(0e04fh)		;4c47 A = car_speed
 	cp 07eh			;4c4a Compute A - 0x7E and set flags.
-	jr nc,$+11		;4c4c if (speed >= 0x7E) jump to 4c57_speed_at_least_0x7E
+	jr nc,$+11		;4c4c if (car_speed >= 0x7E) jump to 4c57_speed_at_least_0x7E
 	
 	cp 030h			;4c4e
-	jr nc,$+29		;4c50 if (speed >= 0x30) jump to 0x4C6D
+	jr nc,$+29		;4c50 if (car_speed >= 0x30) jump to 0x4C6D
 	
 	; HL *= 8
 	add hl,hl		;4c52
@@ -4749,7 +4772,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x4C50 (jump) speed >= 0x30, speed < 0x7D
 4c6d_speed_at_least_0x30_but_not_exceeds_0x7D:
-	ld a,(e04fh_speed)	;4c6d A = speed
+	ld a,(0e04fh)		;4c6d A = car_speed
 	sub 030h		;4c70 A -= 0x30
 	
 	; HL = A
@@ -4758,7 +4781,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; HL <<= 4 (HL *= 16)
 	; 
-	; I.e.: HL = 16 * speed
+	; I.e.: HL = 16 * (car_speed - 0x30)
 	add hl,hl		;4c75
 	add hl,hl		;4c76
 	add hl,hl		;4c77
@@ -4767,18 +4790,19 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; DE = 0x0500
 	ld e,000h		;4c79
 	ld d,005h		;4c7b
-	; Fall to 0x4C7D.
-
-
+	
+	
 ; We can get here from:
 ;   0x4C65 (jump) DE == 0x04B0, HL == ?
 ;   0x4C6B (jump)
-;   0x4C7B (fall) DE == 0x0500, HL == 16 * speed
-4c7d_:
+;   0x4C7B (fall) DE == 0x0500, HL == 16 * (car_speed - 0x30)
+4c7d_fixme:
 	add hl,de		;4c7d HL += DE
-	; We can get here from:
-	;   0x4C55 (jump)
-	;   0x4C7D (fall)
+	
+; We can get here from:
+;   0x4C55 (jump)
+;   0x4C7D (fall)
+4c7e_fixme:
 	ld (0e036h),hl		;4c7e Store
 	
 	; We can get here from:
@@ -5972,14 +5996,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,0e049h		;504f LDIR: Destination
 	ld bc,0034eh		;5052 LDIR: Count: 0x034E, copy this many bytes
 	ld (hl),000h		;5055
-	ldir			;5057
+	ldir			;5057 do { *(DE++) = *(HL++) } while (--BC)
 	
 	call 051e5h		;5059 51e5_moving_objects__zero
 	ld hl,0e098h		;505c LDIR: source
 	ld de,0e099h		;505f LDIR: destination
 	ld (hl),020h		;5062 Initialize source
 	ld c,017h		;5064 LDIR: count (B is still 0)
-	ldir			;5066
+	ldir			;5066 do { *(DE++) = *(HL++) } while (--BC)
 	
 	; Check if wrapped around.
 	ld hl,0e042h		;5068 HL = &num_stage_wraparounds
@@ -6112,7 +6136,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x50C6 (jump) index #01 of jump table (stage 2)
 50e8_init_stage_2:
-	ld hl,07dc5h		;50e8
+	ld hl,07dc5h		;50e8 HL = 0x7DC5
 	ld (0e08ah),hl		;50eb
 	ret			;50ee
 
@@ -6150,18 +6174,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; Data, see 0x510A.
 5116_data:
-	defw 0x7C		;5116
-	defb 0x7E		;5117
-	defb 0x01		;5118
-	defb 0x01		;5119
-	defb 0x00		;511a
-	defb 0x00		;511b
-	defb 0x57		;511c
-	defb 0x7E		;511d
-	defb 0x3F		;511e
-	defb 0x01		;511f
-	defb 0xC5		;5120
-	defb 0x7D		;5121
+	defw 0x7E7C		;5116 Initial value for 0xE08A (stage 4+5).
+	defb 0x01		;5118 Initial value for 0xE08C (stage 4+5).
+	defb 0x01		;5119 Initial value for 0xE08D (stage 4+5).
+	defb 0x00		;511a Initial value for 0xE08E (stage 4+5).
+	defb 0x00		;511b Initial value for 0xE08F (stage 4+5).
+	defw 0x7E57		;511c Initial value for 0xE090 (stage 4+5).
+	defb 0x3F		;511e Initial value for 0xE092 (stage 4+5).
+	defb 0x01		;511f Initial value for 0xE093 (stage 4+5).
+	defw 0x7DC5		;5120 Initial value for 0xE094 (stage 4+5).
 
 
 
@@ -6385,7 +6406,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,0e0c2h		;51e8 LDIR: destination
 	ld bc,00044h		;51eb LDIR: count
 	ld (hl),000h		;51ee
-	ldir			;51f0
+	ldir			;51f0 do { *(DE++) = *(HL++) } while (--BC)
 	
 	ret			;51f2
 
@@ -6403,7 +6424,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 51ff_initialize_variables:
 	ld hl,05219h		;51ff HL = 5219_car_initial_values
-	ld de,e049_car_state	;5202 DE = destination
+	ld de,0e049h		;5202 DE = destination
 	ld bc,0000bh		;5205
 	ldir			;5208 Copy HL to DE, 0x0B times.
 	call 06e1dh		;520a 6e1d_store_car_sprite_attributes
@@ -6467,8 +6488,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,092h		;5260 Set tune ID to 0x92: Victorious tune when player reaches checkpoint
 	call nz,04b6eh		;5262 if (player is playing) call 4b6e_sound_something_with_D_is_0
 	
-	ld a,003h		;5265 A = 3
-	ld (e049_car_state),a	;5267 Store car state as 3: reached checkpoint
+	ld a,003h		;5265 A = 0x03
+	ld (0e049h),a		;5267 car_state = CAR_STATE_REACHED_CHECKPOINT
 	ret			;526a
 
 
@@ -6604,9 +6625,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x4139 [from=4139_game_state_02_substate_01]
 52d1_fudge_currently_pressed_keys_to_keep_near_left_side_of_the_road:
-	ld a,(e049_car_state)	;52d1
+	ld a,(0e049h)		;52d1 A = car_state
 	cp 004h			;52d4
-	jr nz,$+14		;52d6 if (car state != skidding) jump to 0x52E4
+	jr nz,$+14		;52d6 if (car_state != CAR_STATE_SKIDDING) jump to 0x52E4
 	
 	; Car state: skidding (still recoverable by steering)
 	ld a,(0e0b1h)		;52d8 A = skid_ticks_remaining
@@ -6949,10 +6970,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	cp 007h			;53eb Compute A - 0x07 and update Z/NZ flag.
 	ret nz			;53ed
 
-	; if (car state == 1) return
-	ld a,(e049_car_state)	;53ee A = car state
+	; if (car state == CAR_STATE_CRASHED) return
+	ld a,(0e049h)		;53ee A = car_state
 	dec a			;53f1 --A
-	ret z			;53f2 if (car state == 1) return
+	ret z			;53f2 if (car_state == CAR_STATE_CRASHED) return
 	
 	; A = vpos of current rival car
 	ld c,006h		;53f3 C = 0x06
@@ -7211,7 +7232,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,0e058h		;54e6
 	call 04040h		;54e9 DE += A
 	ld bc,00002h		;54ec LDIR: copy count == 0x02
-	ldir			;54ef
+	ldir			;54ef do { *(DE++) = *(HL++) } while (--BC)
 
 	ld (0e0b5h),hl		;54f1
 	ld hl,0e0b4h		;54f4
@@ -7353,13 +7374,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;554b
 	inc a			;554c
 	jr nz,$+8		;554d if (nz) jump to 0x5555
-	ld hl,07dc5h		;554f
+	ld hl,07dc5h		;554f HL = 0x7DC5
 	ld (0e08ah),hl		;5552
+	
 	ld de,0e058h		;5555
 	ld bc,00004h		;5558
-	ldir			;555b
+	ldir			;555b do { *(DE++) = *(HL++) } while (--BC)
+	
 	ld (0e08ah),hl		;555d
-	jp 05537h		;5560
+	jp 05537h		;5560 5537_post_routine_for_stage_01_02_04_06
 
 
 
@@ -7414,10 +7437,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld l,e			;55c2
 	ld (hl),0d0h		;55c3
 	inc de			;55c5
-	ldir			;55c6
+	ldir			;55c6 do { *(DE++) = *(HL++) } while (--BC)
+	
 	pop hl			;55c8
 	ld c,004h		;55c9
-	ldir			;55cb
+	ldir			;55cb do { *(DE++) = *(HL++) } while (--BC)
+	
 	ld (0e06fh),hl		;55cd
 	ld hl,0e08ch		;55d0
 	inc (hl)		;55d3
@@ -7512,7 +7537,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,0e058h		;5633 DE = 0xE058
 	ld bc,00007h		;5636 BC = 0x0007
 	ld hl,(0e08eh)		;5639 HL = *(0xE08E)
-	ldir			;563c
+	ldir			;563c do { *(DE++) = *(HL++) } while (--BC)
 	
 	ld (0e08eh),hl		;563e Store beginning of next scenery line.
 	ret			;5641
@@ -7530,46 +7555,74 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;564b
 	inc a			;564c
 	jr nz,$+41		;564d if (nz) jump to 0x5676
-	ld hl,0e092h		;564f
+	
+	ld hl,0e092h		;564f HL = 0xE092
 	dec (hl)		;5652
 	ld hl,(0e090h)		;5653
-	jr nz,$+15		;5656 if (nz) jump to 0x5665
-	inc hl			;5658
+	jr nz,$+15		;5656 if (*(0xE092) != 0) jump to 0x5665
+	
+	inc hl			;5658 HL = 0xE093
 	ld (0e090h),hl		;5659
 	ld a,(hl)		;565c
-	ld b,a			;565d
-	rra			;565e
-	rra			;565f
-	and 03fh	g	;5660
+	ld b,a			;565d B = A
+	
+	; *(0xE092) = (A >> 2)
+	rra			;565e A >>= 1
+	rra			;565f A >>= 1
+	and 03fh		;5660 A &= 0x3F
 	ld (0e092h),a		;5662
+	
+	; We can get here from:
+	;   0x5656 (jump) [from=self] *(0xE092) was already non-zero
+	;   0x5662 (fall) [from=self] *(0xE092) was zero, but set now
 	ld a,(hl)		;5665
-	and 003h		;5666
-	add a,a			;5668
-	ld hl,056a4h		;5669
+	and 003h		;5666 A &= 0x03 (keep lower 2 bits)
+	add a,a			;5668 A *= 2
+	ld hl,056a4h		;5669 HL = 0x56A4 (table ?to railroad track?)
 	call 0403bh		;566c HL += A
+	
+	; HL = *(HL)
 	ld a,(hl)		;566f
 	inc hl			;5670
 	ld h,(hl)		;5671
 	ld l,a			;5672
+	
 	ld (0e094h),hl		;5673
-	exx			;5676
-	ld hl,(0e090h)		;5677
-	ld a,(hl)		;567a
-	and 003h		;567b
-	cp 003h			;567d
-	exx			;567f
-	jr nz,$+11		;5680 if (nz) jump to 0x568B
+	
+	; We can get here from:
+	;   0x564D (jump) [from=self]
+	;   0x5673 (fall) [from=self]
+	exx			;5676 Store HL. Restore at 0x567F.
+		ld hl,(0e090h)	;5677
+		ld a,(hl)	;567a
+		and 003h	;567b A &= 0x03
+		cp 003h		;567d Compute A - 0x03 and update Z/NZ flag.
+	exx			;567f Restore HL, stored at 0x5676.
+	jr nz,$+11		;5680 if ((*(0xE090) & 0x03) != 0) jump to 0x568B
+	
 	ld (0e094h),hl		;5682
-	ld bc,00004h		;5685
+	ld bc,00004h		;5685 ?Elements are 4 bytes each?
 	add hl,bc		;5688
+	
 	jr $+13			;5689 jump to 0x5696
-	ld b,004h		;568b
-	ld de,0e06eh		;568d
+	
+	
+	
+	; We can get here from:
+	;   0x5680 (jump) [from=self]
+	ld b,004h		;568b DJNZ@5694: B = 0x04
+	ld de,0e06eh		;568d DE = 0xE06E
+	
+	5690_start_of_djnz_loop:
 	ld a,(hl)		;5690
 	ld (de),a		;5691
 	dec de			;5692
 	inc hl			;5693
-	djnz $-4		;5694 if (--B != 0) jump to 0x5690
+	djnz $-4		;5694 if (--B != 0) jump to 0x5690 (5690_start_of_djnz_loop)
+	
+	; We can get here from:
+	;   0x5689 (jump) [from=self]
+	;   0x5694 (fall) [from=self]
 	ld (0e094h),hl		;5696
 	jp 0553ah		;5699 553a_post_routine_for_all_stages_something
 
@@ -7739,7 +7792,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,(0e046h)		;572e
 	ld hl,0e058h		;5732 HL = 0xE058
 	ld bc,00016h		;5735 LDIR: loop count == 22
-	ldir			;5738
+	ldir			;5738 do { *(DE++) = *(HL++) } while (--BC)
 	; Fall to 573a_copy_coarse_to_VRAM.
 
 
@@ -8225,7 +8278,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(0e089h)		;5930 A = stage_specific_default_coarse_pattern_ID
 	ld (hl),a		;5933
 	ld bc,00015h		;5934 LDIR: loop count (21)
-	ldir			;5937
+	ldir			;5937 do { *(DE++) = *(HL++) } while (--BC)
 	ret			;5939
 
 
@@ -16002,7 +16055,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,02688h		;68ce HL = 0x2688
 	ld de,026a8h		;68d1 DE = 0x26A8
 	ld c,004h		;68d4
-	call 04652h		;68d6 4652_something_with_vram_copy_with_reverse_bits
+	call 04652h		;68d6 4652_horizontally_mirror_VRAM_patterns
 	
 	ld hl,006a8h		;68d9 HL = 0x06A8, VRAM destination
 	ld de,0601fh		;68dc DE = 0x601F, color source
@@ -16019,7 +16072,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,026c8h		;68f4 HL = 0x26C8
 	ld de,02708h		;68f7 DE = 0x2708
 	ld c,008h		;68fa
-	call 04652h		;68fc 4652_something_with_vram_copy_with_reverse_bits
+	call 04652h		;68fc 4652_horizontally_mirror_VRAM_patterns
 	
 	ld hl,00708h		;68ff HL = 0x0708, VRAM destination
 	ld de,06022h		;6902 DE = 0x6022, color source
@@ -16036,7 +16089,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,02760h		;691a HL = 0x2760
 	ld de,02798h		;691d DE = 0x2798
 	ld c,006h		;6920
-	call 04652h		;6922 4652_something_with_vram_copy_with_reverse_bits
+	call 04652h		;6922 4652_horizontally_mirror_VRAM_patterns
 	
 	ld hl,00798h		;6925 HL = 0x0798
 	ld de,06031h		;6928 DE = 0x6031
@@ -16116,38 +16169,38 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,02400h		;6998 HL = 0x2400, VRAM destination
 	call 45e0_copy2VRAM_3x	;699b
 	
-	ld hl,02400h		;699e HL = 0x2400
-	ld de,02588h		;69a1 DE = 0x2588
-	ld c,018h		;69a4
-	call 04652h		;69a6 4652_something_with_vram_copy_with_reverse_bits
+	ld hl,02400h		;699e HL = 0x2400, VRAM source, patterns [0x80..0x97]
+	ld de,02588h		;69a1 DE = 0x2588, VRAM destination, patterns [0xB1..0xC8]
+	ld c,018h		;69a4 C = 0x18 (copy count)
+	call 04652h		;69a6 4652_horizontally_mirror_VRAM_patterns
 	
 	ld de,067c2h		;69a9 DE = 0x67C2, color source
-	ld hl,00588h		;69ac HL = 0x0588, VRAM destination
+	ld hl,00588h		;69ac HL = 0x0588, VRAM destination, colors [0xB1..0xC8]
 	call 45e0_copy2VRAM_3x	;69af
 	
 	ld de,06645h		;69b2 DE = 0x6645, pattern source
-	ld hl,02400h		;69b5 HL = 0x2400, VRAM destination
+	ld hl,02400h		;69b5 HL = 0x2400, VRAM destination, patterns [0x80..0x8C]
 	call 45e0_copy2VRAM_3x	;69b8
 	
-	ld de,02468h		;69bb DE = 0x2468
-	ld hl,02400h		;69be HL = 0x2400, pattern source
-	ld c,00dh		;69c1
-	call 04652h		;69c3 4652_something_with_vram_copy_with_reverse_bits
+	ld de,02468h		;69bb DE = 0x2468, VRAM destination, patterns [0x8D..0x99]
+	ld hl,02400h		;69be HL = 0x2400, VRAM source, patterns [0x80..0x8C]
+	ld c,00dh		;69c1 C = 0x0D (copy count)
+	call 04652h		;69c3 4652_horizontally_mirror_VRAM_patterns
 	
 	ld de,06737h		;69c6 DE = 0x6737, color source
-	ld hl,00400h		;69c9 HL = 0x0400, VRAM destination
+	ld hl,00400h		;69c9 HL = 0x0400, VRAM destination, colors [0x80..0x8C]
 	call 45e0_copy2VRAM_3x	;69cc
 	
 	ld de,06737h		;69cf DE = 0x6737, color source
-	ld hl,00468h		;69d2 HL = 0x0468, VRAM destination
+	ld hl,00468h		;69d2 HL = 0x0468, VRAM destination, colors [0x8D..0x99]
 	call 45e0_copy2VRAM_3x	;69d5
 	
 	ld de,06697h		;69d8 DE = 0x6697, pattern source
-	ld hl,024d0h		;69db HL = 0x24D0, VRAM destination
+	ld hl,024d0h		;69db HL = 0x24D0, VRAM destination, patterns [0x9A..0xB0]
 	call 45e0_copy2VRAM_3x	;69de
 	
 	ld de,0675eh		;69e1 DE = 0x675E, color source
-	ld hl,004d0h		;69e4 HL = 0x04D0, VRAM destination
+	ld hl,004d0h		;69e4 HL = 0x04D0, VRAM destination, colors [0x9A..0xB0]
 	call 45e0_copy2VRAM_3x	;69e7
 	
 	ld a,(0e043h)		;69ea A = stage
@@ -16156,14 +16209,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;
 	; Post: stage == 4
 	;
-	ld a,066h		;69f0
-	ld hl,00430h		;69f2
-	ld bc,00038h		;69f5
+	ld a,066h		;69f0 A = 0x66, fill byte
+	ld hl,00430h		;69f2 HL = 0x0430, VRAM destination
+	ld bc,00038h		;69f5 BC = 0x0038, fill length
 	call 045cfh		;69f8 45cf_filvrm_color_or_pattern_generator
 	
-	ld a,066h		;69fb
-	ld hl,00498h		;69fd
-	ld bc,00038h		;6a00
+	ld a,066h		;69fb A = 0x66, fill byte
+	ld hl,00498h		;69fd HL = 0x0498, VRAM destination
+	ld bc,00038h		;6a00 BC = 0x0038, fill length
 	jp 045cfh		;6a03 45cf_filvrm_color_or_pattern_generator
 
 
@@ -16363,34 +16416,42 @@ C
 	ret nz			;6ac1 if (game state ticker & 0x07 != 0) return
 
 	; We get here in only 1 out of 8 frames.
-	ld hl,0e04ah		;6ac2 HL = 0xE04A
-	dec (hl)		;6ac5 
-	jr z,$+25		;6ac6 if (z) jump to 0x6ADF
-	ld a,(hl)		;6ac8 A = *(0xE04A)
+	ld hl,0e04ah		;6ac2 HL = &car_crashed_timer
+	dec (hl)		;6ac5 --car_crashed_timer
+	jr z,$+25		;6ac6 if (car_crashed_timer == 0x00) jump to 0x6ADF
+	; Post: Not yet time for respawn.
+	ld a,(hl)		;6ac8 A = car_crashed_timer
 	cp 00bh			;6ac9 Compute A - 0x0B and set flags.
 	ld a,008h		;6acb A = 0x08
-	jr z,$+9		;6acd if (*(0xE04A) == 0x0B) jump to 0x6AD6
+	jr z,$+9		;6acd if (car_crashed_timer == 0x0B) jump to 0x6AD6
 	inc a			;6acf ++A
-	cp (hl)			;6ad0
+	cp (hl)			;6ad0 Compute A - car_crashed_timer and update Z/NZ flag.
 	ret nz			;6ad1
+	
 	ld a,009h		;6ad2 A = 0x09
 	jr $-31			;6ad4 jump to 0x6AB5 (6ab5_set_car_orientation_to_regA)
 
 	; We can get here from:
-	;   0x6ACD (jump)
+	;   0x6ACD (jump) [from=self]
+	; 
+	; Play the crash sound.
 	push af			;6ad6 Store A (0x08)
-	ld a,04fh		;6ad7
+	ld a,04fh		;6ad7 A = 0x4F
 	call 04b6eh		;6ad9 4b6e_sound_something_with_D_is_0
 	pop af			;6adc Restore A (0x08)
+	
 	jr $-40			;6add jump to 0x6AB5 (6ab5_set_car_orientation_to_regA)
-
+	
+	
+	
 	; We can get here from:
-	;   0x6AC6 (jump)
+	;   0x6AC6 (jump) [from=self] car_crashed_timer == 0x00
 	call 06af4h		;6adf 6af4_subtract_0x14_fuel_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge
 	ld a,006h		;6ae2 A = 0x06
-	ld (e049_car_state),a	;6ae4
+	ld (0e049h),a		;6ae4 car_state = CAR_STATE_RESPAWN
+	
 	ld a,010h		;6ae7 A = 0x10
-	ld (0e004h),a		;6ae9
+	ld (0e004h),a		;6ae9 game_state_bits_or_counter_or_timer = 0x10
 	ld a,(0e083h)		;6aec A = fuel_remaining
 	or a			;6aef Update Z/NZ flag.
 	jr z,$+44		;6af0 if (fuel_remaining == 0) jump to 6b1c_out_of_fuel_and_no_more_speed (GAME OVER)
@@ -16443,17 +16504,17 @@ C
 	; Post: no fuel remaining.
 
 	call 06a90h		;6b0c 6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining
-	ld hl,e04fh_speed	;6b0f 
-	ld a,(hl)		;6b12 A = speed
+	ld hl,0e04fh		;6b0f HL = &car_speed
+	ld a,(hl)		;6b12 A = car_speed
 	
 	; Note: if speed was 0, it will become 0xFF
 	dec a			;6b13 Decrease speed
 	cp 0f0h			;6b14
 	
-	jr nc,$+6		;6b16 if (speed >= 0xF0) jump to 0x6b1C
+	jr nc,$+6		;6b16 if (car_speed >= 0xF0) jump to 0x6b1C
 	
 	; Still some speed.
-	ld (hl),a		;6b18 Save speed
+	ld (hl),a		;6b18 car_speed = A
 	jp 06c73h		;6b19 6c73_fixme
 
 
@@ -16496,9 +16557,10 @@ C
 	call 45a7_copy2vram	;6b4a
 	
 	ld a,080h		;6b4d A = 0x80
-	ld (0e004h),a		;6b4f *(0xE004) = 0x80
+	ld (0e004h),a		;6b4f game_state_bits_or_counter_or_timer = 0x80
+	
 	ld a,006h		;6b52 A = 0x06
-	ld (e049_car_state),a	;6b54 *(0xE049) = 0x06, game over
+	ld (0e049h),a		;6b54 car_state = CAR_STATE_RESPAWN
 	pop hl			;6b57 Remove return address, return to grandparent.
 	ret			;6b58
 
@@ -16531,9 +16593,9 @@ C
 	ld (0e0feh),a		;6b67
 	call 06ab4h		;6b6a 6ab4_set_car_orientation_to_0
 	
-	; Set speed to 0.
-	xor a			;6b6d A = 0
-	ld (e04fh_speed),a	;6b6e Store speed (0).
+	; car_speed = 0
+	xor a			;6b6d A = 0x00
+	ld (0e04fh),a		;6b6e car_speed = 0x00
 	
 	; Test if car is outside screen.
 	ld hl,0e04ch_car_vpos	;6b71
@@ -16595,14 +16657,15 @@ C
 	;   0x6B9E (fall) A == 0x01 (car starts its rotation in north-east orientation, will rotate clockwise)
 	ld (hl),a		;6ba0 Store orientation
 	ld a,007h		;6ba1 A = 0x07
-	ld hl,e049_car_state	;6ba3
-	ld (hl),a		;6ba6 Set car state to 0x07 (spinning out of control).
-	ld a,(e04fh_speed)	;6ba7 A = speed
+	ld hl,0e049h		;6ba3 HL = &car_state
+	ld (hl),a		;6ba6 car_state = CAR_STATE_SPINNING
+	
+	ld a,(0e04fh)		;6ba7 A = car_speed
 	cp 0a0h			;6baa
-	ret nc			;6bac if (speed >= 0xA0) return
+	ret nc			;6bac if (car_speed >= 0xA0) return
 	
 	; Car speed is low enough, automatic recovery!
-	ld (hl),000h		;6bad Set car state to 0x00 (all okay).
+	ld (hl),000h		;6bad car_state = CAR_STATE_NOTHING_SPECIAL
 	ret			;6baf
 
 	; We can get here from:
@@ -16643,8 +16706,8 @@ C
 ;   0x6BDA (fall) [from=6b90_car_state_04__skidding] Recovered from skidding, north-west.
 ;   0x6EE7 (call) [from=6e54_handling_moving_objects_something]
 6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00:
-	xor a			;6bdb Car state #00: All okay, nothing special.
-	ld (e049_car_state),a	;6bdc Save car state.
+	xor a			;6bdb A = 0x00
+	ld (0e049h),a		;6bdc car_state = CAR_STATE_NOTHING_SPECIAL
 	jp 06ab5h		;6bdf 6ab5_set_car_orientation_to_regA(sprite_pattern_id=0x00)
 
 
@@ -16732,10 +16795,10 @@ C
 
 
 ; We can get here from:
-;   0x6C2A (jump) A == 2 (car state for no fuel remaining)
-;   0x6C2C (fall) A == 0 (car state for all okay)
+;   0x6C2A (jump) A == 2 (CAR_STATE_OUT_OF_FUEL_WITH_SPEED)
+;   0x6C2C (fall) A == 0 (CAR_STATE_NOTHING_SPECIAL)
 6c2d_set_car_state_to_regA:
-	ld (e049_car_state),a	;6c2d Store car state.
+	ld (0e049h),a		;6c2d car_state = A
 	ret			;6c30
 
 
@@ -16810,7 +16873,7 @@ C
 	and a			;6c6f Update Z/NZ flag.
 	ret z			;6c70 if (car_speed == 0) return
 	dec a			;6c71 Decrease speed
-	ld (hl),a		;6c72 Store speed
+	ld (hl),a		;6c72 car_speed = A
 	; Fall to 6c73_fixme.
 
 
@@ -16895,8 +16958,8 @@ C
 	jr z,$-67		;6caa if (not using gas pedal) jump to 0x6C67
 	
 	; Accelerating
-	ld hl,e04fh_speed	;6cac
-	ld a,(hl)		;6caf A = speed
+	ld hl,0e04fh		;6cac HL = &car_speed
+	ld a,(hl)		;6caf A = car_speed
 	cp 0d7h			;6cb0 Compare with maximum speed.
 	ret nc			;6cb2 if (driving with maximum speed) return
 	inc a			;6cb3 Increase speed
@@ -16940,14 +17003,14 @@ C
 	ret nc			;6ce1
 	
 	ld hl,00c01h		;6ce2 HL = 0x0C01
-	ld (0e049h),hl		;6ce5 car_state = CAR_STATE_CRASHED, car_substate = 0x0C
+	ld (0e049h),hl		;6ce5 car_state = CAR_STATE_CRASHED, car_crashed_timer = 0x0C
 	
 	ld a,(0e04fh)		;6ce8 A = car_speed
 	cp 0a0h			;6ceb Compute car_speed - 0xA0 and update C/NC flag
 	jp nc,06d04h		;6ced if (car speed >= 0xA0) jump
 	
 	ld a,005h		;6cf0 A = 0x05
-	ld (e049_car_state),a	;6cf2 Set car state to #05, bounced against side of the road.
+	ld (0e049h),a		;6cf2 car_state = CAR_STATE_ROAD_BOUNCE
 	
 	ld a,0bch		;6cf5 A = 0xBC
 	ld (0e051h),a		;6cf7 ???
@@ -16983,9 +17046,11 @@ C
 	; Post: A in [0x00..0x07]
 
 	cp 004h			;6d10 Compute A - 0x04 and update C/NC flag.
-	jr nc,$+14		;6d12 if (A >= 4) jump to 0x6D20
-	ld a,004h		;6d14 A = 4
-	ld (e049_car_state),a	;6d16 car_state = SKIDDING
+	jr nc,$+14		;6d12 if (A >= 0x04) jump to 0x6D20
+	
+	ld a,004h		;6d14 A = 0x04
+	ld (0e049h),a		;6d16 car_state = CAR_STATE_SKIDDING
+	
 	ld a,020h		;6d19 A = 0x20
 	ld (0e0b1h),a		;6d1b skid_ticks_remaining = 0x20
 	and a			;6d1e Clears carry flag.
@@ -16994,7 +17059,7 @@ C
 	; We can get here from:
 	;   0x6D12 (jump)
 	ld a,020h		;6d20 A = 0x20
-	ld (e04fh_speed),a	;6d22
+	ld (0e04fh),a		;6d22 car_speed = 0x20
 	call 06b02h		;6d25 6b02_jump_to_draw_speed_and_fuel_gauge
 	and a			;6d28 Clears carry flag.
 	ret			;6d29 Return to 0x6CDE.
@@ -17510,8 +17575,8 @@ C
 6e4a_handling_moving_objects_something_if_not_crashed:
 	; if (car_state == CAR_STATE_CRASHED) return
 	ld a,(0e049h)		;6e4a A = car_state
-	dec a			;6e4d
-	ret z			;6e4e
+	dec a			;6e4d --A
+	ret z			;6e4e if (car_state == CAR_STATE_CRASHED) return
 	; Post: not crashed.
 	;
 	ld hl,0e0e4h		;6e4f HL = &moving_object_idx
@@ -17632,8 +17697,8 @@ C
 	;  => car_hpos + 0x04           = moving_object.hpos + 0x0C    + 2
 	;  => car_hpos - moving_object.hpos - 0x0A = 0
 	;                                     ^^^^
-	;                                 See 0x6E89
-	;
+	;                                 See 0x6E89 -------------------------
+	;                                                                 vvvv
 	sub 00ah		;6e89 A = car_hpos - moving_object.hpos - 0x0A
 	;
 	;
@@ -17734,8 +17799,8 @@ C
 	ld a,020h		;6ecf A = 0x20
 	ld (0e0b1h),a		;6ed1 Store skid ticks remaining for recoverability by steering.
 	
-	ld a,004h		;6ed4 Car state #04: skidding (recoverable by steering)
-	ld (e049_car_state),a	;6ed6 Save car state.
+	ld a,004h		;6ed4 A = 0x04
+	ld (0e049h),a		;6ed6 car_state = CAR_STATE_SKIDDING
 	call 06e1dh		;6ed9 6e1d_store_car_sprite_attributes
 
 
@@ -17810,9 +17875,9 @@ C
 ;   0x6EA4 (jump) [from=6e54_handling_moving_objects_something]
 6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge:
 	; Set car state to 0x01.
-	; Set car ?substate? to 0x0C.
+	; Set car crash timer to 0x0C.
 	ld hl,00c01h		;6f18 HL = 0x0C01
-	ld (0e049h),hl		;6f1b car_state = 0x01, car_substate = 0x0C
+	ld (0e049h),hl		;6f1b car_state = CAR_STATE_CRASHED, car_crashed_timer = 0x0C
 
 
 
@@ -18433,7 +18498,7 @@ C
 	; ?collision detection?
 	jp z,07289h		;7110 if (z) jump to 0x7289 (7289_moving_object_state_00__not_visible_so_return) (ret)
 
-	ld a,(e04fh_speed)	;7113 A = car_speed
+	ld a,(0e04fh)		;7113 A = car_speed
 	sub (hl)		;7116 A = car_speed - current_moving_object.delta_vpos_per_frame_lo_byte
 	
 	; Make speed difference absolute/positive.
@@ -19295,7 +19360,7 @@ C
 ;   0x5236 (call) [from=5224_handle_race_substate]
 7374_increment_fuel_used:
 	ld a,(0e049h)		;7374 A = car_state
-	dec a			;7377 car_state == 1 means "crashed"
+	dec a			;7377 --A
 	ret z			;7378 if (car_state == CAR_STATE_CRASHED) return
 
 	; Post: car state is not 0x01, i.e. not in crash state.
@@ -19320,8 +19385,8 @@ C
 
 738c_update_distance_travelled:
 	ld hl,0e077h		;738c Load distance travelled (low and middle byte)
-	ld a,(e04fh_speed)	;738f Load car speed
-	add a,(hl)		;7392 distance travelled += speed
+	ld a,(0e04fh)		;738f A = car_speed
+	add a,(hl)		;7392 distance travelled += car_speed
 	ld (hl),a		;7393 Store distance travelled (L is correct, H possibly)
 	jr nc,$+12		;7394 if (H needs to be increased by 1) jump to 0x73A0
 	
@@ -19330,21 +19395,24 @@ C
 	add hl,de		;739c Compensate for missed carry in 0x7392
 	ld (0e078h),hl		;739d Save distance travelled (middle and high byte)
 	
-73a0_:
-	ld a,(e049_car_state)	;73a0 Load car state
-	cp 005h			;73a3 car state 5 == bounced against side of road
-	ld a,(e04fh_speed)	;73a5 Load car speed
-	jr z,$+5		;73a8 if (bounced against side of road) jump to 0x73AD
+	; We can get here from:
+	;   0x7394 (jump) [from=self]
+	;   0x739D (fall) [from=self]
+	ld a,(0e049h)		;73a0 A = car_state
+	cp 005h			;73a3 Compute car_state - 0x05, and update Z/NZ flag.
+	ld a,(0e04fh)		;73a5 A = car_speed
+	jr z,$+5		;73a8 if (car_state == CAR_STATE_ROAD_BOUNCE) jump to 0x73AD (73ad_draw_speed_gauge)
 	ld (0e051h),a		;73aa Store car speed ?in some alternative location?
 	; Fall to 73ad_draw_speed_gauge.
 
 
 
 ; We can get here from:
-;   0x73AA (fall)
+;   0x73A8 (jump) [from=738c_update_distance_travelled]
+;   0x73AA (fall) [from=738c_update_distance_travelled]
 ;   0x704B (call)	
 73ad_draw_speed_gauge:
-	ld a,(e04fh_speed)	;73ad A = car_speed
+	ld a,(0e04fh)		;73ad A = car_speed
 	ld l,0d8h		;73b0 L = 0xD8, bottom left of speed gauge (VRAM, low byte)
 	; Fall to 73b2_draw_speed_or_fuel_gauge.
 
@@ -19591,21 +19659,25 @@ C
 	dec (hl)		;7427 --fuel_remaining
 	ld a,(hl)		;7428 A = fuel_remaining
 	or a			;7429 Update Z/NZ flag.
-	jr nz,$+7		;742a if (fuel_remaining > 0) jump to 7431_either_with_or_without_fuel_remaining
-				;     else fall to 742c_no_fuel_remaining
+	jr nz,$+7		;742a if (fuel_remaining > 0) jump to 0x7431
 
-; Set car state to 2 (out of fuel).
-742c_no_fuel_remaining:
+	; Set car state to CAR_STATE_OUT_OF_FUEL_WITH_SPEED.
+	742c_no_fuel_remaining:
 	; car_state = 2
 	ld hl,0e049h		;742c HL = &car_state
-	ld (hl),002h		;742f car_state = 2
-7431_either_with_or_without_fuel_remaining:
+	ld (hl),002h		;742f car_state = CAR_STATE_OUT_OF_FUEL_WITH_SPEED
+	
+	
+	
+	; We can get here from:
+	;   0x7425 (jump) [from=self]
+	;   0x742F (fall) [from=self]
 	call 07444h		;7431 call 7444_draw_fuel_gauge (since fuel was decremented)
 	ld a,(0e083h)		;7434 A = fuel_remaining
 	cp 010h			;7437 Check for low fuel (< 0x10).
 	ret nc			;7439 if (fuel_remaining >= 0x10) return
-				;     else fall to 743a_emit_low_fuel_warning
-743a_emit_low_fuel_warning:
+
+	; Emit the low fuel warning.
 	ld a,(E028_soundID_B)	;743a
 	or a			;743d
 	ret nz			;743e return if already emitting a sound/tune/bleep.
@@ -19657,7 +19729,7 @@ C
 	defb 0xA8		;7475 Copied to 0xE04C: Car: vertical position on screen
 	defb 0x00		;7476 Copied to 0xE04D: Car: ?
 	defb 0x63		;7477 Copied to 0xE04E: Car: horizontal position on screen
-	defb 0x00		;7478 Copied to 0xE04F: Car: ?
+	defb 0x00		;7478 Copied to 0xE04F: Car: speed
 	defb 0x00		;7479 Copied to 0xE050: Car: ?
 	defb 0x00		;747a Copied to 0xE051: Car: ?
 	defb 0x00		;747b Copied to 0xE052: Car: ?
@@ -22653,7 +22725,8 @@ C
 
 
 ; Data, see 0x56A0.
-	defb 0x1D		;7cb0 Length???
+	; Last element end at 0x7D7B.
+	defb 0x1D		;7cb0 0x1D element of each 7 bytes.
 
 	defb 0x84		;7cb1 [stage 4+5] Start of row 0x00.
 	defb 0x85		;7cb2
@@ -22864,6 +22937,7 @@ C
 	defb 0x81		;7d64
 	defb 0x8C		;7d65
 	defb 0x88		;7d66
+
 	defb 0x82		;7d67
 	defb 0x83		;7d68
 	defb 0x83		;7d69
@@ -22871,6 +22945,7 @@ C
 	defb 0x81		;7d6b
 	defb 0x8C		;7d6c
 	defb 0x87		;7d6d
+
 	defb 0x85		;7d6e
 	defb 0x80		;7d6f
 	defb 0x84		;7d70
@@ -22878,6 +22953,7 @@ C
 	defb 0x81		;7d72
 	defb 0x88		;7d73
 	defb 0x8B		;7d74
+
 	defb 0x82		;7d75
 	defb 0x80		;7d76
 	defb 0x82		;7d77
@@ -22885,6 +22961,8 @@ C
 	defb 0x81		;7d79
 	defb 0x87		;7d7a
 	defb 0x8B		;7d7b
+
+
 
 ; Data, see 0x56A2.
 	defb 0x02		;7d7c
@@ -22963,104 +23041,139 @@ C
 	defb 0xB4		;7dc3
 	defb 0xFF		;7dc4
 
-; Data, see 0x56A6.
+
+
+; Stage 2: pattern IDs for the shore line (left side). Left to right order.
+; Stage 5: pattern IDs for the shore line (right side). It is in reverse order.
+;
+; References:
+;   0x50E8 (50e8_init_stage_2)
+;   0x554F (5545_stage_02_something)
+;   0x56A6 (5642_stage_05_specific_code)
+;   
 	defb 0xC6		;7dc5
 	defb 0xC6		;7dc6
 	defb 0xB9		;7dc7
 	defb 0xB1		;7dc8
+
 	defb 0xC6		;7dc9
 	defb 0xC6		;7dca
 	defb 0xBF		;7dcb
 	defb 0xB6		;7dcc
+
 	defb 0xC6		;7dcd
 	defb 0xBB		;7dce
 	defb 0xB2		;7dcf
 	defb 0xC5		;7dd0
+
 	defb 0xC2		;7dd1
 	defb 0xBF		;7dd2
 	defb 0xB6		;7dd3
 	defb 0xC5		;7dd4
+
 	defb 0xC6		;7dd5
 	defb 0xBD		;7dd6
 	defb 0xB5		;7dd7
 	defb 0xC5		;7dd8
+
 	defb 0xC4		;7dd9
 	defb 0xBB		;7dda
 	defb 0xB4		;7ddb
 	defb 0xC5		;7ddc
+
 	defb 0xC6		;7ddd
 	defb 0xC6		;7dde
 	defb 0xBC		;7ddf
 	defb 0xC5		;7de0
+
 	defb 0xC6		;7de1
 	defb 0xC2		;7de2
 	defb 0xBA		;7de3
 	defb 0xB5		;7de4
+
 	defb 0xC2		;7de5
 	defb 0xC6		;7de6
 	defb 0xBB		;7de7
 	defb 0xB4		;7de8
+
 	defb 0xC6		;7de9
 	defb 0xC3		;7dea
 	defb 0xB8		;7deb
 	defb 0xB3		;7dec
+
 	defb 0xC6		;7ded
 	defb 0xC4		;7dee
 	defb 0xB7		;7def
 	defb 0xB2		;7df0
+
 	defb 0xC6		;7df1
 	defb 0xC6		;7df2
 	defb 0xB9		;7df3
 	defb 0xB1		;7df4
+
 	defb 0xC6		;7df5
 	defb 0xC1		;7df6
 	defb 0xBF		;7df7
 	defb 0xB6		;7df8
+
 	defb 0xC6		;7df9
 	defb 0xBF		;7dfa
 	defb 0xB2		;7dfb
 	defb 0xC5		;7dfc
+
 	defb 0xC1		;7dfd
 	defb 0xC7		;7dfe
 	defb 0xB1		;7dff
 	defb 0xC5		;7e00
+
 	defb 0xC6		;7e01
 	defb 0xBC		;7e02
 	defb 0xB4		;7e03
 	defb 0xC5		;7e04
+
 	defb 0xC4		;7e05
 	defb 0xB9		;7e06
 	defb 0xB3		;7e07
 	defb 0xC5		;7e08
+
 	defb 0xC1		;7e09
 	defb 0xBF		;7e0a
 	defb 0xB2		;7e0b
 	defb 0xC5		;7e0c
+
 	defb 0xC6		;7e0d
 	defb 0xBE		;7e0e
 	defb 0xB1		;7e0f
 	defb 0xC5		;7e10
+
 	defb 0xC6		;7e11
 	defb 0xBD		;7e12
 	defb 0xB4		;7e13
 	defb 0xC5		;7e14
+
 	defb 0xC6		;7e15
 	defb 0xC2		;7e16
 	defb 0xBC		;7e17
 	defb 0xC5		;7e18
+
 	defb 0xC6		;7e19
 	defb 0xC6		;7e1a
 	defb 0xB9		;7e1b
 	defb 0xB5		;7e1c
+
 	defb 0xC6		;7e1d
 	defb 0xC3		;7e1e
 	defb 0xB8		;7e1f
 	defb 0xB4		;7e20
+
 	defb 0xC6		;7e21
 	defb 0xC1		;7e22
 	defb 0xB9		;7e23
 	defb 0xB3		;7e24
-	defb 0xFF		;7e25
+
+	defb 0xFF		;7e25 Special value. It means: wrap around.
+
+
 
 ; Data, see 0x56A8.
 	defb 0xC6		;7e26
@@ -23112,7 +23225,12 @@ C
 	defb 0xC5		;7e54
 	defb 0xC5		;7e55
 	defb 0xFF		;7e56
-	defb 0x39		;7e57
+
+; Data.
+; 
+; References:
+;   0x511C (stage 4+5)
+	defb 0x39		;7e57 0x39 & 0x03 == 0x01 (offset for table 0x56A4)
 	defb 0x06		;7e58
 	defb 0x33		;7e59
 	defb 0x04		;7e5a
