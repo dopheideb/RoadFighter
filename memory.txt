@@ -287,17 +287,19 @@ This table was generated with:
 		VDP interrupt hook (right after disabling the interrupts), as 
 		to have only 1 interrupt routine running, not 2 or more.
 
-0xE008		Newly pressed keyboard keys, joystick state. I.e. they 
+0xE008		[&pressed_keys_but_not_during_previous_interrupt]
+		Newly pressed keyboard keys, joystick state. I.e. they 
 		weren't	pressed in the previous frame.
 
-		0x01 "Up"
-		0x02 "Down"
-		0x04 "Left"
-		0x08 "Right"
-		0x10 "Space" / trigger 1
-		0x20 "Select" / trigger 2
+		0x01 KEY_STATE_UP	"Up"
+		0x02 KEY_STATE_DOWN	"Down"
+		0x04 KEY_STATE_LEFT	"Left"
+		0x08 KEY_STATE_RIGHT	"Right"
+		0x10 KEY_STATE_SPACE	"Space" / trigger 1
+		0x20 KEY_STATE_SELECT	"Select" / trigger 2
 
-0xE009		Currently pressed keyboard keys, joystick state.
+0xE009		[&pressed_keys]
+		Currently pressed keyboard keys, joystick state.
 		0x01 Status of "Up"
 		0x02 Status of "Down"
 		0x04 Status of "Left"
@@ -305,11 +307,11 @@ This table was generated with:
 		0x10 Status of "Space" / trigger 1
 		0x20 Status of "Select" / trigger 2
 
-0xE00A		Number of times left to scroll the Konami logo upwards.
-		0x0E		Initial value, see 0x48BD.
-		decrementing	See 0x48FC.
-		
-			0x0E Seen at 0x48BB
+0xE00A		[&konami_logo__scroll_ups_remaining]
+		Number of times left to scroll the Konami logo upwards.
+			0x0E		Initial value, see 0x48BD.
+			decrementing	See 0x48FC.
+
 0xE00D		[&have_reached_checkpoint_and_all_moving_objects_are_gone]
 		Values:
 			0x01 Seen at 0x6B8C, car reached checkpoint and has driven out of the screen.
@@ -347,7 +349,7 @@ This table was generated with:
 		
 		     &0x3F
 		0x00  0x00 (1 channel) Silence
-		0x01  0x01 (1 channel) [0x4DE2] Silence.
+		0x01  0x01 (1 channel) [0x4DE2] SOUND_ID_SILENCE Silence.
 		0x02  0x02 (1 channel) [0x4DE4] Emit low fuel warning
 		0x03  0x03 (1 channel) [0x4DE6] 1/2: Bleeps when both parts of red Road Fighter logo join.
 		0x03  0x03 (1 channel) [0x4DE6] 2/2: Bleeps when player grabbed a fuel heart.
@@ -393,11 +395,18 @@ This table was generated with:
 	IX+A	0xE01A? Seen at 0x4D8C
 
 0xE031		PSG: the value for PSG register 0x07 (sound and noise generator settings)
-0xE032-0xE033	?
-0xE034-0xE035	?
-0xE036-0xE037	Engine humming frequency divider minus 0x0DEB or 0x0DEE
+
+0xE032-0xE033	[&engine_humming_base_frequency_divider_A]
+		Fixed to 0x0DEB, see 0x4BB2.
+
+0xE034-0xE035	[&engine_humming_base_frequency_divider_B]
+		Fixed to 0x0DEE, see 0x4BB8.
+
+0xE036-0xE037	[&engine_humming_frequency_divider_offset]
+		Engine humming frequency divider minus 0x0DEB or 0x0DEE
 		I.e.: Engine hummy frequency = *(0xE036) + 0x0DEB (or 0x0DEE)
-0xE038		Seen at 0x4C57, 0x6C74
+0xE038		[&is_accelerating]
+		Seen at 0x4C57, 0x6C74
 0xE039		Seen at 0x46C1
 0xE03A		Seen at 0x43C6
 0xE03B		[&level]
@@ -695,7 +704,17 @@ This table was generated with:
 0xE0B0		Seen at 0x7004.
 0xE0B1		[&skid_ticks_remaining]
 		Skid ticks remaining.
-0xE0B2 (word)	Pointer to oil related data.
+0xE0B2 (word)	[&&oil_details]
+		Pointer to oil related data: location and type.
+		
+		Initial values:
+			Stage 1: 0x50BE. No oil/water at all.
+			Stage 2: 0x50BE. No oil/water at all.
+			Stage 3: 0x7AA1.
+			Stage 4: 0x50BE. No oil/water at all.
+			Stage 5: 0x50BE. No oil/water at all.
+			Stage 6+: 0x50DC.
+
 0xE0B4		?Bool: Stage has no oil. See 0x54B4.?
 			0x00: Contains oil
 			otherwise: Does not contain oil

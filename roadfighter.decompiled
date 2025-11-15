@@ -244,7 +244,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 04bffh		;4017 4bff_handle_3_PSG_channel_structs_something
 	ld hl,0e005h		;401a HL = &interrupt_sentry
 	bit 0,(hl)		;401d Test bit 0 (mask 0x01).
-	jr nz,$+15		;401f if (*(interrupt_sentry) & 0x01) jump to 0x402E (402e_interrupt_hook_bottom)
+	jr nz,$+15		;401f if (interrupt_sentry & 0x01) jump to 0x402E (402e_interrupt_hook_bottom)
 	;
 	; Post: previous interrupt was completed, so we can actually 
 	; handle this interrupt.
@@ -400,8 +400,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x4026 (call) [from=4013_H_KEYINT_hook]
 4082_increment_ticker__read_input__jump_to_state_handler:
-	ld hl,0e003h		;4082 HL = 0xE003
-	inc (hl)		;4085 Increment ticker
+	ld hl,0e003h		;4082 HL = &game_state_ticker
+	inc (hl)		;4085 ++game_state_ticker
 	ld a,(0e002h)		;4086 A = game_bits
 	add a,a			;4089 A = 2 * game_bits
 
@@ -459,12 +459,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 40ad_game_state_00_substate_01__konami_logo_and_line_and_software_letters:
 	ld a,(0e003h)		;40ad A = game_state_ticker
 	rra			;40b0 Rotate right through the carry flag.
-	ret nc			;40b1 if (game_state_ticker& 0x1 == 0) return
+	ret nc			;40b1 if (game_state_ticker & 0x01 == 0) return
 	
+	; Note: Routine 0x48DD sets the Z/NZ flag.
 	call 048ddh		;40b2 48dd_write_upwards_scrolling_konami_logo
-	ret nz			;40b5 if (number_of_scrolls_remaining != 0) return
+	ret nz			;40b5 if (konami_logo__scroll_ups_remaining != 0) return
 	
-	; Post: A == 0 (i.e. no more scrolls remaining)
+	; Post: konami_logo__scroll_ups_remaining == 0
 	ld de,046fch		;40b6 DE = 46fc_line_and_software_letters
 	
 	call 0460bh		;40b9 460b_hl=*de_and_inc_de_twice_and_decompress_and_copy_to_VRAM
@@ -838,11 +839,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Copy cars+minicar to sprite attributes and show cars on screen.
 	call 05270h		;41e6 5270_copy_30_sprites_from_RAM_to_VRAM
 	
-	ld a,(0e003h)		;41e9
+	ld a,(0e003h)		;41e9 A = game_state_ticker
 	bit 4,a			;41ec
-	ld a,0c8h		;41ee A = 0xC8
-	jr z,$+4		;41f0 if (*0xE003 & 0x10) jump to 0x41F4
-	ld a,080h		;41f2 A = 0x80
+	ld a,0c8h		;41ee A = 0xC8 (car_vpos: outside the screen)
+	jr z,$+4		;41f0 if (game_state_ticker & 0x10) jump to 0x41F4
+	ld a,080h		;41f2 A = 0x80 (car_vpos: start position on grid)
 	
 	; We can get here from:
 	;   0x41F0 (jump) A == 0xC8 (0xC8 is outside the screen, so car "disappears")
@@ -856,18 +857,18 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ret nz			;4200 if (game_state_ticker & 0x1F) return
 	; Post: game_state_ticker is a multiple of 0x20.
 	
-	inc hl			;4201 HL = 0xE004 (since previous value was 0xE003 set at 0x41FA)
+	inc hl			;4201 HL = &game_state_bits_or_counter_or_timer (0xE004, since previous value was 0xE003 set at 0x41FA)
 	dec (hl)		;4202 --game_state_bits_or_counter_or_timer
 	ld a,(hl)		;4203 A = game_state_bits_or_counter_or_timer
 	cp 001h			;4204
-	jr z,$+68		;4206 if (game_state_bits_or_counter_or_timer == 1) jump to 424a_game_state_03_substate_09_subsubstate_01
-	bit 0,a			;4208
-	jr nz,$+13		;420a if (*0xE004 & 1 == 1) jump to 0x4217
+	jr z,$+68		;4206 if (game_state_bits_or_counter_or_timer == 0x01) jump to 424a_game_state_03_substate_09_subsubstate_01
+	bit 0,a			;4208 Test bit 0
+	jr nz,$+13		;420a if (game_state_bits_or_counter_or_timer & 0x01 == 0x01) jump to 0x4217
 	cp 002h			;420c 
 	ld a,005h		;420e A = 0x05 Sound ID of yellow traffic light
-	jr nz,$+4		;4210 if (*0xE004 != 2) jump to 0x4214
-	; Post: *0xE004 == 2
-	inc a			;4212
+	jr nz,$+4		;4210 if (game_state_bits_or_counter_or_timer != 0x02) jump to 0x4214
+	; Post: game_state_bits_or_counter_or_timer == 0x02
+	inc a			;4212 A = 0x06
 	inc a			;4213 A = 0x07 Sound ID of green traffic light
 
 	; We can get here from:
@@ -1308,7 +1309,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,0e004h		;43ce HL = 0xE004: state related bits
 	ld (hl),000h		;43d1 state_related_bits = 0x00
 	ld l,(hl)		;43d3 L = 0x00, so HL == 0xE000: HL points to game state
-	ld de,0e03bh_levelAB	;43d4 DE = &level
+	ld de,0e03bh		;43d4 DE = &level
 	ld b,(hl)		;43d7 B = game state
 
 	djnz $+27		;43d8 if (--B != 0) jump to 0x43F3
@@ -2578,30 +2579,34 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Read keyboard/joystick, and save it in 0xE009.
+; Read keyboard/joystick, and stored in 0xE009 (= &pressed_keys).
 ;
-; Any keys that were previously unpressed but not pressed, are stored in 
-; 0xE008.
+; Keys that weren't pressed in the previous interrupt, but are pressed 
+; now, are stored in 0xE008 
+; (= &pressed_keys_but_not_during_previous_interrupt).
 ; 
 ; We can get here from:
 ;   0x4023 (call) [from=4013_H_KEYINT_hook]
 46b6_read_and_save_joystick_and_keyboard:
 	call 046c3h		;46b6 46c3_read_joystick_and_keyboard
-	ld hl,0e009h		;46b9 HL = 0xE009
+	ld hl,0e009h		;46b9 HL = pressed_keys
 	; Fall to 46bc_save_pressed_keys_in_HL__save_newly_pressed_keys_in_HL_minus_1.
 
 
 
 ; We can get here from:
 ;   0x43C9 (call) [from=43c3_game_state_handler]                  HL == 0xE03A
-;   0x46B9 (fall) [from=46b6_read_and_save_joystick_and_keyboard] HL == 0xE009
+;   0x46B9 (fall) [from=46b6_read_and_save_joystick_and_keyboard] HL == 0xE009 (pressed_keys)
 46bc_save_pressed_keys_in_HL__save_newly_pressed_keys_in_HL_minus_1:
 	ld c,(hl)		;46bc C = previous keyboard/joystick input
 	ld (hl),a		;46bd Save new keyboard/joystick input
 
 	xor c			;46be Compute all differences between previous and current input
 	and (hl)		;46bf Select only differences in currently pressed input.
-	dec hl			;46c0 HL = 0xE008 or HL == 0xE039
+	
+	; HL: 0xE009 -> 0xE008 (= &pressed_keys_but_not_during_previous_interrupt)
+	; HL: 0xE03A -> 0xE039 (?)
+	dec hl			;46c0
 	ld (hl),a		;46c1 Save newly pressed keys.
 
 	ret			;46c2
@@ -3379,9 +3384,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; ?Related to Konami logo scrolling upwards?
 48bb_initialize_konami_logo:
-	; Set number of times to scroll up the Konami logo to 0x0E (14).
+	; konami_logo__scroll_ups_remaining = 0x0E (14).
 	ld a,00eh		;48bb A = 0x0E
-	ld (0e00ah),a		;48bd *(0xE00A) = 0x0E
+	ld (0e00ah),a		;48bd konami_logo__scroll_ups_remaining = 0x0E
 	
 	; *(0xE00E) = 0x3AAA
 	; 
@@ -3458,8 +3463,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   3. 12 characters for the bottom part of the Konami logo (include copyright symbol)
 ;   4. 12 characters to erase previous bottom part.
 ;
-; Z flag is set if (and only if) *(0xE00A) == 0x00 (i.e. number of 
-; scrolls remaining is zero)
+; Z flag is set if (and only if) konami_logo__scroll_ups_remaining == 0x00
 ; 
 ; We can get here from:
 ;   0x40B2 (call) [from=40ad_game_state_00_substate_01__konami_logo_and_line_and_software_letters]
@@ -3485,8 +3489,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	xor a			;48f8 A = 0
 	call 0056_FILVRM	;48f9 FILVRM(VRAM_start=HL, length=0x000C, value=0x00)
 	
-	ld hl,0e00ah		;48fc HL = 0xE00A
-	dec (hl)		;48ff Also sets Z flag!
+	ld hl,0e00ah		;48fc HL = &konami_logo__scroll_ups_remaining
+	dec (hl)		;48ff --konami_logo__scroll_ups_remaining, and update Z/NZ flag.
+	
 	ret			;4900
 
 
@@ -4677,8 +4682,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	exx			;4c11
 	ld a,(ix+002h)		;4c12 A = current sound ID
 	cp 001h			;4c15
-	jr z,$+14		;4c17 if (current sound ID == 1) jump to 0x4C25
-	; Post: current sound ID != 1
+	jr z,$+14		;4c17 if (current sound ID == SOUND_ID_SILENCE) jump to 0x4C25
+	; Post: current sound ID != SOUND_ID_SILENCE
 	or a			;4c19
 	call nz,04cbch		;4c1a if (current sound ID != 0) call 0x4CBC
 	
@@ -4697,19 +4702,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x4C17 (jump) current sound ID == 1
-	ld iy,0e034h		;4c25 IY = 0xE034
-	ld a,(0e003h)		;4c29 A = 0xE003
+	ld iy,0e034h		;4c25 IY = &engine_humming_base_frequency_divider_B
+	ld a,(0e003h)		;4c29 A = game_state_ticker
 	and 003h		;4c2c A &= 0x03 (only preserve bits 0 and 1)
 	bit 0,a			;4c2e Test bit 0 (mask 0x01)
-	jr nz,$+85		;4c30 if (*0xE003 & 1) jump to 4c85_set_engine_humming_frequency_divider_and_set_volume_something
+	jr nz,$+85		;4c30 if (game_state_ticker & 0x01) jump to 4c85_set_engine_humming_frequency_divider_and_set_volume_something
 	
 	; Post:
-	;   bit 7 to 2: 0 (due to "and" at 0x4C2C)
+	;   bit 7 to 2: 0 (due to "and 003h" at 0x4C2C)
+	;   bit      1: not fixed
 	;   bit      0: 0 (due to conditional jump at 0x4C30)
 	;
 	; Hence: A can only be 0 or 2.
-	cp 002h			;4c32
-	jr z,$+77		;4c34 if (A == 2) jump to 0x4C81
+	cp 002h			;4c32 Weird: "and a" or "or a" would be faster+shorter.
+	jr z,$+77		;4c34 if ((game_state_ticker & 0x03) == 0x02) jump to 0x4C81
+	; Case: (game_state_ticker & 0x03) == 0x00
 	ld a,(0e04fh)		;4c36 A = car_speed
 	
 	; HL = car_speed
@@ -4720,68 +4727,80 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld e,l			;4c3c E = car_speed
 	ld d,h			;4c3d D = 0x00
 	
-	; HL *= 4
+	; HL *= 4, so HL == 4 * car_speed
 	add hl,hl		;4c3e
 	add hl,hl		;4c3f
 	
-	ld a,(0e038h)		;4c40
-	cp 000h			;4c43
-	jr z,$+34		;4c45 if (*0xE038 == 0) jump to 0x4C67
-	
+	; Recap: DE == car_speed, HL == 4 * car_speed
+	ld a,(0e038h)		;4c40 A = is_accelerating
+	cp 000h			;4c43 Weird: "or A" or "and A" would be shorter and faster.
+	jr z,$+34		;4c45 if (is_accelerating == 0x00) jump to 0x4C67
+
+	; Case: DE == car_speed, HL == 4 * car_speed, is_accelerating == 0x01
 	ld a,(0e04fh)		;4c47 A = car_speed
 	cp 07eh			;4c4a Compute A - 0x7E and set flags.
 	jr nc,$+11		;4c4c if (car_speed >= 0x7E) jump to 4c57_speed_at_least_0x7E
 	
+	; Case: DE == car_speed, HL == 4 * car_speed, is_accelerating == 0x01, speed < 0x7E
 	cp 030h			;4c4e
 	jr nc,$+29		;4c50 if (car_speed >= 0x30) jump to 0x4C6D
 	
-	; HL *= 8
+	; Case: DE == car_speed, HL == 4 * car_speed, is_accelerating == 0x01, car_speed <= 0x2F
+	; 
+	; HL *= 8, so HL == 32 * car_speed
 	add hl,hl		;4c52
 	add hl,hl		;4c53
 	add hl,hl		;4c54
 	
+	; Case: DE == car_speed, HL == 32 * car_speed, is_accelerating == 0x01, car_speed <= 0x2F
 	jr $+41			;4c55 jump to 0x4C7E
 
 
-; We can get here from:
-;   0x4C4C (jump)
-4c57_speed_at_least_0x7E:
-	ld a,(0e038h)		;4c57 A = *0xE038
-	cp 000h			;4c5a
-	jr nz,$+5		;4c5c if (*0xE038 != 0) jump to 0x4C61
-	add hl,hl		;4c5e HL *= 2
+
+	; We can get here from:
+	;   0x4C4C (jump) [from=self] DE == car_speed, HL == 4 * car_speed, is_accelerating == 0x01, car_speed >= 0x7E
+	4c57_speed_at_least_0x7E:
+	; Why test this??? We can only get here when we are 
+	; accelerating, so the following test is useless!
+	ld a,(0e038h)		;4c57 A = is_accelerating
+	cp 000h			;4c5a Weird: "or A" or "and A" would be shorter and faster.
+	jr nz,$+5		;4c5c if (is_accelerating != 0x00) jump to 0x4C61
+	; Case: is_accelerating == 0: decelerating. !UNREACHABLE CODE!
+	add hl,hl		;4c5e HL *= 2, so HL == 8 * car_speed
 	jr $+8			;4c5f jump to 0x4C67
 
 
-; We can get here from:
-;   0x4C5C (jump) [4c57_speed_at_least_0x7E]
-4c61_:
-	add hl,de		;4c61 HL += DE
+
+	; We can get here from:
+	;   0x4C5C (jump) [from=self] DE == car_speed, HL == 4 * car_speed, is_accelerating == 0x01, car_speed >= 0x7E
+	add hl,de		;4c61 HL += DE, so HL == 5 * car_speed
 	ld de,004b0h		;4c62 DE = 0x04B0
+	; Recap: DE == 0x04B0, HL == 5 * car_speed, is_accelerating == 0x01, car_speed >= 0x7E
 	jr $+24			;4c65 jump to 0x4C7D
 
-; We can get here from:
-;   0x4C45 (jump)                            *0xE038 == 0, any speed    , DE == speed, HL ==  4 * speed
-;   0x4C5F (jump) [4c57_speed_at_least_0x7E] *0xE038 != 0, speed >= 0x7E, DE == speed, HL ==  8 * speed
-4c67_:
-	add hl,hl		;4c67
+
+
+	; We can get here from:
+	;   0x4C45 (jump) [from=self] DE == car_speed, HL == 4 * car_speed, is_accelerating == 0x00, any car_speed
+	;   0x4C5F (jump) [from=self] DE == car_speed, HL == 8 * car_speed, is_accelerating == 0x00, car_speed >= 0x7E (UNREACHABLE CODE)
+	add hl,hl		;4c67 HL *= 2, so HL == 8 * car_speed
 	ld de,00300h		;4c68 DE = 0x0300
+	; Recap: DE == 0x0300, HL == 8 * car_speed, is_accelerating == 0x00, any car_speed
 	jr $+18			;4c6b jump to 0x4C7D
 
 
-; We can get here from:
-;   0x4C50 (jump) speed >= 0x30, speed < 0x7D
-4c6d_speed_at_least_0x30_but_not_exceeds_0x7D:
+
+	; We can get here from:
+	;   0x4C50 (jump) DE == car_speed, HL == 4 * car_speed, is_accelerating == 0x01, 0x30 <= car_speed < 0x7E
+	4c6d_speed_is_at_least_0x30_and_below_0x7E:
 	ld a,(0e04fh)		;4c6d A = car_speed
 	sub 030h		;4c70 A -= 0x30
 	
-	; HL = A
-	ld l,a			;4c72
-	ld h,000h		;4c73
+	; HL = A, so HL == car_speed - 0x30
+	ld l,a			;4c72 L = car_speed
+	ld h,000h		;4c73 H = 0x00
 	
-	; HL <<= 4 (HL *= 16)
-	; 
-	; I.e.: HL = 16 * (car_speed - 0x30)
+	; HL *= 16, so HL == 16 * (car_speed - 0x30)
 	add hl,hl		;4c75
 	add hl,hl		;4c76
 	add hl,hl		;4c77
@@ -4790,33 +4809,35 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; DE = 0x0500
 	ld e,000h		;4c79
 	ld d,005h		;4c7b
+	; Recap: DE == 0x0500, HL == 16 * (car_speed - 0x30), 0x30 <= car_speed < 0x7E
 	
 	
-; We can get here from:
-;   0x4C65 (jump) DE == 0x04B0, HL == ?
-;   0x4C6B (jump)
-;   0x4C7B (fall) DE == 0x0500, HL == 16 * (car_speed - 0x30)
-4c7d_fixme:
+	
+	; We can get here from:
+	;   0x4C65 (jump) DE == 0x04B0, HL ==  5 * (car_speed       ), is_accelerating == 0x01, car_speed >= 0x7E
+	;   0x4C6B (jump) DE == 0x0300, HL ==  8 * (car_speed       ), is_accelerating == 0x00, any car_speed
+	;   0x4C7B (fall) DE == 0x0500, HL == 16 * (car_speed - 0x30), is_accelerating == 0x01, 0x30 <= car_speed < 0x7E
 	add hl,de		;4c7d HL += DE
 	
-; We can get here from:
-;   0x4C55 (jump)
-;   0x4C7D (fall)
-4c7e_fixme:
-	ld (0e036h),hl		;4c7e Store
+	; We can get here from:
+	;   0x4C7D (fall), 0x4C6B (jump) [from=self] is_accelerating == 0x00,     any car_speed        , HL ==  8 * (car_speed       ) + 0x0300
+	;   0x4C55 (jump)                [from=self] is_accelerating == 0x01,         car_speed <= 0x2F, HL == 32 * (car_speed       )
+	;   0x4C7D (fall), 0x4C67 (fall) [from=self] is_accelerating == 0x01, 0x30 <= car_speed <  0x7E, HL == 16 * (car_speed - 0x30) + 0x5000
+	;   0x4C7D (fall), 0x4C65 (jump) [from=self] is_accelerating == 0x01,         car_speed >= 0x7E, HL ==  5 * (car_speed       ) + 0x04B0
+	ld (0e036h),hl		;4c7e engine_humming_frequency_divider_offset = HL
 	
 	; We can get here from:
 	;   0x4C34 (jump)
 	;   0x4C7E (fall)
-	ld iy,0e032h		;4c81 IY = 0xE032
+	ld iy,0e032h		;4c81 IY = &engine_humming_base_frequency_divider_A
 
 
 
 ; We can get here from:
-;   0x4C30 (jump) IY == 0xE034, (*0xE003 & 1) == 1, ticker is odd
-;   0x4C81 (fall) IY == 0xE032, (*0xE003 & 1) == 0, ticket is even
+;   0x4C30 (jump) IY == &engine_humming_base_frequency_divider_B, (game_state_ticker & 0x01) == 0x01, ticker is odd
+;   0x4C81 (fall) IY == &engine_humming_base_frequency_divider_A, (game_state_ticker & 0x01) == 0x00, ticker is even
 4c85_set_engine_humming_frequency_divider_and_set_volume_something:
-	ld de,(0e036h)		;4c85 DE = *0xE036 (seen DE == 0x0000)
+	ld de,(0e036h)		;4c85 DE = engine_humming_frequency_divider_offset
 	
 	; HL = IY[0], load base engine humming frequency divider, i.e. 
 	; when car has speed 0.
@@ -4834,7 +4855,6 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	sbc hl,de		;4c8f HL -= (DE + carry)
 	call 04dc3h		;4c91 4dc3_set_PSG_tone_frequency_divider(channel=C, frequency_divider=HL)
 
-	4c94_set_volume_something:
 	ld a,(0e083h)		;4c94 A = fuel_remaining
 	cp 010h			;4c97 Compute A - 0x10 and set flags.
 	jr c,$+21		;4c99 if (fuel_remaining < 0x10) jump to 4cae_set_volume_A_to_9.
@@ -4853,12 +4873,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr $+8			;4cac jump to 4cb4_set_volume_A.
 
 
+
 ; We can get here from:
 ;   0x4C99 (jump) low on fuel (less than 0x10)
 ;   0x4CA0 (jump) Sound ID == 0x03 (player grabbed a fuel heart)
 4cae_set_volume_A_to_9:
 	ld e,009h		;4cae E = 0x09, new volume for PSG channel A.
-	jr $+4			;4cb0 jump to 0x4CB4.
+	jr $+4			;4cb0 jump to 0x4CB4: 4cb4_set_volume_A(volume=0x09)
 
 
 ; We can get here from:
@@ -4867,10 +4888,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 4cb2_set_volume_A_to_0:
 	ld e,000h		;4cb2 E = 0x00, new volume for PSG channel A.
 	
-	; We can get here from:
-	;   0x4CB0 (jump) E == 0x09
-	;   0x4CB2 (fall) E == 0x00
-	4cb4_set_volume_A:
+; We can get here from:
+;   0x4CB0 (jump) E == 0x09
+;   0x4CB2 (fall) E == 0x00
+4cb4_set_volume_A:
 	ld a,008h		;4cb4 A = 8, PSG register for volume of channel A.
 	call 0093_WRTPSG	;4cb6 A: PSG reg, E: data
 	
@@ -5941,7 +5962,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 5032_draw_0_or_1_hand_pointing_to_right_symbols_in_front_of_level_A_and_B:
 	ld hl,03a0ah		;5032 VRAM location for hand point to right (level A).
 	ld de,03a4ah		;5035 VRAM location for hand point to right (level B).
-	ld a,(0e03bh_levelAB)	;5038 0x00 == level A, 0x01 == level B
+	ld a,(0e03bh)		;5038 A = level, 0x00 == level A, 0x01 == level B
 	or a			;503b Update Z/NZ flag.
 	jr z,$+3		;503c if (z) jump to 0x503F
 	ex de,hl		;503e DE = 0x3A0A, HL = 0x3A4A
@@ -6015,21 +6036,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;
 	inc hl			;506f HL = &stage (0xE043)
 	ld a,(hl)		;5070 A = stage
-	ld hl,050beh		;5071 HL = 0x50BE
+	ld hl,050beh		;5071 HL = 50be_location_and_type_of_oil__stage_1_to_5_except_stage_3
 	cp 006h			;5074 Compute stage - 0x06 and update Z/NZ flag.
 	jr nz,$+5		;5076 if (stage != 0x06) jump to 0x507B
 	
 	; We can get here from:
 	;   0x506D (jump) num_stage_wraparounds >= 1 (though technically != 0)
 	;   0x5076 (fall) num_stage_wraparounds == 0, stage == 0x06
-	ld hl,050dch		;5078 HL = 0x50DC
+	ld hl,050dch		;5078 HL = 50dc_location_and_type_of_oil__stage_6_and_beyond
 	
 	; We can get here from:
-	;   0x5078 (fall) HL == 0x50DC (stage 6 and beyond)
-	;   0x5076 (jump) HL == 0x50BE (stage 1 to 5)
-	ld (0e0b2h),hl		;507b
+	;   0x5078 (fall) HL == 50dc_location_and_type_of_oil__stage_6_and_beyond
+	;   0x5076 (jump) HL == 50be_location_and_type_of_oil__stage_1_to_5_except_stage_3
+	ld (0e0b2h),hl		;507b &oil_details = HL
 	call 050bfh		;507e 50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code
-	ld a,008h		;5081 A = 8
+	ld a,008h		;5081 A = 0x08
 	ld (0e07dh),a		;5083 Top screen row: set number of horizonl scenery characters before track starts
 
 	call 051ffh		;5086 51ff_initialize_variables
@@ -6075,7 +6096,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ret			;50bd
 
 
-; Data, see 0x5071.
+; Oil location and type for stages 1 to 5 (except 3)
+; 
+; References:
+;   0x5071
+50be_location_and_type_of_oil__stage_1_to_5_except_stage_3:
 	defb 0xFF		;50be
 
 
@@ -6107,22 +6132,27 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ret			;50db
 
 
-; Data for stage >= 6.
+; Oil location and type for stage >= 6.
 ; 
 ; References:
 ;   0x5078
-50dc_fixme:
-	defb 0x01		;50dc
-	defb 0x00		;50dd
-	defb 0x04		;50de
-	defb 0x00		;50df
-	defb 0x06		;50e0
-	defb 0x01		;50e1
-	defb 0x07		;50e2
-	defb 0x01		;50e3
-	defb 0x0E		;50e4
-	defb 0x00		;50e5
-	defb 0x00		;50e6
+50dc_location_and_type_of_oil__stage_6_and_beyond:
+	defb 0x01		;50dc Appear when distance_travelled == 0x010000
+	defb 0x00		;50dd Blue/water.
+
+	defb 0x04		;50de Appear when distance_travelled == 0x040000
+	defb 0x00		;50df Blue/water.
+
+	defb 0x06		;50e0 Appear when distance_travelled == 0x060000
+	defb 0x01		;50e1 Black/oil.
+
+	defb 0x07		;50e2 Appear when distance_travelled == 0x070000
+	defb 0x01		;50e3 Black/oil.
+
+	defb 0x0E		;50e4 Appear when distance_travelled == 0x0E0000
+	defb 0x00		;50e5 Blue/water.
+
+	defb 0x00		;50e6 END (since distance_travelled is already >= 0x0E0000)
 
 
 
@@ -6154,7 +6184,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,001h		;50fb A = 0x01
 	ld (0e07ch),a		;50fd
 	ld (0e08ah),a		;5100
-	ld hl,07aa1h		;5103 HL = 7aa1_oil_related_data_something
+	ld hl,07aa1h		;5103 HL = 7aa1_location_and_type_of_oil__stage_3
 	ld (0e0b2h),hl		;5106
 	ret			;5109
 
@@ -6595,11 +6625,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; Make C pseudo random.
 	ld a,r			;52bd Add pseudo randomness.
-	add a,h			;52bf A += 0xE0, futile since 0xE0&3==0
+	add a,h			;52bf A += 0xE0, futile since (0xE0 & 3) == 0
 	ld c,a			;52c0 C = A
 	
 	; Make A (the stage to be) in [1,2,3,4], pseudo randomly.
-	ld a,(0e003h)		;52c1 A = game state ticker (a bit random)
+	ld a,(0e003h)		;52c1 A = game_state_ticker (which has some randomness here)
 	add a,c			;52c4 A += C, adds "randomness".
 	and 003h		;52c5 A &= 0x03, A is "randomly" chosen to be in [0,1,2,3].
 	inc a			;52c7 ++A
@@ -6619,9 +6649,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;52ce HL = &stage (0xE043)
 	ld (hl),a		;52cf stage = A
 	ret			;52d0
-.
 
 
+
+; ?Used during demo?
+; 
 ; We can get here from:
 ;   0x4139 [from=4139_game_state_02_substate_01]
 52d1_fudge_currently_pressed_keys_to_keep_near_left_side_of_the_road:
@@ -6634,9 +6666,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	cp 015h			;52db Compute A - 0x15 and update C/NC flag.
 	jr nc,$+7		;52dd if (skid_ticks_remaining >= 0x15) jump to 0x52E4. 0x15 == 21
 	
-	; skid_ticks_remaining < 0x15
-	ld a,00ch		;52df A = 0x08 ("right" is pressed) | 0x04 ("left" is pressed)
-	ld (0e008h),a		;52e1 newly pressed keys = "right" + "left"
+	; Case: skid_ticks_remaining < 0x15
+	;
+	; pressed_keys_but_not_during_previous_interrupt = (KEY_STATE_RIGHT | KEY_STATE_LEFT)
+	ld a,00ch		;52df A = (KEY_STATE_RIGHT | KEY_STATE_LEFT)
+	ld (0e008h),a		;52e1 pressed_keys_but_not_during_previous_interrupt = (KEY_STATE_RIGHT | KEY_STATE_LEFT)
 	
 	; We can get here from:
 	;   0x52D6 (jump) car_state != skidding
@@ -6662,23 +6696,23 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld b,004h		;52ff B = 4 (steer left)
 	
 	; We can get here from:
-	;   0x52FD (jump) B == 8 (currently pressed key "right")
-	;   0x52FF (fall) B == 4 (currently pressed key "left")
-	ld a,(0e009h)		;5301
+	;   0x52FD (jump) B == KEY_STATE_RIGHT
+	;   0x52FF (fall) B == KEY_STATE_LEFT
+	ld a,(0e009h)		;5301 A = pressed_keys
 	or b			;5304 A |= B
 	
 	; We can get here from:
-	;   0x5304 (fall) A == B | *(0xE009) 
-	;   0x530D (jump) A == 0
-	ld b,010h		;5305 B = 0x10
+	;   0x5304 (fall) A == pressed_keys | B
+	;   0x530D (jump) A == 0x00
+	ld b,010h		;5305 B = KEY_STATE_SPACE
 	or b			;5307 A |= B, "space"/trigger 1 is marked/fudged as currently pressed.
-	ld (0e009h),a		;5308 Store currently pressed keys.
+	ld (0e009h),a		;5308 pressed_keys = A
 	ret			;530b
 
 	; We can get here from:
 	;   0x52F5 (jump)
 	530c_no_steering_needed:
-	xor a			;530c A = 0, don't steer right nor left.
+	xor a			;530c A = 0x00, don't steer right nor left.
 	jr $-8			;530d jump to 0x5305
 
 
@@ -7196,16 +7230,16 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	or a			;54b3 Set Z/NZ flag.
 	jr nz,$+44		;54b4 if (nz) jump to 0x54E0
 
-	ld hl,(0e0b2h)		;54b6
+	ld hl,(0e0b2h)		;54b6 HL = &oil_details.distance_high_byte
 	ld a,(0e079h)		;54b9 A = high byte of distance travelled
-	cp (hl)			;54bc
-	ret nz			;54bd
+	cp (hl)			;54bc Compute A - oil_details.distance_high_byte and update Z/NZ flag.
+	ret nz			;54bd if (A - oil_details.distance_high_byte != 0x00) return
 	
-	; Oil on the road.
-	inc hl			;54be
-	ld a,(hl)		;54bf A == 0 means black oil, A == 1 means blue oil.
-	inc hl			;54c0
-	ld (0e0b2h),hl		;54c1
+	; Oil (water?) on the road.
+	inc hl			;54be HL = oil_details.type
+	ld a,(hl)		;54bf A == 0x00 means black oil, A == 0x01 means blue oil.
+	inc hl			;54c0 HL = next oil_details
+	ld (0e0b2h),hl		;54c1 &oil_details = HL
 	
 	; 0x54F9-0x54FC (index #00), 4 patterns forming black oil tile.
 	; 0x54FD-0x5500 (index #01), 4 patterns forming blue oil tile.
@@ -8368,11 +8402,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld l,011h		;598b HL = 0xE111 (minicar sprite color)
 	
 	; Check game ticker.
-	ld a,(0e003h)		;598d A = *(0xE003)
+	ld a,(0e003h)		;598d A = game_state_ticker
 	and 00fh		;5990 A &= 0x0F
-	ret nz			;5992 if ((*(0xE003)&0x0F) != 0) return
+	ret nz			;5992 if ((game_state_ticker & 0x0F) != 0) return
 	
-	; (*(0xE003) & 0x0F) == 0
+	; (game_state_ticker & 0x0F) == 0
 	ld a,006h		;5993 minicar color = dark red
 	
 	; Alternate between dark red and transparent
@@ -16327,11 +16361,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x5233 (call) [from=5224_handle_race_substate]
 ;   0x5280 (call) [from=527d_fixme]
 6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine:
-	ld a,(0e008h)		;6a70 Get newly pressed keys.
-	and 00ch		;6a73 Select only "Left" and "Right". 0x0C = (0x08 | 0x04)
+	ld a,(0e008h)		;6a70 A = pressed_keys_but_not_during_previous_interrupt
+	and 00ch		;6a73 A &= (KEY_STATE_LEFT | KEY_STATE_RIGHT)
 	ld hl,0e048h		;6a75 HL = 0xE048 (it is read at 0x6E04).
-	jr z,$+3		;6a78 if (A == 0) jump to 0x6A7B
-	ld (hl),a		;6a7a "Left" and/or "Right" is pressed and wasn't pressed in previous frame. Store.
+	jr z,$+3		;6a78 if (A == 0x00) jump to 0x6A7B
+	ld (hl),a		;6a7a "Left" and/or "Right" is pressed and wasn't pressed during previous interrupt. Store.
 	
 	; We can get here from:
 	;   0x6A78 (jump) HL == 0xE048
@@ -16358,15 +16392,15 @@ C
 	
 	; ?Something with left/right keys?
 	;
-	; C = (*(0xE055) * 4) & (0x08 | 0x04)
+	; C = (*(0xE055) * 4) & (KEY_STATE_LEFT | KEY_STATE_RIGHT)
 	ld a,(0e055h)		;6a93 A = *(0xE055)
 	add a,a			;6a96 A *= 2
 	add a,a			;6a97 A *= 2
-	and 00ch		;6a98 A &= 0x0C
+	and 00ch		;6a98 A &= (KEY_STATE_LEFT | KEY_STATE_RIGHT)
 	ld c,a			;6a9a C = A
 	
-	ld a,(0e009h)		;6a9b A = *(0xE009)
-	and 00ch		;6a9e A &= 0x0C (keep left+right keys)
+	ld a,(0e009h)		;6a9b A = pressed_keys
+	and 00ch		;6a9e A &= (KEY_STATE_LEFT | KEY_STATE_RIGHT)
 	and c			;6aa0 A &= C
 	
 	call nz,06dech		;6aa1 6dec_fixme
@@ -16411,9 +16445,9 @@ C
 ;   0x6A7D (jump table entry #01) [from=6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine]
 6abb_car_state_01__crashed:
 	pop hl			;6abb ?Remove return address? ?Return to grand parent?
-	ld a,(0e003h)		;6abc A = *(0xE003)
+	ld a,(0e003h)		;6abc A = game_state_ticker
 	and 007h		;6abf A &= 0x07
-	ret nz			;6ac1 if (game state ticker & 0x07 != 0) return
+	ret nz			;6ac1 if (game_state_ticker & 0x07 != 0) return
 
 	; We get here in only 1 out of 8 frames.
 	ld hl,0e04ah		;6ac2 HL = &car_crashed_timer
@@ -16500,7 +16534,7 @@ C
 6b05_car_state_02__no_fuel_remaining:
 	ld a,(0e083h)		;6b05 A = fuel_remaining
 	or a			;6b08
-	jp nz,06c2ch		;6b09 if (fuel_remainig) jump to 0x6C2C (6c2c_set_car_state_to_00)
+	jp nz,06c2ch		;6b09 if (fuel_remaining) jump to 0x6C2C (6c2c_set_car_state_to_00)
 	; Post: no fuel remaining.
 
 	call 06a90h		;6b0c 6a90_car_state_00__all_okay_and_part_of_car_state_02__no_fuel_remaining
@@ -16509,12 +16543,12 @@ C
 	
 	; Note: if speed was 0, it will become 0xFF
 	dec a			;6b13 Decrease speed
-	cp 0f0h			;6b14
+	cp 0f0h			;6b14 Compute A - 0xF0, and update C/NC flag.
 	
-	jr nc,$+6		;6b16 if (car_speed >= 0xF0) jump to 0x6b1C
+	jr nc,$+6		;6b16 if (car_speed >= 0xF0) jump to 0x6B1C (6b1c_out_of_fuel_and_no_more_speed)
 	
 	; Still some speed.
-	ld (hl),a		;6b18 car_speed = A
+	ld (hl),a		;6b18 car_speed = A, store decreased speed.
 	jp 06c73h		;6b19 6c73_fixme
 
 
@@ -16523,9 +16557,10 @@ C
 ; 
 ; We can get here from:
 ;   0x6AF0 (jump) [from=6abb_car_state_01__crashed]
+;   0x6B16 (jump) [from=6b05_car_state_02__no_fuel_remaining]
 6b1c_out_of_fuel_and_no_more_speed:
 	ld a,(E028_soundID_B)	;6b1c A = current sound/tune/bleep
-	or a			;6b1f
+	or a			;6b1f Update Z/NZ flag.
 	ret nz			;6b20 if (some sound/tune/bleep is playing) return
 
 	ld a,01bh		;6b21 A = 0x1B (silence, on all 3 channels)
@@ -16676,28 +16711,28 @@ C
 	ld a,(0e002h)		;6bb9
 	bit 6,a			;6bbc
 	jr z,$+12		;6bbe if (demo) jump to 0x6BCA (skips sound for skidding)
-	ld a,(0e003h)		;6bc0
-	and 003h		;6bc3
+	ld a,(0e003h)		;6bc0 A = game_state_ticker
+	and 003h		;6bc3 A &= 0x03, and update Z/NZ flag.
 	ld a,00dh		;6bc5 A = 0x0D (sound ID for skidding)
-	call z,04b6eh		;6bc7 if (game state ticker & 0x03 == 0) call 4b6e_sound_something_with_D_is_0
+	call z,04b6eh		;6bc7 if (game_state_ticker & 0x03 == 0x00) call 4b6e_sound_something_with_D_is_0
 
 	; We can get here from:
 	;   0x6BBE (jump) demo
 	;   0x6BC7 (fall) not demo, player is playing.
 	ld a,(0e054h)		;6bca Car orientation during skidding (0x00: north-west, 0x01: north-east)
 	and a			;6bcd Set flags.
-	ld a,(0e008h)		;6bce Get newly pressed keys.
+	ld a,(0e008h)		;6bce A = pressed_keys_but_not_during_previous_interrupt
 	jr z,$+7		;6bd1 if (*(0xE054) == 0) jump to 0x6BD8 (6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00)
 	
 	; Skidding north-east. Recoverable by pressing to the left.
-	and 004h		;6bd3 A &= 0x04 and update Z/NZ flag.
-	ret z			;6bd5 if (not pressed left) return
+	and 004h		;6bd3 A &= KEY_STATE_LEFT and update Z/NZ flag.
+	ret z			;6bd5 if (pressed_keys_but_not_during_previous_interrupt & KEY_STATE_LEFT == 0x00) return
 	jr $+5			;6bd6 Jump to 0x6BDB (6bdb_set_car_state_to_0_and_jump_to_end_of_car_state_00)
 	
 	; We can get here from:
 	;   0x6BD1 (jump) Skidding north-west. Recoverable by pressing to the right.
-	and 008h		;6bd8 A &= 0x08 and update Z/NZ flag.
-	ret z			;6bda if (not pressed right) return
+	and 008h		;6bd8 A &= KEY_STATE_RIGHT and update Z/NZ flag.
+	ret z			;6bda if (pressed_keys_but_not_during_previous_interrupt & KEY_STATE_RIGHT == 0x00) return
 
 
 	                 
@@ -16857,15 +16892,13 @@ C
 	
 	; Crashed.
 	jp 06f18h		;6c64 6f18_reset_car_and_stop_fuel_heart_sound_and_draw_speed_and_fuel_gauge
-	call 06c89h		;6c67 6c89_Z_if_car_state_01_or_02_or_07_else_NZ
-	; Fall to 6c6a_fixme.
 
 
 
 ; We can get here from:
-;   0x6C67 (fall) [from=6c3a_car_state_07__spinning]
 ;   0x6CAA (jump) [from=6ca1_fixme]
-6c6a_fixme:
+6c67_decelerate:
+	call 06c89h		;6c67 6c89_Z_if_car_state_01_or_02_or_07_else_NZ
 	ret z			;6c6a if (car_state in [CAR_STATE_CRASHED, CAR_STATE_OUT_OF_FUEL_WITH_SPEED, CAR_STATE_SPINNING]) return
 	
 	ld hl,0e04fh		;6c6b HL = &car_speed
@@ -16880,10 +16913,10 @@ C
 
 ; We can get from:
 ;   0x6B19 (jump) [from=6b05_car_state_02__no_fuel_remaining]
-;   0x6C72 (fall) [from=6c6a_fixme]
+;   0x6C72 (fall) [from=6c67_decelerate]
 6c73_fixme:
 	xor a			;6c73 A = 0x00
-	ld (0e038h),a		;6c74 ???
+	ld (0e038h),a		;6c74 is_accelerating = 0x00
 	
 	ld hl,(0e04bh)		;6c77 HL = car_vpos_word
 	ld a,h			;6c7a A = car_vpos
@@ -16948,16 +16981,16 @@ C
 	call 06c89h		;6ca1 6c89_Z_if_car_state_01_or_02_or_07_else_NZ
 	ret z			;6ca4 if (car_state in [CAR_STATE_CRASHED, CAR_STATE_OUT_OF_FUEL_WITH_SPEED, CAR_STATE_SPINNING]) return
 	
-	; Car is steerable.
-	ld a,(0e009h)		;6ca5 Load pressed keys
-	and 010h		;6ca8 Check if space/trigger 1 is pressed.
+	; Case: Car is steerable.
+	; 
+	; Check if space/trigger 1 is pressed.
+	ld a,(0e009h)		;6ca5 A = pressed_keys
+	and 010h		;6ca8 A &= KEY_STATE_SPACE
+	jr z,$-67		;6caa if ((pressed_keys & KEY_STATE_SPACE) == 0) jump to 0x6C67 (6c67_decelerate)
 	
-	; We can get here from:
-	;   0x6C87 (jump)
-	;   0x6CA8 (fall)
-	jr z,$-67		;6caa if (not using gas pedal) jump to 0x6C67
-	
-	; Accelerating
+	; Case: gas pedal is pressed.
+	;
+	; Accelerate if we are not at maximum speed.
 	ld hl,0e04fh		;6cac HL = &car_speed
 	ld a,(hl)		;6caf A = car_speed
 	cp 0d7h			;6cb0 Compare with maximum speed.
@@ -16965,8 +16998,8 @@ C
 	inc a			;6cb3 Increase speed
 	ld (hl),a		;6cb4 Store speed
 	
-	ld a,001h		;6cb5 A = 1
-	ld (0e038h),a		;6cb7 ???
+	ld a,001h		;6cb5 A = 0x01
+	ld (0e038h),a		;6cb7 is_accelerating = 0x01
 	ld hl,(0e04bh)		;6cba HL = &car_vpos_word
 	ld a,h			;6cbd
 	cp 09ah			;6cbe
@@ -17396,14 +17429,14 @@ C
 	;   0x6DF3 (jump) A == 0
 	;   0x6DF7 (fall) A == (*(0xE051) >> 1) & 0x08
 	ld e,a			;6df9 E = absolute_horizontal_displacement (used at 0x6E10)
-	ld a,(0e009h)		;6dfa A = currently_pressed_keys
-	ld b,a			;6dfd B = currently_pressed_keys
-	and 00ch		;6dfe A &= 0x0C, get "Left" (0x04) and "Right" (0x08).
+	ld a,(0e009h)		;6dfa A = pressed_keys
+	ld b,a			;6dfd B = pressed_keys
+	and 00ch		;6dfe A &= (KEY_STATE_LEFT | KEY_STATE_RIGHT)
 	cp 00ch			;6e00 Test for BOTH left and right.
 	jr nz,$+6		;6e02 if (left and right are NOT BOTH currently pressed) jump to 0x6E08
 	; Post: BOTH left and right are currently pressed.
 	ld a,(0e048h)		;6e04 A = newly_pressed_left_and_or_right
-	and b			;6e07 A &= currently_pressed_keys
+	and b			;6e07 A &= pressed_keys
 	
 	; We can get here from:
 	;   0x6E02 (jump) A in [0x00,0x04,0x08]
@@ -17954,7 +17987,7 @@ C
 	
 	ld a,(0e003h)		;6f56 A = game_state_ticker
 	rra			;6f59 carry flag = game_state_ticker & 0x01
-	jr nc,$+3		;6f5a if (nc) jump to 6f5d_next_initial_moving_object_or_return
+	jr nc,$+3		;6f5a if (game_state_ticker & 0x01 == 0x00) jump to 6f5d_next_initial_moving_object_or_return
 
 	; We can get here from:
 	;   0x6F54 (jump) car_speed >= 0xC8
@@ -17994,7 +18027,7 @@ C
 	;   0x6F70 (fall) [from=self] HL == &initial_moving_object_01.wait_ticks (initial_moving_object_loop_counter == 0x00)
 	;
 	; Let's call HL 'other_initial_moving_object'.
-	ld a,(0e03bh_levelAB)	;6f72 A = level (0x00: 'A', 0x01: 'B')
+	ld a,(0e03bh)		;6f72 A = level, 0x00 == level A, 0x01 == level B
 	dec a			;6f75 Update Z/NZ flag.
 	ld a,007h		;6f76 A = 0x07
 	jr z,$+4		;6f78 if (playing at level B) jump to 0x6F7C
@@ -18112,7 +18145,7 @@ C
 	6fc8_fixme:
 	ld hl,(0e0bfh)		;6fc8 HL = &current_moving_object
 	ld d,(hl)		;6fcb D = current_moving_object.type
-	ld a,(0e03bh)		;6fcc A = level (0x00: level A, 0x01: level B)
+	ld a,(0e03bh)		;6fcc A = level, 0x00 == level A, 0x01 == level B
 	or a			;6fcf Update Z/NZ flag.
 	jr nz,$+3		;6fd0 if (playing at level B) jump to 0x6FD3
 	ld d,a			;6fd2 D = 0x00 (since this is the branch for level A)
@@ -18237,7 +18270,7 @@ C
 	;   0x7029 (jump) HL == &current_moving_object_initial_data__idx
 	;   0x703A (fall) HL == &current_moving_object_initial_data__idx (special value 0xFF was handled)
 	703d_all_cases:
-	ld a,(0e03bh)		;703d A == 0: Level A, A == 1: Level B
+	ld a,(0e03bh)		;703d A = level, 0x00 == level A, 0x01 == level B
 	or a			;7040 Update Z/NZ flag.
 	ld a,(hl)		;7041 A = current_moving_object_initial_data__idx
 	jr nz,$+7		;7042 if (level_B) jump to 0x7049
@@ -18319,7 +18352,7 @@ C
 	;
 	inc de			;7067 DE = &moving_object_initial_data__dst[2]
 	inc de			;7068 DE = &moving_object_initial_data__dst[3]
-	ld a,(0e03bh_levelAB)	;7069 A == 0x00: Level A, A == 0x01: Level B
+	ld a,(0e03bh)		;7069 A = level, 0x00 == level A, 0x01 == level B
 	dec a			;706c A == 0xFF: Level A, A == 0x00: Level B, updates Z/NZ flag.
 	ld a,(hl)		;706d A = moving_object_initial_data__src[1]
 	jr z,$+3		;706e if (levelB) jump to 0x7071
@@ -18945,7 +18978,7 @@ C
 	;   0x725E (fall) [from=self] current_moving_object->type == 0x04, redneck hot rodder (regular, not used)
 	ld a,(0e003h)		;7260 A = game_state_ticker
 	and 003h		;7263 A &= 0x03
-	jr nz,$+3		;7265 if (nz) jump to 0x7268
+	jr nz,$+3		;7265 if (game_state_ticker & 0x03 != 0x00) jump to 0x7268
 	inc b			;7267 B = current_moving_object->vpos + 1
 	
 	; All cases lead here.
@@ -19365,7 +19398,7 @@ C
 
 	; Post: car state is not 0x01, i.e. not in crash state.
 	ld bc,001ffh		;7379 fuel_consumption_rate = 0x01FF (fuel consumption rate at level B)
-	ld a,(0e03bh_levelAB)	;737c A = levelAB
+	ld a,(0e03bh)		;737c A = level, 0x00 == level A, 0x01 == level B
 	or a			;737f
 	jr nz,$+4		;7380 if (level B) jump to 0x7384
 	ld c,080h		;7382 fuel_consumption_rate = 0x0180 (fuel consumption rate at level A)
@@ -22175,16 +22208,20 @@ C
 
 ; Referenced by:
 ;   0x5103 [from=50ef_init_stage_3]
-7aa1_oil_related_data_something:
-	defb 0x03		;7aa1
-	defb 0x01		;7aa2
-	defb 0x07		;7aa3
-	defb 0x00		;7aa4
-	defb 0x09		;7aa5
-	defb 0x01		;7aa6
-	defb 0x0A		;7aa7
-	defb 0x01		;7aa8
-	defb 0x00		;7aa9
+7aa1_location_and_type_of_oil__stage_3:
+	defb 0x03		;7aa1 Appear when distance_travelled == 0x030000
+	defb 0x01		;7aa2 Black/oil.
+
+	defb 0x07		;7aa3 Appear when distance_travelled == 0x070000
+	defb 0x00		;7aa4 Blue/water.
+
+	defb 0x09		;7aa5 Appear when distance_travelled == 0x090000
+	defb 0x01		;7aa6 Black/oil.
+
+	defb 0x0A		;7aa7 Appear when distance_travelled == 0x0A0000
+	defb 0x01		;7aa8 Black/oil.
+
+	defb 0x00		;7aa9 END (since distance_travelled is already >= 0x0A0000)
 
 
 
