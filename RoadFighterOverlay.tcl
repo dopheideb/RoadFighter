@@ -10,7 +10,7 @@ variable game_states [list\
 	"Not playing"\
 	"Level select"\
 	"Demo running"\
-	"Pre game setup?"\
+	"Pre game setup"\
 	"Demo"\
 	"Playing"\
 	"Crashed"\
@@ -18,9 +18,20 @@ variable game_states [list\
 	"Reached checkpoint"
 ]
 variable game_substates [list\
-	[list "Game startup" "Scroll up Konami logo" "Show software" "Show ROAD FIGHTER logo" "Blink ROAD FIGHTER logo"]\
-	[list "Waiting for input"]\
-	[list "Start demo?" "Playing demo"]\
+	[list\
+		"Game startup"\
+		"Scroll up Konami logo"\
+		"Show software"\
+		"Show ROAD FIGHTER logo"\
+		"Blink ROAD FIGHTER logo"\
+	]\
+	[list\
+		"Waiting for input"\
+	]\
+	[list\
+		"Start demo?"\
+		"Playing demo"\
+	]\
 	[list\
 		"Start new game"\
 		"Play victorious music"\
@@ -43,7 +54,13 @@ variable game_substates [list\
 		"Erase circuit"\
 		"Show GAME OVER letters"\
 	]\
-	[list "Reached checkpoint" "Clear screen" "Show progress map" "Blink minicar" "Goto nextstage"]\
+	[list\
+		"Reached checkpoint"\
+		"Clear screen"\
+		"Show progress map"\
+		"Blink minicar"\
+		"Go to next stage"\
+	]\
 ]
 variable car_states [list\
 	"All okay"\
@@ -54,6 +71,28 @@ variable car_states [list\
 	"Bounce"\
 	"Respawn"\
 	"Spinning"\
+]
+variable moving_object_idx2name [list\
+	"Green car"\
+	"Blue car (regular)"\
+	"Blue car (speeding)"\
+	"Purple car"\
+	"Redneck hot rodder (regular)"\
+	"Redneck hot rodder (speeding)"\
+	"18-wheeler (no oil drum)"\
+	"18-wheeler (with oil drum)"\
+	"Bonus fuel heart"\
+]
+variable moving_object_idx2rgb [list\
+	0x21c842\
+	0x0000ff\
+	0x0000ff\
+	0xc95bba\
+	0x000000\
+	0x000000\
+	0xcccccc\
+	0xcccccc\
+	0xc95bba\
 ]
 proc init {} {
 	variable text_height
@@ -78,6 +117,12 @@ proc init {} {
 		-relw 0xC8 -relh [expr {0x01 + $text_height}]\
 		-rgba 0x00000080
 	osd create text road_fighter.car_state.text -x 0 -y 0 -size $text_height -text ""
+
+	osd create rectangle road_fighter.next_moving_object\
+		-relx 0x08 -rely [expr {3 * (0x01 + $text_height)}]\
+		-relw 0xC8 -relh [expr {0x01 + $text_height}]\
+		-rgba 0x00000080
+	osd create text road_fighter.next_moving_object.text -x 0 -y 0 -size $text_height -text ""
 
 	#osd create rectangle road_fighter.pos_box\
 	#	-relx 0x00 -relw 0x09\
@@ -169,21 +214,43 @@ proc update_impl {} {
 	osd configure road_fighter.car_state.text\
 		-text $text -rgb $text_color
 
+	variable moving_object_idx2name
+	variable moving_object_idx2rgb
+	set num_spare_moving_objects [peek 0xE0C1]
+	if {$num_spare_moving_objects == 0 || $num_spare_moving_objects >= 3} {
+		set text_color 0xffffff
+		set text [format ""]
+	} else {
+		if {$num_spare_moving_objects == 1} {
+			set next_moving_object_address 0xE0D3
+		} else {
+			set next_moving_object_address 0xE0C3
+		}
+		set next_moving_object_idx [peek $next_moving_object_address]
+		set next_moving_object_text\
+			[lindex $moving_object_idx2name $next_moving_object_idx]
+		set text_color\
+			[lindex $moving_object_idx2rgb $next_moving_object_idx]
+		set text [format "Next object #1 %d: %s" $next_moving_object_idx $next_moving_object_text]
+	}
+	osd configure road_fighter.next_moving_object.text\
+		-text $text -rgb $text_color
 
 	## Car position
 	set vpos [peek 0xE112]
 	set hpos [peek 0xE113]
-	osd configure road_fighter.pos_box\
-		-relx [expr {$hpos+4}]\
-		-rely [expr {$vpos+1}]
-	set pos [format "(%d,%d)" $hpos $vpos]
-	set text_color 0xff0000
-	#osd configure road_fighter.pos_text\
-	#	-relx [expr {$hpos+4}]\
-	#	-rely [expr {$vpos+1+16}]\
-	#	-text $pos -rgb $text_color
-	osd configure road_fighter.pos_box.text\
-		-text $pos
+	if {$vpos >= 0xC0} {
+		osd configure road_fighter.pos_box\
+			-rely 999
+	} else {
+		osd configure road_fighter.pos_box\
+			-relx [expr {$hpos+4}]\
+			-rely [expr {$vpos+1}]
+		set pos [format "(%d,%d)" $hpos $vpos]
+		set text_color 0xff0000
+		osd configure road_fighter.pos_box.text\
+			-text $pos
+	}
 
 	## Speed
 	set speed [format "#%02X" [peek 0xE04F]]
