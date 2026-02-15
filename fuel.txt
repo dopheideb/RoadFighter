@@ -1,0 +1,155 @@
+== Why is it impossible to finish Road Fighter on level B? ==
+
+Finishing stage 05 of Road Fighter on level B is practically impossible 
+due to a bug: there are not enough fuel hearts, when driving at full 
+speed.
+
+Later versions of the game solved this bug, according to 
+https://www.msx.org/forum/msx-talk/software-and-gaming/did-anyone-ever-finish-road-fighter-level-b?page=1. 
+User Gullian states: "It seems Konami noticed this bug and released a 
+fixed version. Comparing two ROM dumps I discovered that the one with 
+CRC32 = 01DDB68F has less hearts than CB82D8C9 version. I checked it and 
+it is possible to finish stage 5 on level B".
+
+And he also writes: "Just change offset #13CB to #05". Apparently, the 
+bug was very easy to fix: change a single byte. (The bug fix will give 
+you more fuel hearts in stage 05.)
+
+== Is it really impossible? ==
+
+Is it impossible to finish Road Fighter on level B? No, it is not! There 
+is at least 1 YouTube video in which the driver somehow reaches the 
+finish.
+
+== What do I need to know to beat the game? ==
+
+To beat the game, you need expert knowledge of how the game was 
+programmed.
+
+== Fuel consumption rate ==
+
+The fuel consumption rate is very trivial:
+* On level A: 0x0180 (384) units per video frame, see 0x7379 and 0x7382.
+* On level B: 0x01FF (511) units per video frame, see 0x7379.
+
+It is important to note that this rate does _not_ depend on the speed. 
+The cars consumes just as much fuel when standing still as when the car 
+is travelling at maximum speed.
+
+This means that one should driving at maximum speed all the time. (But 
+more on that later...)
+
+== Fuel amount ==
+
+The starting amount of fuel is simply not enough fuel to reach the 
+finish, so one needs to grab all fuel hearts. That's sounds easier than 
+it actually is, because driving at full speed and grabbing all fuel 
+hearts isn't enough.
+
+The trick to beating the game, is forcing the game to give the fuel 
+hearts _earlier_.
+
+== The moving objects order is predetermined ==
+
+Per stage, the moving objects always appear in the same order. 
+
+== Only 2 moving objects in screen ==
+
+The game has reserved 2x 16 bytes for moving objects like opponent cars, 
+trucks and fuel hearts:
+
+* 0xE0E5-0xE0F4
+* 0xE0F5-0xE104
+
+It is very important to understand the implications of this fixed number 
+of objects. A simple implication is this: make the speed difference as 
+large as you can, so the moving object disappears as soon as possible, 
+allowing a new moving object to appear. In simply words: drive at 
+maxmium speed.
+
+But what about the blue hotrod that overtakes you, even when you are 
+driving at full speed? The answer is actually the same as above: make 
+the speed difference as large as you can. Wait, what, how?! By 
+_decreasing_ your speed! The speed difference increases when you decrease 
+your speed.
+
+0x6F25 is worth noting here. If the speed is 0xB7 (183) or less, then no 
+new moving object will appear. So one should drive at least 0xB8 (184) 
+when the blue hotrodder exits the screen.
+
+== Order of appearance ==
+
+0x7020 handles loading of new moving objects. 0x7039 concludes the 
+computation of the first moving object per stage:
+
+HL = 0x537D = (stage - 1) * 16
+
+This means the following start addresses:
+
+Stage 01: 0x537D
+Stage 02: 0x538D
+Stage 03: 0x539D
+Stage 04: 0x53AD
+Stage 05: 0x53BD
+Stage 06: 0x53CD
+
+What do bytes at these addresses mean? It used to calculate the offset 
+in another table we call "moving_object_initial_data__2_per_element" at 
+0x5311. The calculations ends at 0x7054 and is basically:
+
+	DE = 0x5311 + 6 * (data_byte - 1)
+
+The table at 0x5311 (moving_object_initial_data__2_per_element) is 2x 3 
+bytes per element. Each element holds 2 moving objects. Each moving 
+object consists of 3 bytes:
+
+	Byte #00: The moving object type (this is important)
+	Byte #01: ???
+	Byte #02: The horizontal offset (wrt left border) where the 
+	object must appear.
+
+The moving object types are:
+
+	Moving object type #00: Green car
+	Moving object type #01: Blue car (regular)
+	Moving object type #02: Blue car (speeding, overtaking the player)
+	Moving object type #03: Purple car
+	Moving object type #04: Redneck hot rodder (regular, not used)
+	Moving object type #05: Redneck hot rodder
+	Moving object type #06: Truck (a.k.a. 18-wheeler), no oil drum
+	Moving object type #07: Truck (a.k.a. 18-wheeler), with spinning oil drum
+	Moving object type #08: Bonus fuel heart
+
+We now have all the ingredients to know the order in which moving 
+objects appear.
+
+Let's zoom in on stage 05, and compute the order.
+
+Address	Byte	Offset to 0x5311	Address	Moving object 1	Moving object 2
+0x53BD	0x0F	6 * (0x0F - 1)		0x5365	Purple		Purple
+0x53BE	0x0A	6 * (0x0A - 1)		0x5347	Green		Truck
+0x53BF	0x06	6 * (0x06 - 1)		0x532F	Green		Blue (regular)
+0x63C0	0x0B	6 * (0x0B - 1)		0x534D	Blue (speeding)	Purple
+0x63C1	0x0F	6 * (0x0F - 1)		0x5365	Purple		Purple
+0x63C2	0x0B	6 * (0x0B - 1)		0x534D	Blue (speeding)	Purple
+0x63C3	0x05	6 * (0x05 - 1)		0x5329	Green		Bonus fuel heart
+0x63C4	0x0B	6 * (0x0B - 1)		0x534D	Blue (speeding)	Purple
+0x63C5	0x08	6 * (0x08 - 1)		0x533B	Green		Purple
+0x63C6	0x06	6 * (0x06 - 1)		0x532F	Green		Blue (regular)
+0x63C7	0x0F	6 * (0x0F - 1)		0x5365	Purple		Purple
+0x63C8	0x0A	6 * (0x0A - 1)		0x5347	Green		Truck
+0x63C9	0x06	6 * (0x06 - 1)		0x532F	Green		Blue (regular)
+0x63CA	0x0A	6 * (0x0A - 1)		0x5347	Green		Truck
+0x63CB	0xFF	6 * (0xFF - 1)		n/a	Continue at 0x53BD.
+0x63CC	0xFF	6 * (0xFF - 1)		n/a	Continue at 0x53BD. (Unreachable data.)
+
+== Putting it all together with a trainer ==
+
+The following trainer assures you will decrease your speed when a speed 
+blue car is in screen.
+
+debug set_bp 0x46F2 {(([peek 0xE0E5] == 2 && [peek 0xE0E6] != 0x00) || ([peek 0xE0F5] == 2 && [peek 0xE0F6] != 0x00)) && [peek 0xE04F] > 0xC8 } {
+        ## Mark space as NOT pressed, i.e. don't press the gas pedal.
+        set newA [expr {[reg A] & ~0x10}]
+        reg A $newA
+}
