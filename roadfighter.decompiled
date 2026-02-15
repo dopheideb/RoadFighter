@@ -6723,113 +6723,127 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Data, see 0x704E. 6 bytes per element. 17 elements
+; Data, see 0x704E. 6 bytes per element. 15 elements.
 5311_moving_object_initial_data__2_per_element:
-	; Element #00.
-	defb 0x00		;5311 Green car
-	defb 0x04		;5312
-	defb 0x20		;5313 hpos_offset
-	defb 0x00		;5314 Green car
-	defb 0x08		;5315
-	defb 0x28		;5316 hpos_offset
+	; Element #00. (But the code uses 1-based addressing, so this is element #01.)
+	defb 0x00		;5311 [01-A] Green car
+	defb 0x04		;5312 [01-A]
+	defb 0x20		;5313 [01-A] hpos_offset
+	defb 0x00		;5314 [01-B] Green car
+	defb 0x08		;5315 [01-B]
+	defb 0x28		;5316 [01-B] hpos_offset
 
-	defb 0x00		;5317 Element #01: Green car
-	defb 0x04		;5318
-	defb 0x10		;5319 hpos_offset
-	defb 0x01		;531a Blue car
-	defb 0x10		;531b
-	defb 0x28		;531c hpos_offset
+	; Element #01. (But the code uses 1-based addressing, so this is element #02.)
+	defb 0x00		;5317 [02-A] Green car
+	defb 0x04		;5318 [02-A]
+	defb 0x10		;5319 [02-A] hpos_offset
+	defb 0x01		;531a [02-B] Blue car
+	defb 0x10		;531b [02-B]
+	defb 0x28		;531c [02-B] hpos_offset
 
-	defb 0x00		;531d Element #02: Green car
-	defb 0x04		;531e hpos_offset
-	defb 0x18		;531f
-	defb 0x00		;5320 Green car
-	defb 0x08		;5321
-	defb 0x18		;5322 hpos_offset
+	; Element #02. (But the code uses 1-based addressing, so this is element #03.)
+	defb 0x00		;531d [03-A] Green car
+	defb 0x04		;531e [03-A] hpos_offset
+	defb 0x18		;531f [03-A]
+	defb 0x00		;5320 [03-B] Green car
+	defb 0x08		;5321 [03-B]
+	defb 0x18		;5322 [03-B] hpos_offset
 
-	defb 0x00		;5323 Element #03: Green car
-	defb 0x04		;5324
-	defb 0x28		;5325 hpos_offset
-	defb 0x00		;5326 Green car
-	defb 0x08		;5327
-	defb 0x18		;5328 hpos_offset
+	; Element #03. (But the code uses 1-based addressing, so this is element #04.)
+	defb 0x00		;5323 [04-A] Green car
+	defb 0x04		;5324 [04-A]
+	defb 0x28		;5325 [04-A] hpos_offset
+	defb 0x00		;5326 [04-B] Green car
+	defb 0x08		;5327 [04-B]
+	defb 0x18		;5328 [04-B] hpos_offset
 
-	defb 0x00		;5329 Element #04: Green car
-	defb 0x04		;532a
-	defb 0x18		;532b hpos_offset
-	defb 0x08		;532c Bonus fuel heart
-	defb 0x08		;532d
-	defb 0x28		;532e hpos_offset
+	; Element #04. (But the code uses 1-based addressing, so this is element #05.)
+	defb 0x00		;5329 [05-A] Green car
+	defb 0x04		;532a [05-A]
+	defb 0x18		;532b [05-A] hpos_offset
+	defb 0x08		;532c [05-B] Bonus fuel heart
+	defb 0x08		;532d [05-B]
+	defb 0x28		;532e [05-B] hpos_offset
 
-	defb 0x00		;532f Element #05: Green car
-	defb 0x04		;5330
-	defb 0x28		;5331 hpos_offset
-	defb 0x01		;5332 Blue car
-	defb 0x08		;5333
-	defb 0x20		;5334 hpos_offset
+	; Element #05. (But the code uses 1-based addressing, so this is element #06.)
+	defb 0x00		;532f [06-A] Green car
+	defb 0x04		;5330 [06-A]
+	defb 0x28		;5331 [06-A] hpos_offset
+	defb 0x01		;5332 [06-B] Blue car
+	defb 0x08		;5333 [06-B]
+	defb 0x20		;5334 [06-B] hpos_offset
 
-	defb 0x02		;5335 Element #06: Speeding blue car
-	defb 0x04		;5336
-	defb 0x28		;5337 hpos_offset
-	defb 0x00		;5338 Green car
-	defb 0x08		;5339
-	defb 0x20		;533a hpos_offset
+	; Element #06. (But the code uses 1-based addressing, so this is element #07.)
+	defb 0x02		;5335 [07-A] Speeding blue car
+	defb 0x04		;5336 [07-A]
+	defb 0x28		;5337 [07-A] hpos_offset
+	defb 0x00		;5338 [07-B] Green car
+	defb 0x08		;5339 [07-B]
+	defb 0x20		;533a [07-B] hpos_offset
 
-	defb 0x00		;533b Element #07: Green car
-	defb 0x04		;533c
-	defb 0x28		;533d hpos_offset
-	defb 0x03		;533e Purple car
-	defb 0x08		;533f
-	defb 0x20		;5340 hpos_offset
+	; Element #07. (But the code uses 1-based addressing, so this is element #08.)
+	defb 0x00		;533b [08-A] Green car
+	defb 0x04		;533c [08-A]
+	defb 0x28		;533d [08-A] hpos_offset
+	defb 0x03		;533e [08-B] Purple car
+	defb 0x08		;533f [08-B]
+	defb 0x20		;5340 [08-B] hpos_offset
 
-	defb 0x06		;5341 Element #08: Truck (a.k.a. 18-wheeler), but without oil drum
-	defb 0x04		;5342
-	defb 0x18		;5343 hpos_offset
-	defb 0x00		;5344 Green car
-	defb 0x08		;5345
-	defb 0x30		;5346 hpos_offset
+	; Element #08. (But the code uses 1-based addressing, so this is element #09.)
+	defb 0x06		;5341 [09-A] Truck (a.k.a. 18-wheeler), but without oil drum
+	defb 0x04		;5342 [09-A]
+	defb 0x18		;5343 [09-A] hpos_offset
+	defb 0x00		;5344 [09-B] Green car
+	defb 0x08		;5345 [09-B]
+	defb 0x30		;5346 [09-B] hpos_offset
 
-	defb 0x00		;5347 Element #09: Green car
-	defb 0x04		;5348
-	defb 0x30		;5349 hpos_offset
-	defb 0x07		;534a Truck (a.k.a. 18-wheeler)
-	defb 0x08		;534b
-	defb 0x1C		;534c hpos_offset
+	; Element #09. (But the code uses 1-based addressing, so this is element #0A.)
+	defb 0x00		;5347 [0A-A] Green car
+	defb 0x04		;5348 [0A-A]
+	defb 0x30		;5349 [0A-A] hpos_offset
+	defb 0x07		;534a [0A-B] Truck (a.k.a. 18-wheeler)
+	defb 0x08		;534b [0A-B]
+	defb 0x1C		;534c [0A-B] hpos_offset
 
-	defb 0x02		;534d Element #0A: Speeding blue car
-	defb 0x04		;534e
-	defb 0x28		;534f hpos_offset
-	defb 0x03		;5350 Purple car
-	defb 0x08		;5351
-	defb 0x20		;5352 hpos_offset
+	; Element #0A. (But the code uses 1-based addressing, so this is element #0B.)
+	defb 0x02		;534d [0B-A] Speeding blue car
+	defb 0x04		;534e [0B-A]
+	defb 0x28		;534f [0B-A] hpos_offset
+	defb 0x03		;5350 [0B-B] Purple car
+	defb 0x08		;5351 [0B-B]
+	defb 0x20		;5352 [0B-B] hpos_offset
 
-	defb 0x04		;5353 Element #0B: Redneck hot rodder (but with the speed of a green car)
-	defb 0x04		;5354
-	defb 0x28		;5355 hpos_offset
-	defb 0x02		;5356 Speeding blue car
-	defb 0x08		;5357
-	defb 0x20		;5358 hpos_offset
+	; Element #0B. (But the code uses 1-based addressing, so this is element #0C.)
+	defb 0x04		;5353 [0C-A] Redneck hot rodder (but with the speed of a green car)
+	defb 0x04		;5354 [0C-A]
+	defb 0x28		;5355 [0C-A] hpos_offset
+	defb 0x02		;5356 [0C-B] Speeding blue car
+	defb 0x08		;5357 [0C-B]
+	defb 0x20		;5358 [0C-B] hpos_offset
 
-	defb 0x04		;5359 Element #0C: Redneck hot rodder (but with the speed of a green car)
-	defb 0x04		;535a
-	defb 0x28		;535b hpos_offset
-	defb 0x05		;535c Redneck hot rodder
-	defb 0x08		;535d
-	defb 0x20		;535e hpos_offset
+	; Element #0C. (But the code uses 1-based addressing, so this is element #0D.)
+	defb 0x04		;5359 [0D-A] Redneck hot rodder (but with the speed of a green car)
+	defb 0x04		;535a [0D-A]
+	defb 0x28		;535b [0D-A] hpos_offset
+	defb 0x05		;535c [0D-B] Redneck hot rodder
+	defb 0x08		;535d [0D-B]
+	defb 0x20		;535e [0D-B] hpos_offset
 
-	defb 0x05		;535f Element #0D: Redneck hot rodder (first appearance in stage 6 on level B)
-	defb 0x04		;5360
-	defb 0x18		;5361 hpos_offset
-	defb 0x05		;5362 Redneck hot rodder
-	defb 0x08		;5363
-	defb 0x28		;5364 hpos_offset
+	; Element #0D. (But the code uses 1-based addressing, so this is element #0E.)
+	defb 0x05		;535f [0E-A] Redneck hot rodder (first appearance in stage 6 on level B)
+	defb 0x04		;5360 [0E-A]
+	defb 0x18		;5361 [0E-A] hpos_offset
+	defb 0x05		;5362 [0E-B] Redneck hot rodder
+	defb 0x08		;5363 [0E-B]
+	defb 0x28		;5364 [0E-B] hpos_offset
 
-	defb 0x03		;5365 Element #0E: Purple car
-	defb 0x04		;5366
-	defb 0x28		;5367 hpos_offset
-	defb 0x03		;5368 Purple car
-	defb 0x08		;5369
-	defb 0x20		;536a hpos_offset
+	; Element #0E. (But the code uses 1-based addressing, so this is element #0F.)
+	defb 0x03		;5365 [0F-A] Purple car
+	defb 0x04		;5366 [0F-A]
+	defb 0x28		;5367 [0F-A] hpos_offset
+	defb 0x03		;5368 [0F-B] Purple car
+	defb 0x08		;5369 [0F-B]
+	defb 0x20		;536a [0F-B] hpos_offset
 
 
 
@@ -18231,7 +18245,7 @@ C
 ; We can get here from:
 ;   0x50AE (call) [from=504c_init_stage]
 ;   0x51D5 (jump) [from=51c5_car_crashed_something]
-;   0x701D (fall) [from=6f25_something_with_loading_next_initial_moving_object_if_speed_is_high]
+;   0x701D (fall) [from=6f25_something_with_loading_next_initial_moving_object_if_speed_is_high] num_initial_moving_objects_on_spare == 0
 7020_moving_object__compute_and_set_next_pair_of_initial_values:
 	; ++&current_moving_object_initial_data__idx
 	ld hl,(0e0bdh)		;7020 HL = &current_moving_object_initial_data__idx
@@ -18316,7 +18330,7 @@ C
 	inc hl			;705d HL = 0xE0C3
 	ex de,hl		;705e DE = 0xE0C3, HL = 5311_moving_object_initial_data__2_per_element + 6 * requested_element
 		
-	; Compute and set initial values of both moving objects.
+	; Compute and set initial values of both moving objects (but one at the time, but with 2 runs).
 	; 
 	; Input:
 	;   HL: address of the moving object data, i.e. the start of an element of table 5311_moving_object_initial_data__2_per_element.
@@ -18338,6 +18352,8 @@ C
 		ld a,(hl)	;7060 This A will be restored at 0x707B.
 	ex af,af'		;7061 Restore A+F, stored at 0x705F.
 	
+	; Copy type of moving object.
+	; 
 	; moving_object_initial_data__dst[0] = moving_object_initial_data__src[0]
 	ldi			;7062 *(DE++) = *(HL++), --BC
 	;
@@ -18345,7 +18361,7 @@ C
 	;   HL = &moving_object_initial_data__src[1]
 	;   DE = &moving_object_initial_data__dst[1]
 	;
-	; moving_object_initial_data__dst[1] = 0x01
+	; moving_object_initial_data__dst[1] = 0x01, ?mark as available/initialized?
 	ld a,001h		;7064 A = 0x01
 	ld (de),a		;7066 moving_object_initial_data__dst[1] = 0x01
 	
