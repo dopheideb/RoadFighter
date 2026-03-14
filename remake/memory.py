@@ -54,13 +54,19 @@ class Memory:
 	##
 	## Byte
 	##
-	def get_byte(self: Self, offset: int) -> int:
+	def get_byte(self: Self, offset: int, signed=False) -> int:
 		'''
 		Return a byte from memory as int.
 
 		If you need bytes type, just slice the object.
 		'''
-		return cast(int, self[offset])
+		byte = cast(int, self[offset])
+		if not signed:
+			## Unsigned
+			return byte
+		if not (byte & 0x80):
+			return byte
+		return -128 + (byte & 0x7F)
 
 	def set_byte(self: Self, offset: int, value: int) -> None:
 		'''
