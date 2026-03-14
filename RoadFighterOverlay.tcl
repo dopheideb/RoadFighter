@@ -3,6 +3,20 @@
 ##   toggle_road_fighter_overlay
 namespace eval road_fighter_overlay {
 
+## DNF
+#set minimal_speed 0xB7
+
+## Barely reached the finish, needed trickery.
+set minimal_speed 0xC0
+
+## Reached the finish, without further trickery.
+set minimal_speed 0xC8
+debug set_bp 0x46F2 {(([peek 0xE0E5] == 2 && [peek 0xE0E6] != 0x00) || ([peek 0xE0F5] == 2 && [peek 0xE0F6] != 0x00)) && [peek 0xE04F] > $road_fighter_overlay::minimal_speed } {
+	## Mark space as NOT pressed, i.e. don't press the gas pedal.
+	set newA [expr {[reg A] & ~0x10}]
+	reg A $newA
+}
+
 variable road_fighter_overlay_active false
 variable text_height 7
 
@@ -124,6 +138,24 @@ proc init {} {
 		-rgba 0x00000080
 	osd create text road_fighter.next_moving_object.text -x 0 -y 0 -size $text_height -text ""
 
+	## Moving object #00.
+	osd_widgets::create_power_bar\
+		road_fighter.moving_object_00_pos_box\
+		9 16\
+		0x00000000 0xff770020 0xff0000ff
+	osd create text road_fighter.moving_object_00_pos_box_text\
+		-relx 666 -rely 666\
+		-size $text_height -text ""
+
+	## Moving object #01.
+	osd_widgets::create_power_bar\
+		road_fighter.moving_object_01_pos_box\
+		9 16\
+		0x00000000 0xff770020 0xff0000ff
+	osd create text road_fighter.moving_object_01_pos_box_text\
+		-relx 666 -rely 666\
+		-size $text_height -text ""
+
 	#osd create rectangle road_fighter.pos_box\
 	#	-relx 0x00 -relw 0x09\
 	#	-rely  666 -relh 0x10\
@@ -132,29 +164,29 @@ proc init {} {
 		road_fighter.pos_box\
 		9 16\
 		0x00000000 0xff770020 0xff0000ff
-	osd create text road_fighter.pos_text\
-		-relx 666 -rely 666\
-		-size $text_height -text ""
+	#osd create text road_fighter.pos_text\
+	#	-relx 666 -rely 666\
+	#	-size $text_height -text ""
 
 	osd create rectangle road_fighter.speed\
 		-relx [expr { 0xC0 + 4 }] -rely 0x80\
-		-relw 0x13 -relh $text_height\
+		-relw 0x10 -relh $text_height\
 		-rgba 0x00000080
 	osd create text road_fighter.speed.text\
-		-relx 0 -rely 0x20\
+		-relx 0 -rely 0x0\
 		-size $text_height -text ""
 
 	osd create rectangle road_fighter.fuel\
 		-relx [expr { 0xD8 + 4 }] -rely 0x80\
-		-relw 0x13 -relh $text_height\
+		-relw 0x10 -relh $text_height\
 		-rgba 0x00000080
 	osd create text road_fighter.fuel.text\
 		-relx 0 -rely 0\
 		-size $text_height -text ""
 
 	osd create rectangle road_fighter.distance_travelled\
-		-relx [expr { 0xC8 + 2 }] -rely 0x70\
-		-relw 0x13 -relh $text_height\
+		-relx [expr { 0xC8 + 2 }] -rely 0x71\
+		-relw 0x1C -relh $text_height\
 		-rgba 0x00000080
 	osd create text road_fighter.distance_travelled.text\
 		-relx 0 -rely 0\
@@ -236,6 +268,25 @@ proc update_impl {} {
 	osd configure road_fighter.next_moving_object.text\
 		-text $text -rgb $text_color
 
+	set vpos_moving_object_00 [peek 0xE0EB]
+	set vpos_moving_object_01 [peek 0xE0FB]
+	set hpos_moving_object_00 [peek 0xE0ED]
+	set hpos_moving_object_01 [peek 0xE0FD]
+
+	osd configure road_fighter.moving_object_00_pos_box\
+		-relx [expr {$hpos_moving_object_00+4}]\
+		-rely [expr {$vpos_moving_object_00-1}]
+	set pos [format "(%d,%d)" $hpos_moving_object_00 $vpos_moving_object_00]
+	osd configure road_fighter.moving_object_00_pos_box.text\
+		-text $pos
+
+	osd configure road_fighter.moving_object_01_pos_box\
+		-relx [expr {$hpos_moving_object_01+4}]\
+		-rely [expr {$vpos_moving_object_01-1}]
+	set pos [format "(%d,%d)" $hpos_moving_object_01 $vpos_moving_object_01]
+	osd configure road_fighter.moving_object_01_pos_box.text\
+		-text $pos
+
 	## Car position
 	set vpos [peek 0xE112]
 	set hpos [peek 0xE113]
@@ -252,20 +303,21 @@ proc update_impl {} {
 			-text $pos
 	}
 
-	## Speed
+	## Car speed
 	set speed [format "#%02X" [peek 0xE04F]]
 	set text_color 0xffffff
 	if {$speed == 0xD7} {set text_color 0xff0000}
 	osd configure road_fighter.speed.text\
 		-text $speed -rgb $text_color
 
-	## Fuel
-	set fuel [format "#%02X" [peek 0xE083]]
+	## Car fuel
+	set fuel [peek 0xE083]
+	set fuel_text [format "#%02X" $fuel]
 	set text_color 0xffffff
 	if {$fuel <= 0x09} {set text_color 0xffa500}
 	if {$fuel <= 0x00} {set text_color 0xff0000}
 	osd configure road_fighter.fuel.text\
-		-text $fuel -rgb $text_color
+		-text $fuel_text -rgb $text_color
 
 	## Distance travelled.
 	set distance_travelled [format "#%06X" [expr {[peek_u16 0xE077] | [peek_u8 0xE079] << 16}]]
