@@ -71,6 +71,9 @@ class TMS9918A:
 		num = len(data)
 		self._vram[start:start+num] = data
 
+	def WRTVRM(self: Self, address: int, byte: int) -> None:
+		self._vram[address] = byte
+
 	def get_colored_character_2D(self: Self, index: int, band=0) -> np.ndarray:
 		char_index = 256 * band + index
 		return self.get_colored_characters()[char_index]
@@ -129,7 +132,7 @@ class TMS9918A:
 			+ band_offset + elem_size * index
 		return self.read_vram(start=start, num=8)
 
-	def set_colors(self: Self, index: int, colors: np.ndarray, band: int=0) -> None:
+	def set_colors(self: Self, colors: np.ndarray, index: int, band: int=0) -> None:
 		self.set_pattern_colors(colors=colors, index=index, band=band)
 	def set_pattern_colors(self: Self, colors: np.ndarray, index: int, band: int=0) -> None:
 		'''
