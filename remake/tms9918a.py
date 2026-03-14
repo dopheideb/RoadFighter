@@ -80,7 +80,7 @@ class TMS9918A:
 
 	def get_colored_characters(self: Self) -> np.ndarray:
 		## Note: numpy is slow if we use it for indexing only 
-		## and do de math in Python. numpy is bloody fast if we 
+		## and do the math in Python. numpy is bloody fast if we 
 		## let numpy do the calculation and make just a few 
 		## numpy calls.
 		## 
