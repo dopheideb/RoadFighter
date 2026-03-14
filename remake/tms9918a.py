@@ -76,7 +76,7 @@ class TMS9918A:
 
 	def get_colored_character_2D(self: Self, index: int, band=0) -> np.ndarray:
 		char_index = 256 * band + index
-		return self.get_colored_characters()[char_index]
+		return self.get_colored_characters_3D()[char_index]
 
 	def get_colored_characters(self: Self) -> np.ndarray:
 		## Note: numpy is slow if we use it for indexing only 
