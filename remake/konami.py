@@ -2,11 +2,45 @@
 
 import memory
 import numpy as np
+from   tms9918a import TMS9918A
 from   typing import Self, List, cast
 
 class Konami:
-	def __init__(self: Self, memory: memory.Memory) -> None:
+	def __init__(self: Self, memory: memory.Memory, vdp: TMS9918A) -> None:
 		self.memory = memory
+		self.vdp = vdp
+
+	def reverse_bits_of_byte(byte: int) -> int:
+		'''
+
+		Reverse all bits of a single byte.
+
+		'''
+		byte = ((byte & 0x55) << 1) | ((byte & 0xAA) >> 1)
+		byte = ((byte & 0x33) << 2) | ((byte & 0xCC) >> 2)
+		byte = ((byte & 0x0F) << 4) | ((byte & 0xF0) >> 4)
+		return byte
+
+	## This functions mimics Road Fighter's routine 0x4652.
+	def mirror_VRAM_patterns_in_vertical_axis(
+			self: Self,
+			source: int,
+			destination: int,
+			num: int=1
+	) -> None:
+		## Every pattern is 8 bytes.
+		num_pattern_lines = 8 * num
+		source_vram = self.vdp.read_vram(start=source, num=num_pattern_lines)
+
+		for offset in range(num_pattern_lines):
+			pattern_line = source_vram[offset]
+			reversed_pattern_line = Konami.reverse_bits_of_byte(pattern_line)
+
+			self.vdp.WRTVRM(
+				address=destination + offset,
+				byte=reversed_pattern_line
+			)
+
 
 	def uncompress_patterns(self: Self, address: int) -> np.ndarray:
 		'''
