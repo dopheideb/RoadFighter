@@ -227,7 +227,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Weird. We can only get here from 0x48C6 (a 3 byte opcode), and we jump 
-; to 0x48C9: exactly 3 bytes after where we came from!
+; to 0x48C9: exactly 3 bytes after where we came from, which is a waste 
+; of cycles!
 ;
 ; We can get here from:
 ;   0x48C6 (jump)
@@ -236,6 +237,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; This is the game's interrupt routine. It is called after the VDP is 
+; done drawing the screen. This routine should do all its 
+; drawing/writing to VDP before the VDP starts to draw another screen. 
+; (The routine has safeguard for when the "should" part somehow fails.)
+;
+; If you want a frame by frame view in OpenMSX, try this command:
+; 
+;     debug set_bp 0x4013
+;
 ; We can get here from:
 ;   0x18F4 (call) [from=18e6_KEYINT,0038_KEYINT]
 4013_H_KEYINT_hook:
@@ -2350,14 +2360,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; Horizontally mirror a number of VRAM patterns, in all three VDP 
-; patterns band.
+; Mirror a number of VRAM patterns, in all three VDP 
+; patterns band. Mirror in vertical axis.
 ; 
 ; Input:
 ;   HL: source VRAM address (must be the first VDP pattern band)
 ;   DE: destination VRAM address (must be the first VDP pattern band)
-;   C: count - the number of patterns horizontally mirror
-4652_horizontally_mirror_VRAM_patterns:
+;   C: count - the number of patterns mirror
+4652_mirror_VRAM_patterns_in_vertical_axis:
 	; B = 3, the number of VDP bands.
 	ld b,003h		;4652 B = 3
 	
@@ -2679,10 +2689,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; 0x80   0x40   0x20      0x10 0x08 0x04   0x02 0x01
 	; Return Select	Backspace Stop Tab  Escape F5   F4
 	;        ?End?
-	ld a,007h		;46d5 A = 7, the line of the keyboard matrix to get.
+	ld a,007h		;46d5 A = 0x07, the line of the keyboard matrix to get.
 	call 0141_SNSMAT	;46d7 Get specified line from the keyboard matrix.
 	cpl			;46da Flip all bits (because keyboard matrix is active low).
-	rrca			;46db rotate right, bit 0 to both bit 7 and carry.
+	rrca			;46db Rotate right, bit 0 goes to both bit 7 and the carry bit.
 	and 020h		;46dc A &= 0x20 ("Select" key)
 	ld e,a			;46de E = A
 	
@@ -2712,7 +2722,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	rrca			;46ed ins home space left down up right del
 	rrca			;46ee del ins home space right down up left
 	ld b,a			;46ef Save
-	and 018h		;46f0 Get status of "Right" key and "Space" key
+	and 018h		;46f0 Get status of "Space" key (0x10) and "Right" key (0x08).
 	or c			;46f2 Add status of "Left" and "Select" key
 	ld c,a			;46f3 Save
 	; Post: Bit meaning of register C:
@@ -4464,14 +4474,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; We can get here from:
 	;   0x4B84 (jump) B==1, tuneID & 0x3F in [2,3,4] (tune ID 0 does not exist)
-	4b94_:
 	ld hl,E028_soundID_B	;4b94 HL = 0xE028
 	
 	; We can get here from:
 	;   0x4B8C (jump) B == 3 channels, HL == 0xE012, sound_ID&0x3F >= 0x0F
 	;   0x4B92 (jump) B == 2 channels, HL == 0xE01D, sound_ID&0x3F in [5,7,9,0xA,0xB,0xD]
 	;   0x4B94 (fall) B == 1 channel,  HL == 0xE028, sound_ID&0x3F in [2,3,4]
-	4b97_fixme:
 	dec d			;4b97 --D
 	jr z,$+11		;4b98 if (D_pre_4b97 == 1) jump to 0x4BA3
 	
@@ -4949,7 +4957,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Post: set noise frequency divider control register
 
 
-; Set noise frequency divider to *(HL) & 0x1F
+; Set noise frequency divider to *(HL) & 0x1F.
 4cf4_set_noise_frequency_divider:
 	ld a,(hl)		;4cf4 (Re)load sound opcode.
 	and 01fh		;4cf5 A = noise frequency divider
@@ -6179,7 +6187,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (0e090h),hl		;50f2
 	
 	ld hl,07c54h		;50f5 HL = 0x7C54
-	ld (0e06fh),hl		;50f8
+	ld (0e06fh),hl		;50f8 track_data_pointer = HL
 	
 	ld a,001h		;50fb A = 0x01
 	ld (0e07ch),a		;50fd
@@ -6254,7 +6262,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ldir			;5155 Copy HL to DE, 0x02 times. Copies 2 stage/track related bytes.
 	ld (0e071h),hl		;5157 Store HL
 
-	; *(0xE06F) = 0x5998 (track data pointer)
+	; track_data_pointer = 0x5998
 	ld hl,05998h		;515a HL = 0x5998
 	ld (0e06fh),hl		;515d *(0xE06F) = 0x5998
 
@@ -6498,7 +6506,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 05501h		;5242 5501_if_distance_travelled_changed__add_to_score_and_update_hiscore
 	call 07411h		;5245 7411_decrement_fuel_remaining
 	call 06ca1h		;5248 6ca1_fixme
-	call 06f25h		;524b 6f25_something_with_loading_next_initial_moving_object_if_speed_is_high
+	call 06f25h		;524b 6f25_load_next_initial_moving_object_if_speed_is_high
 	jp 044d9h		;524e 44d9_draw_score_and_hiscore
 
 
@@ -6727,128 +6735,143 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 5311_moving_object_initial_data__2_per_element:
 	; Element #00. (But the code uses 1-based addressing, so this is element #01.)
 	defb 0x00		;5311 [01-A] Green car
-	defb 0x04		;5312 [01-A]
+	defb 0x04		;5312 [01-A] wait_ticks
 	defb 0x20		;5313 [01-A] hpos_offset
+	;
 	defb 0x00		;5314 [01-B] Green car
-	defb 0x08		;5315 [01-B]
+	defb 0x08		;5315 [01-B] wait_ticks
 	defb 0x28		;5316 [01-B] hpos_offset
 
 	; Element #01. (But the code uses 1-based addressing, so this is element #02.)
 	defb 0x00		;5317 [02-A] Green car
-	defb 0x04		;5318 [02-A]
+	defb 0x04		;5318 [02-A] wait_ticks
 	defb 0x10		;5319 [02-A] hpos_offset
+	;
 	defb 0x01		;531a [02-B] Blue car
-	defb 0x10		;531b [02-B]
+	defb 0x10		;531b [02-B] wait_ticks
 	defb 0x28		;531c [02-B] hpos_offset
 
 	; Element #02. (But the code uses 1-based addressing, so this is element #03.)
 	defb 0x00		;531d [03-A] Green car
 	defb 0x04		;531e [03-A] hpos_offset
-	defb 0x18		;531f [03-A]
+	defb 0x18		;531f [03-A] wait_ticks
+	;
 	defb 0x00		;5320 [03-B] Green car
-	defb 0x08		;5321 [03-B]
+	defb 0x08		;5321 [03-B] wait_ticks
 	defb 0x18		;5322 [03-B] hpos_offset
 
 	; Element #03. (But the code uses 1-based addressing, so this is element #04.)
 	defb 0x00		;5323 [04-A] Green car
-	defb 0x04		;5324 [04-A]
+	defb 0x04		;5324 [04-A] wait_ticks
 	defb 0x28		;5325 [04-A] hpos_offset
+	;
 	defb 0x00		;5326 [04-B] Green car
-	defb 0x08		;5327 [04-B]
+	defb 0x08		;5327 [04-B] wait_ticks
 	defb 0x18		;5328 [04-B] hpos_offset
 
 	; Element #04. (But the code uses 1-based addressing, so this is element #05.)
 	defb 0x00		;5329 [05-A] Green car
-	defb 0x04		;532a [05-A]
+	defb 0x04		;532a [05-A] wait_ticks
 	defb 0x18		;532b [05-A] hpos_offset
+	;
 	defb 0x08		;532c [05-B] Bonus fuel heart
-	defb 0x08		;532d [05-B]
+	defb 0x08		;532d [05-B] wait_ticks
 	defb 0x28		;532e [05-B] hpos_offset
 
 	; Element #05. (But the code uses 1-based addressing, so this is element #06.)
 	defb 0x00		;532f [06-A] Green car
-	defb 0x04		;5330 [06-A]
+	defb 0x04		;5330 [06-A] wait_ticks
 	defb 0x28		;5331 [06-A] hpos_offset
+	;
 	defb 0x01		;5332 [06-B] Blue car
-	defb 0x08		;5333 [06-B]
+	defb 0x08		;5333 [06-B] wait_ticks
 	defb 0x20		;5334 [06-B] hpos_offset
 
 	; Element #06. (But the code uses 1-based addressing, so this is element #07.)
 	defb 0x02		;5335 [07-A] Speeding blue car
-	defb 0x04		;5336 [07-A]
+	defb 0x04		;5336 [07-A] wait_ticks
 	defb 0x28		;5337 [07-A] hpos_offset
+	;
 	defb 0x00		;5338 [07-B] Green car
-	defb 0x08		;5339 [07-B]
+	defb 0x08		;5339 [07-B] wait_ticks
 	defb 0x20		;533a [07-B] hpos_offset
 
 	; Element #07. (But the code uses 1-based addressing, so this is element #08.)
 	defb 0x00		;533b [08-A] Green car
-	defb 0x04		;533c [08-A]
+	defb 0x04		;533c [08-A] wait_ticks
 	defb 0x28		;533d [08-A] hpos_offset
+	;
 	defb 0x03		;533e [08-B] Purple car
-	defb 0x08		;533f [08-B]
+	defb 0x08		;533f [08-B] wait_ticks
 	defb 0x20		;5340 [08-B] hpos_offset
 
 	; Element #08. (But the code uses 1-based addressing, so this is element #09.)
 	defb 0x06		;5341 [09-A] Truck (a.k.a. 18-wheeler), but without oil drum
-	defb 0x04		;5342 [09-A]
+	defb 0x04		;5342 [09-A] wait_ticks
 	defb 0x18		;5343 [09-A] hpos_offset
+	;
 	defb 0x00		;5344 [09-B] Green car
-	defb 0x08		;5345 [09-B]
+	defb 0x08		;5345 [09-B] wait_ticks
 	defb 0x30		;5346 [09-B] hpos_offset
 
 	; Element #09. (But the code uses 1-based addressing, so this is element #0A.)
 	defb 0x00		;5347 [0A-A] Green car
-	defb 0x04		;5348 [0A-A]
+	defb 0x04		;5348 [0A-A] wait_ticks
 	defb 0x30		;5349 [0A-A] hpos_offset
+	;
 	defb 0x07		;534a [0A-B] Truck (a.k.a. 18-wheeler)
-	defb 0x08		;534b [0A-B]
+	defb 0x08		;534b [0A-B] wait_ticks
 	defb 0x1C		;534c [0A-B] hpos_offset
 
 	; Element #0A. (But the code uses 1-based addressing, so this is element #0B.)
 	defb 0x02		;534d [0B-A] Speeding blue car
-	defb 0x04		;534e [0B-A]
+	defb 0x04		;534e [0B-A] wait_ticks
 	defb 0x28		;534f [0B-A] hpos_offset
+	;
 	defb 0x03		;5350 [0B-B] Purple car
-	defb 0x08		;5351 [0B-B]
+	defb 0x08		;5351 [0B-B] wait_ticks
 	defb 0x20		;5352 [0B-B] hpos_offset
 
 	; Element #0B. (But the code uses 1-based addressing, so this is element #0C.)
 	defb 0x04		;5353 [0C-A] Redneck hot rodder (but with the speed of a green car)
-	defb 0x04		;5354 [0C-A]
+	defb 0x04		;5354 [0C-A] wait_ticks
 	defb 0x28		;5355 [0C-A] hpos_offset
+	;
 	defb 0x02		;5356 [0C-B] Speeding blue car
-	defb 0x08		;5357 [0C-B]
+	defb 0x08		;5357 [0C-B] wait_ticks
 	defb 0x20		;5358 [0C-B] hpos_offset
 
 	; Element #0C. (But the code uses 1-based addressing, so this is element #0D.)
 	defb 0x04		;5359 [0D-A] Redneck hot rodder (but with the speed of a green car)
-	defb 0x04		;535a [0D-A]
+	defb 0x04		;535a [0D-A] wait_ticks
 	defb 0x28		;535b [0D-A] hpos_offset
+	;
 	defb 0x05		;535c [0D-B] Redneck hot rodder
-	defb 0x08		;535d [0D-B]
+	defb 0x08		;535d [0D-B] wait_ticks
 	defb 0x20		;535e [0D-B] hpos_offset
 
 	; Element #0D. (But the code uses 1-based addressing, so this is element #0E.)
 	defb 0x05		;535f [0E-A] Redneck hot rodder (first appearance in stage 6 on level B)
-	defb 0x04		;5360 [0E-A]
+	defb 0x04		;5360 [0E-A] wait_ticks
 	defb 0x18		;5361 [0E-A] hpos_offset
+	;
 	defb 0x05		;5362 [0E-B] Redneck hot rodder
-	defb 0x08		;5363 [0E-B]
+	defb 0x08		;5363 [0E-B] wait_ticks
 	defb 0x28		;5364 [0E-B] hpos_offset
 
 	; Element #0E. (But the code uses 1-based addressing, so this is element #0F.)
 	defb 0x03		;5365 [0F-A] Purple car
-	defb 0x04		;5366 [0F-A]
+	defb 0x04		;5366 [0F-A] wait_ticks
 	defb 0x28		;5367 [0F-A] hpos_offset
+	;
 	defb 0x03		;5368 [0F-B] Purple car
-	defb 0x08		;5369 [0F-B]
+	defb 0x08		;5369 [0F-B] wait_ticks
 	defb 0x20		;536a [0F-B] hpos_offset
 
 
 
 ; Referenced by:
-;   0x6FFE (from=6f25_something_with_loading_next_initial_moving_object_if_speed_is_high)
+;   0x6FFE (from=6f25_load_next_initial_moving_object_if_speed_is_high)
 536b_moving_object__type2sprite_colors:
 	defb 0x01		;536b Type #00: Sprite color 1 of green car: black (shadow)
 	defb 0x0C		;536c Type #00: Sprite color 2 of green car: dark green
@@ -7004,72 +7027,100 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x70DF (call) [from=70d9_moving_object_state_01_and_04]
-53dd_fixme:
+53dd_setup_spinning_oil_drum:
 	ld hl,(0e078h)		;53dd HL = *(0xE078), distance travelled
 	ld bc,00f00h		;53e0 BC = 0x0F00
-	and a			;53e3 Clear carry flag, for sbc.
+	and a			;53e3 Clear carry flag, for sbc at 0x53E4.
 	sbc hl,bc		;53e4 HL -= BC
 	; Note: finish line is drawn at distance 0x0F09, which is quite 
 	; near 0x0F00.
 	ret nc			;53e6 if (distance travelled >= 0x0F00) return
 
-	ld hl,(0e0bfh)		;53e7
-	ld a,(hl)		;53ea
+	; if (current_moving_object.type != MO__TRUCK__WITH_OIL_DRUM) return
+	ld hl,(0e0bfh)		;53e7 HL = &current_moving_object
+	ld a,(hl)		;53ea A = current_moving_object[0] (type)
 	cp 007h			;53eb Compute A - 0x07 and update Z/NZ flag.
-	ret nz			;53ed
+	ret nz			;53ed if (current_moving_object.type != MO__TRUCK__WITH_OIL_DRUM) return
+
+	;
+	; Post: This is a truck with spinning oil drum.
+	;
 
 	; if (car state == CAR_STATE_CRASHED) return
 	ld a,(0e049h)		;53ee A = car_state
 	dec a			;53f1 --A
 	ret z			;53f2 if (car_state == CAR_STATE_CRASHED) return
 	
-	; A = vpos of current rival car
+	; A = current_moving_object.vpos (vpos of truck with spinning oil drum)
 	ld c,006h		;53f3 C = 0x06
 	call 072f6h		;53f5 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
+	; Post: HL == &current_moving_object.vpos
 
-	ld a,(0e04ch_car_vpos)	;53f8
-	sub 010h		;53fb
-	sub (hl)		;53fd
-	sub 0b8h		;53fe
-	add a,020h		;5400
+	; ?Check if player car overlaps with current moving object? Check is for vpos, not hpos.
+	ld a,(0e04ch)		;53f8 A = car_vpos
+	sub 010h		;53fb A = car_vpos - 0x10
+	sub (hl)		;53fd A = car_vpos - 0x10 - current_moving_object.vpos
+	sub 0b8h		;53fe A = car_vpos - 0x10 - current_moving_object.vpos - 0xB8
+	add a,020h		;5400 A = car_vpos - 0x10 - current_moving_object.vpos - 0xB8 + 0x20
 	ret nc			;5402
-	ld a,(hl)		;5403
-	add a,030h		;5404
-	ld b,a			;5406
-	inc hl			;5407
-	inc hl			;5408
-	ld a,(hl)		;5409
-	add a,004h		;540a
-	ld c,a			;540c
-	ld e,c			;540d
-	ld d,000h		;540e
-	ld a,(0e04eh)		;5410
-	ld h,d			;5413
-	ld l,a			;5414
-	and a			;5415
-	sbc hl,de		;5416
-	add hl,hl		;5418
-	add hl,hl		;5419
-	ex de,hl		;541a
-	ld hl,0e105h		;541b
-	ld a,(hl)		;541e
-	dec a			;541f
-	ret z			;5420
-	ld (hl),001h		;5421
-	inc hl			;5423
-	inc hl			;5424
-	ld (hl),b		;5425
+
+	; B = current_moving_object.vpos + 0x30
+	ld a,(hl)		;5403 A = current_moving_object.vpos
+	add a,030h		;5404 A = current_moving_object.vpos + 0x30
+	ld b,a			;5406 B = current_moving_object.vpos + 0x30
+
+	; C = current_moving_object.hpos + 0x04
+	inc hl			;5407 HL == &current_moving_object.???? (+7)
+	inc hl			;5408 HL == &current_moving_object.hpos (+8)
+	ld a,(hl)		;5409 A = current_moving_object.hpos
+	add a,004h		;540a A = current_moving_object.hpos + 0x04
+	ld c,a			;540c C = current_moving_object.hpos + 0x04
+
+	; DE = current_moving_object.hpos
+	ld e,c			;540d E = current_moving_object.hpos + 0x04
+	ld d,000h		;540e D = 0x00
+
+	; HL = car_hpos
+	ld a,(0e04eh)		;5410 A = car_hpos
+	ld h,d			;5413 H = 0x00
+	ld l,a			;5414 L = car_hpos
+
+	and a			;5415 Reset carry flag (because of sbc in 0x516).
+	sbc hl,de		;5416 HL = car_hpos - current_moving_object.hpos
+	add hl,hl		;5418 HL *= 2
+	add hl,hl		;5419 HL *= 2
+	ex de,hl		;541a DE = 4 * (car_hpos - current_moving_object.hpos), HL = current_moving_object.hpos
+
+	ld hl,0e105h		;541b HL = &oil_drum
+	ld a,(hl)		;541e A = oil_drum.is_active
+	dec a			;541f --A, update Z/NZ flag
+	ret z			;5420 if (oil_drum.is_active) return
+	; Post: oil_drum.is_active == 0x00 (although formally oil_drum.is_active != 0x01)
+
+	ld (hl),001h		;5421 oil_drum.is_active = 0x01 (oil_drum.is_active = true)
+
+	; Place oil drum behind the truck.
+	inc hl			;5423 
+	inc hl			;5424 HL = &oil_drum.vpos
+	ld (hl),b		;5425 oil_drum.vpos = current_moving_object.vpos + 0x30 (see 0x5406)
+
+	; Place oil drum centered behind the truck.
 	inc hl			;5426
-	inc hl			;5427
-	ld (hl),c		;5428
-	inc hl			;5429
-	ld (hl),090h		;542a
-	inc hl			;542c
-	ld (hl),003h		;542d
+	inc hl			;5427 HL = &oil_drum.hpos
+	ld (hl),c		;5428 oil_drum.hpos = current_moving_object.hpos + 0x04 (see 0x540C)
+
+	; oil_drum.vertical_speed = 0x390
+	inc hl			;5429 HL = &oil_drum.vertical_speed__lo_byte
+	ld (hl),090h		;542a oil_drum.vertical_speed__lo_byte = 0x90
+	inc hl			;542c HL = &oil_drum.vertical_speed__hi_byte
+	ld (hl),003h		;542d oil_drum.vertical_speed__hi_byte = 0x03
+
+	; oil_drum.horizontal_speed = 4 * (car_hpos - current_moving_object.hpos)
 	inc hl			;542f
 	ld (hl),e		;5430
 	inc hl			;5431
 	ld (hl),d		;5432
+
 	ret			;5433
 
 
@@ -7118,7 +7169,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	5456_all_cases:
 	; Check for overlap between player's car and oil drum on 
 	; vertical axis.
-	ld a,(0e04ch_car_vpos)	;5456 A = car_vpos
+	ld a,(0e04ch)		;5456 A = car_vpos
 	sub (hl)		;5459 A -= oil_drum.vpos
 	sub 008h		;545a A -= 8
 	add a,018h		;545c A += 0x18
@@ -7220,7 +7271,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,0e105h		;549e HL = oil_drum
 	ld (hl),000h		;54a1 oil_drum.is_active = 0x00
 	
-	; Set oil drum sprite vpos (way) outside visible area.
+	; Set oil drum sprite vpos outside the visible screen.
 	ld a,0e0h		;54a3 A = 0xE0
 	ld (0e13eh),a		;54a5 sprite_attrs_0C.vpos = 0xE0
 	
@@ -7452,13 +7503,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr nz,$+8		;5578 if (nz) jump to 0x5580
 	ld hl,07c85h		;557a HL = 0x7C85
 	ld (0e090h),hl		;557d
-	ld hl,(0e06fh)		;5580
+
+	ld hl,(0e06fh)		;5580 HL = track_data_pointer
 	ld a,(hl)		;5583
 	inc a			;5584
 	jr nz,$+46		;5585 if (nz) jump to 0x55B3
 	ld bc,0ffd0h		;5587 BC = 0xFFD0 (-0x30)
 	add hl,bc		;558a
-	ld (0e06fh),hl		;558b
+	ld (0e06fh),hl		;558b track_data_pointer = HL
+
 	ld hl,0e08ah		;558e
 	dec (hl)		;5591
 	jr nz,$+82		;5592 if (nz) jump to 0x55E4
@@ -7473,11 +7526,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr z,$+7		;55a4 if (z) jump to 0x55AB
 	ld de,07c54h		;55a6
 	ld c,010h		;55a9
-	ld (0e06fh),de		;55ab
+	ld (0e06fh),de		;55ab track_data_pointer = DE
 	ld (0e08ah),bc		;55af
 	ld de,0e05ch		;55b3
 	ld bc,00004h		;55b6
-	ld hl,(0e06fh)		;55b9
+	ld hl,(0e06fh)		;55b9 HL = track_data_pointer
 	ldir			;55bc
 	push hl			;55be
 	ld c,006h		;55bf
@@ -7491,7 +7544,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld c,004h		;55c9
 	ldir			;55cb do { *(DE++) = *(HL++) } while (--BC)
 	
-	ld (0e06fh),hl		;55cd
+	ld (0e06fh),hl		;55cd track_data_pointer = HL
 	ld hl,0e08ch		;55d0
 	inc (hl)		;55d3
 	ld a,(hl)		;55d4
@@ -7899,18 +7952,18 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,0e07bh		;5768 HL = 0xE07B
 	dec (hl)		;576b
 	jp z,0585fh		;576c
-	ld hl,(0e06fh)		;576f
+	ld hl,(0e06fh)		;576f HL = track_data_pointer
 	ld a,(hl)		;5772
 	inc a			;5773
 	; Post: if *(HL) == 0xFF (special value) then A == 0
 	jr nz,$+8		;5774 if (nz) jump to 0x577C
 	
-	; *(0xE06F) == 0xFF, so reset track data pointer.
+	; track_data_pointer == 0xFF, so reset track data pointer.
 	ld hl,05998h		;5776 HL = 0x5998
 	ld (0e06fh),hl		;5779
 	
 	; We can get here from:
-	;   0x5774 (jump) HL == *(0xE06F)
+	;   0x5774 (jump) HL == track_data_pointer
 	;   0x5779 (fall) HL == 0x5998
 	
 	; DE = &(start_of_track_of_top_row)
@@ -7922,7 +7975,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x584B (call) [from=5810_fixme
+;   0x5783 (fall) [from=5768_update_first_line_of_track_data_in_RAM]
+;   0x584B (call) [from=5810_fixme]
 5784_copy_track_something:
 	; Copy left border of track.
 	ldi			;5784 *(DE++) = *(HL++), --BC
@@ -7984,7 +8038,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Copy the correct amount of lane data from the correct starting point.
 	ldir			;57a1 do { *(DE++) = *(HL++) } while (--BC)
 
-	ld (0e06fh),hl		;57a3 Store track pointer.
+	; Store track data pointer.
+	ld (0e06fh),hl		;57a3 track_data_pointer = HL
 
 	ret			;57a6
 
@@ -8014,10 +8069,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 	; Copy track data to VRAM buffer.
-	;   Source:      HL == *(0xE06F) + (9 - *(0xE081)
+	;   Source:      HL == track_data_pointer + (9 - *(0xE081)
 	;   Destination: DE == 0xE059 (left most track)
 	;   Count:       BC == *(0xE081)
-	ld hl,(0e06fh)		;57bc LDIR: source: pointer to current track data.
+	ld hl,(0e06fh)		;57bc LDIR: source: track_data_pointer
 	ld a,(0e081h)		;57bf A = *(0xE081)
 	ld c,a			;57c2 LDIR: count: *(0xE081)
 	sub 009h		;57c3 A -= 9
@@ -8028,7 +8083,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	inc hl			;57ce
 	inc hl			;57cf
-	ld (0e06fh),hl		;57d0
+	ld (0e06fh),hl		;57d0 track_data_pointer = HL
 
 	ld hl,0e07bh		;57d3
 	ld a,(hl)		;57d6
@@ -8059,8 +8114,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;5801
 	ld h,(hl)		;5802
 	ld l,a			;5803
-	ld (0e06fh),hl		;5804
+	ld (0e06fh),hl		;5804 track_data_pointer = HL
 	ret			;5807
+
+
 
 ; Vertical pattern of left side of straight track:
 ;   3 times regular
@@ -8075,46 +8132,65 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0xE6		;580e #06
 	defb 0xE7		;580f #07
 
-; See 0x570E
+
+
+; See 0x570E. Track related, data pointer 1.
 5810_fixme:
-	ld hl,0e07bh		;5810
-	dec (hl)		;5813
-	jr z,$+62		;5814 if (*(HL) == 0) jump to 0x5852
-	ld a,(hl)		;5816
-	and 007h		;5817
-	jr nz,$+37		;5819 if (nz) jump to 0x583E
-	ld a,(0e07ah)		;581b
-	and 00fh		;581e
+	ld hl,0e07bh		;5810 HL = 0xE07B
+	dec (hl)		;5813 --(*0xE07B)
+	jr z,$+62		;5814 if (*(0xE07B) == 0x00) jump to 0x5852
+	;
+	; Post: *(HL) != 0x00
+	;
+	ld a,(hl)		;5816 A = *(0xE07B)
+	and 007h		;5817 A = *(0xE07B) & 0x07, keep lower 3 bits
+	jr nz,$+37		;5819 if (*(0xE07B) & 0x07 != 0x00) jump to 0x583E
+	;
+	; Post: *(HL) & 0x07 == 0x00
+	;
+	ld a,(0e07ah)		;581b A = *(0xE07A)
+	and 00fh		;581e A = *(0xE07A) & 0x0F, keep low nybble.
 	ld hl,0e07dh		;5820 HL = 0xE07D
 	inc (hl)		;5823 Track starts 1 character more to the right.
-	cp 002h			;5824
-	jr z,$+4		;5826 if (z) jump to 0x582A
+	cp 002h			;5824 Compute A - 0x02 and update Z/NZ flag.
+	jr z,$+4		;5826 if (*(0xE07A) & 0x0F == 0x02) jump to 0x582A
 	dec (hl)		;5828 Undo 0x5823.
 	dec (hl)		;5829 Track starts 1 character more to the left.
 	
 	; We can get here from:
 	;   0x5826 (jump)
 	;   0x5829 (fall)
-	ld a,(0e07ah)		;582a
-	ld b,a			;582d
-	and 00fh		;582e A &= 0x0F (keep low nybble)
-	add a,a			;5830 A *= 2 (element of at 0x593A are pointers)
+	ld a,(0e07ah)		;582a A = *(0xE07A)
+	ld b,a			;582d B = *(0xE07A)
+	and 00fh		;582e A = *(0xE07A) & 0x0F (keep low nybble)
+	add a,a			;5830 A *= 2 (elements at 0x593A are pointers)
+
+	; 0x593A is a list of 5 pointers to (track) data: [0x5998, 0x59C1, 0x5A19, 0x5A1B, 0x59C3]
 	ld hl,0593ah		;5831 HL = 0x593A
-	call 0403bh		;5834 HL += A
+	call 0403bh		;5834 HL = 0x593A + A
+
+	; HL = *(HL)
 	ld a,(hl)		;5837
 	inc hl			;5838
 	ld h,(hl)		;5839
 	ld l,a			;583a
-	ld (0e06fh),hl		;583b
 
-	ld hl,(0e06fh)		;583e
-	ld a,(0e07dh)		;5841
-	ld de,0e058h		;5844
+	ld (0e06fh),hl		;583b track_data_pointer = HL
+
+	; We can get here from:
+	;   0x5819 (jump) [from=self]
+	;   0x583B (fall) [from=self]
+	ld hl,(0e06fh)		;583e HL = track_data_pointer
+	ld a,(0e07dh)		;5841 A = *(0xE07D)
+
+	; DE = 0xE058 + A
+	ld de,0e058h		;5844 DE = 0xE058 (?upcoming_coarse_line?)
 	add a,e			;5847
 	ld e,a			;5848
-	ldi			;5849
+
+	ldi			;5849 *(DE++) = *(HL++), --BC
 	call 05784h		;584b 5784_copy_track_something
-	ld (0e06fh),hl		;584e
+	ld (0e06fh),hl		;584e track_data_pointer = HL
 	ret			;5851
 	
 	; We can get here from:
@@ -8129,7 +8205,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,(0e071h)		;585f
 	ld de,0e07ah		;5862 DE = 0xE07A
 	ld bc,00002h		;5865 BC = 0x0002
-	ldir			;5868 Copy 2 bytes from HL to DE.
+	ldir			;5868 Two times: *(DE++) = *(HL++)
 	ld (0e071h),hl		;586a
 
 	ld a,(0e07ah)		;586d A = *(0xE07A)
@@ -8152,7 +8228,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;5883 ++HL
 	ld h,(hl)		;5884
 	ld l,a			;5885
-	ld (0e06fh),hl		;5886
+	ld (0e06fh),hl		;5886 track_data_pointer = HL
 	ld a,b			;5889 A = *(0xE07A) (see 0x5870)
 	and 00fh		;588a A &= 0x0F
 	sub 003h		;588c A -= 3
@@ -8431,200 +8507,246 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; This is element 0 of table at 0x593A.
+; 
+; Every byte is a VDP pattern, so every byte represent an 8x8 
+; image/character.
 5998_track_data:
-	defb 0xE7,0xD0,0xD0,0xD1,0xD0,0xD0,0xD1,0xD0,0xD0,0xDF		;5998  I  |  |  I
-	defb 0xE6,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xDE		;59a2  =        =
-	defb 0xE7,0xD0,0xD0,0xD1,0xD0,0xD0,0xD1,0xD0,0xD0,0xDF		;59ac  I  |  |  I
+	;  [0] 0x5998: 0xE7  [1] 0x5999: 0xD0  [2] 0x599A: 0xD0  [3] 0x599B: 0xD1  [4] 0x599C: 0xD0  [5] 0x599D: 0xD0  [6] 0x599E: 0xD1  [7] 0x599F: 0xD0  [8] 0x59A0: 0xD0  [9] 0x59A1: 0xDF
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	defb 0xE7,0xD0,0xD0,0xD1,0xD0,0xD0,0xD1,0xD0,0xD0,0xDF	;5998
 
-	defb 0xE7		;59b6
-	defb 0xD0		;59b7
-	defb 0xD0		;59b8
-	defb 0xD1		;59b9
-	defb 0xD0		;59ba
-	defb 0xD0		;59bb
-	defb 0xD1		;59bc
-	defb 0xD0		;59bd
-	defb 0xD0		;59be
-	defb 0xDF		;59bf
+	;  [0] 0x59A2: 0xE6  [1] 0x59A3: 0xD0  [2] 0x59A4: 0xD0  [3] 0x59A5: 0xD0  [4] 0x59A6: 0xD0  [5] 0x59A7: 0xD0  [6] 0x59A8: 0xD0  [7] 0x59A9: 0xD0  [8] 0x59AA: 0xD0  [9] 0x59AB: 0xDE
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | = = = = = = . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . = = = = = = |
+	; | = = = = = = . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . = = = = = = |
+	; | = = = = = = . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . = = = = = = |
+	defb 0xE6,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xDE	;59a2
 
+	;  [0] 0x59AC: 0xE7  [1] 0x59AD: 0xD0  [2] 0x59AE: 0xD0  [3] 0x59AF: 0xD0  [4] 0x59B0: 0xD0  [5] 0x59B1: 0xD0  [6] 0x59B2: 0xD0  [7] 0x59B3: 0xD0  [8] 0x59B4: 0xD0  [9] 0x59B5: 0xDF
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	defb 0xE7,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xDF	;59ac
+
+	;  [0] 0x59B6: 0xE7  [1] 0x59B7: 0xD0  [2] 0x59B8: 0xD0  [3] 0x59B9: 0xD1  [4] 0x59BA: 0xD0  [5] 0x59BB: 0xD0  [6] 0x59BC: 0xD1  [7] 0x59BD: 0xD0  [8] 0x59BE: 0xD0  [9] 0x59BF: 0xDF
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	defb 0xE7,0xD0,0xD0,0xD1,0xD0,0xD0,0xD1,0xD0,0xD0,0xDF	;59b6
+
+	; Special value, see 0x5774. It basically means: data wraps around, so continue at 0x5998.
 	defb 0xFF		;59c0
 
-	defb 0xF2		;59c1
-	defb 0xE7		;59c2
-	defb 0xD0		;59c3
-	defb 0xD0		;59c4
-	defb 0xD1		;59c5
-	defb 0xD0		;59c6
-	defb 0xD0		;59c7
-	defb 0xD1		;59c8
-	defb 0xD0		;59c9
-	defb 0xD0		;59ca
-	defb 0xDF		;59cb
-	defb 0xF8		;59cc
-	defb 0xE5		;59cd
-	defb 0xD0		;59ce
-	defb 0xD0		;59cf
-	defb 0xD0		;59d0
-	defb 0xD0		;59d1
-	defb 0xD0		;59d2
-	defb 0xD0		;59d3
-	defb 0xD0		;59d4
-	defb 0xD0		;59d5
-	defb 0xE0		;59d6
-	defb 0xF7		;59d7
-	defb 0xE4		;59d8
-	defb 0xD0		;59d9
-	defb 0xD0		;59da
-	defb 0xD0		;59db
-	defb 0xD0		;59dc
-	defb 0xD0		;59dd
-	defb 0xD0		;59de
-	defb 0xD0		;59df
-	defb 0xD0		;59e0
-	defb 0xEC		;59e1
-	defb 0xF6		;59e2
-	defb 0xE3		;59e3
-	defb 0xD0		;59e4
-	defb 0xD0		;59e5
-	defb 0xD8		;59e6
-	defb 0xD0		;59e7
-	defb 0xD0		;59e8
-	defb 0xD8		;59e9
-	defb 0xD0		;59ea
-	defb 0xD9		;59eb
-	defb 0xED		;59ec
-	defb 0xF5		;59ed
-	defb 0xE2		;59ee
-	defb 0xD0		;59ef
-	defb 0xD3		;59f0
-	defb 0xD7		;59f1
-	defb 0xD0		;59f2
-	defb 0xD3		;59f3
-	defb 0xD7		;59f4
-	defb 0xD0		;59f5
-	defb 0xDA		;59f6
-	defb 0xEE		;59f7
-	defb 0xF4		;59f8
-	defb 0xE1		;59f9
-	defb 0xD0		;59fa
-	defb 0xD0		;59fb
-	defb 0xD0		;59fc
-	defb 0xD0		;59fd
-	defb 0xD0		;59fe
-	defb 0xD0		;59ff
-	defb 0xD0		;5a00
-	defb 0xDB		;5a01
-	defb 0xEF		;5a02
-	defb 0xF3		;5a03
-	defb 0xD0		;5a04
-	defb 0xD0		;5a05
-	defb 0xD0		;5a06
-	defb 0xD0		;5a07
-	defb 0xD0		;5a08
-	defb 0xD0		;5a09
-	defb 0xD0		;5a0a
-	defb 0xD0		;5a0b
-	defb 0xDC		;5a0c
-	defb 0xF0		;5a0d
-	defb 0xE8		;5a0e
-	defb 0xD0		;5a0f
-	defb 0xD0		;5a10
-	defb 0xD6		;5a11
-	defb 0xD0		;5a12
-	defb 0xD0		;5a13
-	defb 0xD6		;5a14
-	defb 0xD0		;5a15
-	defb 0xD0		;5a16
-	defb 0xDD		;5a17
-	defb 0xF1		;5a18
-	defb 0xE7		;5a19
-	defb 0xD0		;5a1a
-	defb 0xD0		;5a1b
-	defb 0xD1		;5a1c
-	defb 0xD0		;5a1d
-	defb 0xD0		;5a1e
-	defb 0xD1		;5a1f
-	defb 0xD0		;5a20
-	defb 0xD0		;5a21
-	defb 0xDF		;5a22
-	defb 0xF2		;5a23
-	defb 0xE8		;5a24
-	defb 0xD0		;5a25
-	defb 0xD0		;5a26
-	defb 0xD0		;5a27
-	defb 0xD0		;5a28
-	defb 0xD0		;5a29
-	defb 0xD0		;5a2a
-	defb 0xD0		;5a2b
-	defb 0xD0		;5a2c
-	defb 0xDD		;5a2d
-	defb 0xF1		;5a2e
-	defb 0xF3		;5a2f
-	defb 0xD0		;5a30
-	defb 0xD0		;5a31
-	defb 0xD0		;5a32
-	defb 0xD0		;5a33
-	defb 0xD0		;5a34
-	defb 0xD0		;5a35
-	defb 0xD0		;5a36
-	defb 0xD0		;5a37
-	defb 0xDC		;5a38
-	defb 0xF0		;5a39
-	defb 0xF4		;5a3a
-	defb 0xE1		;5a3b
-	defb 0xD0		;5a3c
-	defb 0xD4		;5a3d
-	defb 0xD0		;5a3e
-	defb 0xD0		;5a3f
-	defb 0xD4		;5a40
-	defb 0xD0		;5a41
-	defb 0xD0		;5a42
-	defb 0xDB		;5a43
-	defb 0xEF		;5a44
-	defb 0xF5		;5a45
-	defb 0xE2		;5a46
-	defb 0xD0		;5a47
-	defb 0xD3		;5a48
-	defb 0xD7		;5a49
-	defb 0xD0		;5a4a
-	defb 0xD3		;5a4b
-	defb 0xD7		;5a4c
-	defb 0xD0		;5a4d
-	defb 0xDA		;5a4e
-	defb 0xEE		;5a4f
-	defb 0xF6		;5a50
-	defb 0xE3		;5a51
-	defb 0xD0		;5a52
-	defb 0xD0		;5a53
-	defb 0xD0		;5a54
-	defb 0xD0		;5a55
-	defb 0xD0		;5a56
-	defb 0xD0		;5a57
-	defb 0xD0		;5a58
-	defb 0xD9		;5a59
-	defb 0xED		;5a5a
-	defb 0xF7		;5a5b
-	defb 0xE4		;5a5c
-	defb 0xD0		;5a5d
-	defb 0xD0		;5a5e
-	defb 0xD0		;5a5f
-	defb 0xD0		;5a60
-	defb 0xD0		;5a61
-	defb 0xD0		;5a62
-	defb 0xD0		;5a63
-	defb 0xD0		;5a64
-	defb 0xEC		;5a65
-	defb 0xF8		;5a66
-	defb 0xE5		;5a67
-	defb 0xD0		;5a68
-	defb 0xD0		;5a69
-	defb 0xD2		;5a6a
-	defb 0xD0		;5a6b
-	defb 0xD0		;5a6c
-	defb 0xD2		;5a6d
-	defb 0xD0		;5a6e
-	defb 0xD0		;5a6f
-	defb 0xE0		;5a70
+
+
+; This is element 1 of table at 0x593A (0x59C1, offset == 0)
+; 
+; This is also element 4 of table at 0x593A, but with offset 2 with respect to 0x59C1.
+; 
+	;  [0] 0x59C1: 0xF2  [1] 0x59C2: 0xE7  [2] 0x59C3: 0xD0  [3] 0x59C4: 0xD0  [4] 0x59C5: 0xD1  [5] 0x59C6: 0xD0  [6] 0x59C7: 0xD0  [7] 0x59C8: 0xD1  [8] 0x59C9: 0xD0  [9] 0x59CA: 0xD0  [A] 0x59CB: 0xDF
+	; |                 | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; |                 | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; |                 | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; |                 | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; |                 | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; |                 | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; |                 | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	; |                 | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |
+	defb 0xF2,0xE7,0xD0,0xD0,0xD1,0xD0,0xD0,0xD1,0xD0,0xD0,0xDF	;59c1
+
+	;  [0] 0x59CC: 0xF8  [1] 0x59CD: 0xE5  [2] 0x59CE: 0xD0  [3] 0x59CF: 0xD0  [4] 0x59D0: 0xD0  [5] 0x59D1: 0xD0  [6] 0x59D2: 0xD0  [7] 0x59D3: 0xD0  [8] 0x59D4: 0xD0  [9] 0x59D5: 0xD0  [A] 0x59D6: 0xE0
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	defb 0xF8,0xE5,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xE0	;59cc
+
+	;  [0] 0x59D7: 0xF7  [1] 0x59D8: 0xE4  [2] 0x59D9: 0xD0  [3] 0x59DA: 0xD0  [4] 0x59DB: 0xD0  [5] 0x59DC: 0xD0  [6] 0x59DD: 0xD0  [7] 0x59DE: 0xD0  [8] 0x59DF: 0xD0  [9] 0x59E0: 0xD0  [A] 0x59E1: 0xEC
+	; |             x x | x x x x . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | x x x x x x     |
+	; |             x x | x x x x . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | x x x x x x     |
+	; |             x x | x x x x . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | x x x x x x     |
+	; |             x x | x x x x . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | x x x x x x     |
+	; |             x x | x x x x . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | x x x x x x     |
+	; |             = = | = = = = . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | = = = = = =     |
+	; |             = = | = = = = . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | = = = = = =     |
+	; |             = = | = = = = . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | = = = = = =     |
+	defb 0xF7,0xE4,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xEC	;59d7
+
+	;  [0] 0x59E2: 0xF6  [1] 0x59E3: 0xE3  [2] 0x59E4: 0xD0  [3] 0x59E5: 0xD0  [4] 0x59E6: 0xD8  [5] 0x59E7: 0xD0  [6] 0x59E8: 0xD0  [7] 0x59E9: 0xD8  [8] 0x59EA: 0xD0  [9] 0x59EB: 0xD9  [A] 0x59EC: 0xED
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . . | x x . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	defb 0xF6,0xE3,0xD0,0xD0,0xD8,0xD0,0xD0,0xD8,0xD0,0xD9,0xED	;59e2
+
+	;  [0] 0x59ED: 0xF5  [1] 0x59EE: 0xE2  [2] 0x59EF: 0xD0  [3] 0x59F0: 0xD3  [4] 0x59F1: 0xD7  [5] 0x59F2: 0xD0  [6] 0x59F3: 0xD3  [7] 0x59F4: 0xD7  [8] 0x59F5: 0xD0  [9] 0x59F6: 0xDA  [A] 0x59F7: 0xEE
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	defb 0xF5,0xE2,0xD0,0xD3,0xD7,0xD0,0xD3,0xD7,0xD0,0xDA,0xEE	;59ed
+
+	;  [0] 0x59F8: 0xF4  [1] 0x59F9: 0xE1  [2] 0x59FA: 0xD0  [3] 0x59FB: 0xD0  [4] 0x59FC: 0xD0  [5] 0x59FD: 0xD0  [6] 0x59FE: 0xD0  [7] 0x59FF: 0xD0  [8] 0x5A00: 0xD0  [9] 0x5A01: 0xDB  [A] 0x5A02: 0xEF
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	defb 0xF4,0xE1,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xDB,0xEF	;59f8
+
+	;  [0] 0x5A03: 0xF3  [1] 0x5A04: 0xD0  [2] 0x5A05: 0xD0  [3] 0x5A06: 0xD0  [4] 0x5A07: 0xD0  [5] 0x5A08: 0xD0  [6] 0x5A09: 0xD0  [7] 0x5A0A: 0xD0  [8] 0x5A0B: 0xD0  [9] 0x5A0C: 0xDC  [A] 0x5A0D: 0xF0
+	; |     x x x x x x | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . x x x x | x x             |
+	; |     x x x x x x | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . x x x x | x x             |
+	; |     x x x x x x | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . x x x x | x x             |
+	; |     x x x x x x | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . x x x x | x x             |
+	; |     x x x x x x | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . x x x x | x x             |
+	; |     = = = = = = | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . = = = = | = =             |
+	; |     = = = = = = | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . = = = = | = =             |
+	; |     = = = = = = | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . = = = = | = =             |
+	defb 0xF3,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xDC,0xF0	;5a03
+
+	;  [0] 0x5A0E: 0xE8  [1] 0x5A0F: 0xD0  [2] 0x5A10: 0xD0  [3] 0x5A11: 0xD6  [4] 0x5A12: 0xD0  [5] 0x5A13: 0xD0  [6] 0x5A14: 0xD6  [7] 0x5A15: 0xD0  [8] 0x5A16: 0xD0  [9] 0x5A17: 0xDD  [A] 0x5A18: 0xF1
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . . x x . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	defb 0xE8,0xD0,0xD0,0xD6,0xD0,0xD0,0xD6,0xD0,0xD0,0xDD,0xF1	;5a0e
+
+
+
+; This is element 2 of table at 0x593A.
+; 
+; This is also element 3 of table at 0x593A, but with offset 2 with respect to 0x5A19.
+;
+	;  [0] 0x5A19: 0xE7  [1] 0x5A1A: 0xD0  [2] 0x5A1B: 0xD0  [3] 0x5A1C: 0xD1  [4] 0x5A1D: 0xD0  [5] 0x5A1E: 0xD0  [6] 0x5A1F: 0xD1  [7] 0x5A20: 0xD0  [8] 0x5A21: 0xD0  [9] 0x5A22: 0xDF  [A] 0x5A23: 0xF2
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |                 |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |                 |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |                 |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |                 |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |                 |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |                 |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |                 |
+	; | x x x x x x . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . . x x . . . | . . . . . . . . | . . . . . . . . | . . x x x x x x |                 |
+	defb 0xE7,0xD0,0xD0,0xD1,0xD0,0xD0,0xD1,0xD0,0xD0,0xDF,0xF2	;5a19
+
+	;  [0] 0x5A24: 0xE8  [1] 0x5A25: 0xD0  [2] 0x5A26: 0xD0  [3] 0x5A27: 0xD0  [4] 0x5A28: 0xD0  [5] 0x5A29: 0xD0  [6] 0x5A2A: 0xD0  [7] 0x5A2B: 0xD0  [8] 0x5A2C: 0xD0  [9] 0x5A2D: 0xDD  [A] 0x5A2E: 0xF1
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	; | x x x x x x x . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . x x x x x | x               |
+	defb 0xE8,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xDD,0xF1	;5a24
+
+	;  [0] 0x5A2F: 0xF3  [1] 0x5A30: 0xD0  [2] 0x5A31: 0xD0  [3] 0x5A32: 0xD0  [4] 0x5A33: 0xD0  [5] 0x5A34: 0xD0  [6] 0x5A35: 0xD0  [7] 0x5A36: 0xD0  [8] 0x5A37: 0xD0  [9] 0x5A38: 0xDC  [A] 0x5A39: 0xF0
+	; |     x x x x x x | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . x x x x | x x             |
+	; |     x x x x x x | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . x x x x | x x             |
+	; |     x x x x x x | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . x x x x | x x             |
+	; |     x x x x x x | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . x x x x | x x             |
+	; |     x x x x x x | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . x x x x | x x             |
+	; |     = = = = = = | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . = = = = | = =             |
+	; |     = = = = = = | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . = = = = | = =             |
+	; |     = = = = = = | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . = = = = | = =             |
+	defb 0xF3,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xDC,0xF0	;5a2f
+
+	;  [0] 0x5A3A: 0xF4  [1] 0x5A3B: 0xE1  [2] 0x5A3C: 0xD0  [3] 0x5A3D: 0xD4  [4] 0x5A3E: 0xD0  [5] 0x5A3F: 0xD0  [6] 0x5A40: 0xD4  [7] 0x5A41: 0xD0  [8] 0x5A42: 0xD0  [9] 0x5A43: 0xDB  [A] 0x5A44: 0xEF
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	; |       x x x x x | x . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . . x x | . . . . . . . . | . . . . . . . . | . . . . . x x x | x x x           |
+	defb 0xF4,0xE1,0xD0,0xD4,0xD0,0xD0,0xD4,0xD0,0xD0,0xDB,0xEF	;5a3a
+
+	;  [0] 0x5A45: 0xF5  [1] 0x5A46: 0xE2  [2] 0x5A47: 0xD0  [3] 0x5A48: 0xD3  [4] 0x5A49: 0xD7  [5] 0x5A4A: 0xD0  [6] 0x5A4B: 0xD3  [7] 0x5A4C: 0xD7  [8] 0x5A4D: 0xD0  [9] 0x5A4E: 0xDA  [A] 0x5A4F: 0xEE
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	; |         x x x x | x x . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . . x | x . . . . . . . | . . . . . . . . | . . . . . . x x | x x x x         |
+	defb 0xF5,0xE2,0xD0,0xD3,0xD7,0xD0,0xD3,0xD7,0xD0,0xDA,0xEE	;5a45
+
+	;  [0] 0x5A50: 0xF6  [1] 0x5A51: 0xE3  [2] 0x5A52: 0xD0  [3] 0x5A53: 0xD0  [4] 0x5A54: 0xD0  [5] 0x5A55: 0xD0  [6] 0x5A56: 0xD0  [7] 0x5A57: 0xD0  [8] 0x5A58: 0xD0  [9] 0x5A59: 0xD9  [A] 0x5A5A: 0xED
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	; |           x x x | x x x . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . x | x x x x x       |
+	defb 0xF6,0xE3,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD9,0xED	;5a50
+
+	;  [0] 0x5A5B: 0xF7  [1] 0x5A5C: 0xE4  [2] 0x5A5D: 0xD0  [3] 0x5A5E: 0xD0  [4] 0x5A5F: 0xD0  [5] 0x5A60: 0xD0  [6] 0x5A61: 0xD0  [7] 0x5A62: 0xD0  [8] 0x5A63: 0xD0  [9] 0x5A64: 0xD0  [A] 0x5A65: 0xEC
+	; |             x x | x x x x . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | x x x x x x     |
+	; |             x x | x x x x . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | x x x x x x     |
+	; |             x x | x x x x . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | x x x x x x     |
+	; |             x x | x x x x . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | x x x x x x     |
+	; |             x x | x x x x . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | x x x x x x     |
+	; |             = = | = = = = . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | = = = = = =     |
+	; |             = = | = = = = . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | = = = = = =     |
+	; |             = = | = = = = . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | = = = = = =     |
+	defb 0xF7,0xE4,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xD0,0xEC	;5a5b
+
+	;  [0] 0x5A66: 0xF8  [1] 0x5A67: 0xE5  [2] 0x5A68: 0xD0  [3] 0x5A69: 0xD0  [4] 0x5A6A: 0xD2  [5] 0x5A6B: 0xD0  [6] 0x5A6C: 0xD0  [7] 0x5A6D: 0xD2  [8] 0x5A6E: 0xD0  [9] 0x5A6F: 0xD0  [A] 0x5A70: 0xE0
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	; |               x | x x x x x . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . . x x . . . . | . . . . . . . . | . . . . . . . . | . x x x x x x x |
+	defb 0xF8,0xE5,0xD0,0xD0,0xD2,0xD0,0xD0,0xD2,0xD0,0xD0,0xE0	;5a66
+	; End of track data. The start is at 0x5998.
 
 
 
@@ -11120,6 +11242,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Compressed pattern data, seen at 0x690B.
+; 
+; Track patterns. These characters are reference by 0x5998, where the track is "assembled".
 	defb 0x08, 0x7E		;6008 . x x x x x x .   01 Character 0xe9.
 				;6009 . x x x x x x .   02
 				;6009 . x x x x x x .   03
@@ -16091,58 +16215,84 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,05f25h		;68b3 DE = 0x5F25, color source
 	ld hl,00200h		;68b6 HL = 0x0200, VRAM destination
 	call 45e0_copy2VRAM_3x	;68b9
-	
+
+
+
+	; Track patterns 0xD0 upto and including 0xD4.
 	ld hl,02680h		;68bc HL = 0x2680, VRAM destination
 	ld de,05fech		;68bf DE = 0x5FEC, pattern source
 	call 45e0_copy2VRAM_3x	;68c2
 	
+	; Track colors 0xD0 upto and including 0xD4.
 	ld hl,00680h		;68c5 HL = 0x0680, VRAM destination
 	ld de,0601dh		;68c8 DE = 0x601D, color source
 	call 45e0_copy2VRAM_3x	;68cb
+
+
+
+	; Track patterns 0xD5 upto and including 0xD8. Mirror source: patterns 0xD1 upto and including 0xD4.
+	ld hl,02688h		;68ce HL = 0x2688, pattern source (in VRAM)
+	ld de,026a8h		;68d1 DE = 0x26A8, VRAM destination
+	ld c,004h		;68d4 C = 4, copy/mirror count
+	call 04652h		;68d6 4652_mirror_VRAM_patterns_in_vertical_axis
 	
-	ld hl,02688h		;68ce HL = 0x2688
-	ld de,026a8h		;68d1 DE = 0x26A8
-	ld c,004h		;68d4
-	call 04652h		;68d6 4652_horizontally_mirror_VRAM_patterns
-	
+	; Track color 0xD5 upto and including 0xD8.
 	ld hl,006a8h		;68d9 HL = 0x06A8, VRAM destination
 	ld de,0601fh		;68dc DE = 0x601F, color source
 	call 45e0_copy2VRAM_3x	;68df
-	
+
+
+
+	; Track patterns 0xD9 upto and including 0xE0.
 	ld hl,026c8h		;68e2 HL = 0x26C8, VRAM destination
 	ld de,05ff7h		;68e5 DE = 0x5FF7, pattern source
 	call 45e0_copy2VRAM_3x	;68e8
 	
+	; Track colors 0xD9 upto and including 0xE0.
 	ld hl,006c8h		;68eb HL = 0x06C8, VRAM destination
 	ld de,06022h		;68ee DE = 0x6022, color source
 	call 45e0_copy2VRAM_3x	;68f1
+
+
+
+	; Track patterns 0xE1 upto and including 0xE8. Mirror source: patterns 0xD9 upto and including 0xE0.
+	ld hl,026c8h		;68f4 HL = 0x26C8, pattern source (in VRAM)
+	ld de,02708h		;68f7 DE = 0x2708, VRAM destination
+	ld c,008h		;68fa C = 8, copy/mirror count
+	call 04652h		;68fc 4652_mirror_VRAM_patterns_in_vertical_axis
 	
-	ld hl,026c8h		;68f4 HL = 0x26C8
-	ld de,02708h		;68f7 DE = 0x2708
-	ld c,008h		;68fa
-	call 04652h		;68fc 4652_horizontally_mirror_VRAM_patterns
-	
+	; Track colors 0xE1 upto and including 0xE8.
 	ld hl,00708h		;68ff HL = 0x0708, VRAM destination
 	ld de,06022h		;6902 DE = 0x6022, color source
 	call 45e0_copy2VRAM_3x	;6905
-	
+
+
+
+	; Track patterns 0xE9 upto and including 0xF2.
 	ld hl,02748h		;6908 HL = 0x2748, VRAM destination
 	ld de,06008h		;690b DE = 0x6008, pattern source
 	call 45e0_copy2VRAM_3x	;690e
 	
+	; Track colors 0xE9 upto and including 0xF3 (!).
 	ld hl,00748h		;6911 HL = 0x0748, VRAM destination
 	ld de,0602dh		;6914 DE = 0x602D, color source
 	call 45e0_copy2VRAM_3x	;6917
-	
+
+
+
+	; Track patterns 0xF3 upto and including 0xF8. Mirror source: patterns 0xEC upto and including 0xF1.
 	ld hl,02760h		;691a HL = 0x2760
 	ld de,02798h		;691d DE = 0x2798
-	ld c,006h		;6920
-	call 04652h		;6922 4652_horizontally_mirror_VRAM_patterns
+	ld c,006h		;6920 C = 6, copy/mirror count
+	call 04652h		;6922 4652_mirror_VRAM_patterns_in_vertical_axis
 	
+	; Track colors 0xF3 upto and including 0xFA.
 	ld hl,00798h		;6925 HL = 0x0798
 	ld de,06031h		;6928 DE = 0x6031
 	call 45e0_copy2VRAM_3x	;692b
-	
+
+
+
 	ld de,05a71h		;692e DE = 0x5A71, sprite data
 	; HL = *DE, so HL == 0x1800
 	; DE += 2,  so DE == 0x5A73
@@ -16220,7 +16370,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,02400h		;699e HL = 0x2400, VRAM source, patterns [0x80..0x97]
 	ld de,02588h		;69a1 DE = 0x2588, VRAM destination, patterns [0xB1..0xC8]
 	ld c,018h		;69a4 C = 0x18 (copy count)
-	call 04652h		;69a6 4652_horizontally_mirror_VRAM_patterns
+	call 04652h		;69a6 4652_mirror_VRAM_patterns_in_vertical_axis
 	
 	ld de,067c2h		;69a9 DE = 0x67C2, color source
 	ld hl,00588h		;69ac HL = 0x0588, VRAM destination, colors [0xB1..0xC8]
@@ -16233,7 +16383,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld de,02468h		;69bb DE = 0x2468, VRAM destination, patterns [0x8D..0x99]
 	ld hl,02400h		;69be HL = 0x2400, VRAM source, patterns [0x80..0x8C]
 	ld c,00dh		;69c1 C = 0x0D (copy count)
-	call 04652h		;69c3 4652_horizontally_mirror_VRAM_patterns
+	call 04652h		;69c3 4652_mirror_VRAM_patterns_in_vertical_axis
 	
 	ld de,06737h		;69c6 DE = 0x6737, color source
 	ld hl,00400h		;69c9 HL = 0x0400, VRAM destination, colors [0x80..0x8C]
@@ -17364,7 +17514,7 @@ C
 ; We can get here from:
 ;   0x6C60 (call) [from=6c3a_car_state_07__spinning]                                             HL == &car_vpos
 ;   0x6CD4 (call) [from=6cd1_side_bounce_checker_and_actioner]                                   HL == &car_vpos
-;   0x6FB8 (call) [from=6f25_something_with_loading_next_initial_moving_object_if_speed_is_high] HL == &current_moving_object.vpos
+;   0x6FB8 (call) [from=6f25_load_next_initial_moving_object_if_speed_is_high] HL == &current_moving_object.vpos
 ;   0x7133 (call) [from=7123_fixme]                                                              HL == &current_moving_object.vpos
 ;   0x71A7 (call) [from=71a2_moving_object_state_02]                                             HL == &current_moving_object.vpos
 6dc1_fixme:
@@ -17379,7 +17529,7 @@ C
 	ld b,0b8h		;6dce B = 0xB8
 	
 	; We can get here from:
-	;   0x6DC6 (jump) B == vpos, vpos < 0xC0
+	;   0x6DC6 (jump) B == vpos, vpos <  0xC0
 	;   0x6DCC (jump) B == 0x00, vpos >= 0xD0
 	;   0x6DCE (fall) B == 0xB8, 0xC0 <= vpos < 0xD0
 	ld a,b			;6dd0 A = B
@@ -17842,7 +17992,7 @@ C
 	xor 001h		;6ec6 A ^= 0x01 (flip bit 0)
 	ld hl,(0e0bfh)		;6ec8 HL = &current_moving_object
 	inc hl			;6ecb HL = &current_moving_object.state
-	call 07352h		;6ecc 7352_update_bounce_something
+	call 07352h		;6ecc 7352_update_collision_something
 	ld a,020h		;6ecf A = 0x20
 	ld (0e0b1h),a		;6ed1 Store skid ticks remaining for recoverability by steering.
 	
@@ -17942,7 +18092,7 @@ C
 
 ; We can get here from:
 ;   0x524B (call) [from=5224_handle_race_substate]
-6f25_something_with_loading_next_initial_moving_object_if_speed_is_high:
+6f25_load_next_initial_moving_object_if_speed_is_high:
 	ld a,(0e04fh)		;6f25 A = car_speed
 	cp 0b8h			;6f28 Compute car_speed - 0xB8 and update C/NC flag.
 	ret c			;6f2a if (speed < 0xB8) return
@@ -17984,21 +18134,22 @@ C
 	add hl,bc		;6f40 HL += A
 
 	ld (0e0bfh),hl		;6f41 &current_moving_object = &current_initial_moving_object
-	inc hl			;6f44 HL = &current_initial_moving_object.???
-	ld a,(hl)		;6f45 A = current_initial_moving_object.???
-	and a			;6f46
-	jr z,$+22		;6f47 if (z) jump to 6f5d_next_initial_moving_object_or_return
+	inc hl			;6f44 HL = &current_initial_moving_object.state
+	ld a,(hl)		;6f45 A = current_initial_moving_object.state
+	and a			;6f46 Update Z/NZ flag.
+	jr z,$+22		;6f47 if (current_initial_moving_object.state == MO_STATE__INVISIBLE) jump to 6f5d_next_initial_moving_object_or_return
 	
 	inc hl			;6f49 HL = &current_initial_moving_object[2]
 	inc hl			;6f4a HL = &current_initial_moving_object.wait_ticks
-	ld a,(hl)		;6f4b
-	and a			;6f4c
-	jr z,$+26		;6f4d if (wait_ticks == 0x00) jump to 0x6F67
+	ld a,(hl)		;6f4b A = current_initial_moving_object.wait_ticks
+	and a			;6f4c Update Z/NZ flag.
+	jr z,$+26		;6f4d if (current_initial_moving_object.wait_ticks == 0x00) jump to 0x6F67
 	
 	ld a,(0e04fh)		;6f4f A = car_speed
 	cp 0c8h			;6f52 Compute car_speed - 0xC8 and update C/NC flag.
 	jr nc,$+8		;6f54 if (car_speed >= 0xC8) jump to 0x6F5C
 	
+	; ???
 	ld a,(0e003h)		;6f56 A = game_state_ticker
 	rra			;6f59 carry flag = game_state_ticker & 0x01
 	jr nc,$+3		;6f5a if (game_state_ticker & 0x01 == 0x00) jump to 6f5d_next_initial_moving_object_or_return
@@ -18032,7 +18183,7 @@ C
 	;   0x6F4D (jump) [from=self] wait_ticks == 0x00
 	ld a,(0e0c2h)		;6f67 A = initial_moving_object_loop_counter
 	or a			;6f6a
-	ld hl,0e0c6h		;6f6b HL = &initial_moving_object_00.wait_ticks6
+	ld hl,0e0c6h		;6f6b HL = &initial_moving_object_00.wait_ticks
 	jr nz,$+4		;6f6e if (nz) jump to 0x6F72
 	ld l,0d6h		;6f70 HL = &initial_moving_object_01.wait_ticks
 	
@@ -18173,12 +18324,15 @@ C
 	call 072f6h		;6fd5 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
 	ld a,d			;6fd8 A = D
-	cp 002h			;6fd9 Compute A - 2 and update Z/NZ flag.
+	cp 002h			;6fd9 Compute A - 0x02 and update Z/NZ flag.
 	ld (hl),0f0h		;6fdb current_moving_object.vpos = 0xF0 (last line of sprite is just outside top of screen)
 	jr z,$+6		;6fdd if (current_moving_object.type == MO__BLUE_CAR__SPEEDING) jump to 0x6FE3 (self)
 	cp 005h			;6fdf
 	jr nz,$+11		;6fe1 if (current_moving_object.type != MO__REDNECK_HOT_RODDER) jump to 0x6FEC (self)
 	
+	; The speeding blue car and the redneck hot rodder enter the 
+	; screen from below.
+	;
 	; We can get here from:
 	;   0x6FDD (jump) current_moving_object.type == MO__BLUE_CAR__SPEEDING
 	;   0x6FE1 (fall) current_moving_object.type == MO__REDNECK_HOT_RODDER
@@ -18245,7 +18399,7 @@ C
 ; We can get here from:
 ;   0x50AE (call) [from=504c_init_stage]
 ;   0x51D5 (jump) [from=51c5_car_crashed_something]
-;   0x701D (fall) [from=6f25_something_with_loading_next_initial_moving_object_if_speed_is_high] num_initial_moving_objects_on_spare == 0
+;   0x701D (fall) [from=6f25_load_next_initial_moving_object_if_speed_is_high] num_initial_moving_objects_on_spare == 0
 7020_moving_object__compute_and_set_next_pair_of_initial_values:
 	; ++&current_moving_object_initial_data__idx
 	ld hl,(0e0bdh)		;7020 HL = &current_moving_object_initial_data__idx
@@ -18400,12 +18554,12 @@ C
 	cp 003h			;7080 Compute stage - 0x03 and update Z/NZ flag.
 	ld (hl),080h		;7082 moving_object_initial_data__dst[9] = 0x80
 	jr nz,$+4		;7084 if (stage != 0x03) jump to 0x7088
-	; Only for stage 3. ?oil?
+	; Only for stage 3. ??Set different/shorter time??
 	ld (hl),06ch		;7086 moving_object_initial_data__dst[9] = 0x6C
 	
 	; We can get here from:
-	;   0x7084 (jump) [from=self] stage != 0x03
-	;   0x7086 (fall) [from=self] stage == 0x03
+	;   0x7084 (jump) [from=self] stage != 0x03, moving_object_initial_data__dst[9] == 0x90
+	;   0x7086 (fall) [from=self] stage == 0x03, moving_object_initial_data__dst[9] == 0x6C
 	; 
 	; A = moving_object_initial_data[0]
 	ld a,b			;7088 A = B (see 0x707C)
@@ -18425,12 +18579,21 @@ C
 	
 	
 	
-	; All cases.
+	; All cases converge here. Post:
+	;
+	;   if (type == MO__BLUE_CAR__SPEEDING or MO__REDNECK_HOT_RODDER)
+	;   {
+	;       moving_object_initial_data__dst[9] == 0xE4	/* 0x7091 */
+	;   } else if (stage == 0x03) {
+	;       moving_object_initial_data__dst[9] == 0x6C	/* 0x7086 */
+	;   } else {
+	;       moving_object_initial_data__dst[9] == 0x80	/* 0x7082 */
+	;   }
 	;
 	; We can get here from:
-	;   0x708F (jump)
-	;   0x7091 (fall)
-	ex af,af'		;7093
+	;   0x708F (jump) moving_object_initial_data__dst[9] == 0x6C if stage == 0x03 else 0x80
+	;   0x7091 (fall) moving_object_initial_data__dst[9] == 0xE4
+	ex af,af'		;7093 Restore A+F, stored at 0x707b. ?But why?
 	inc hl			;7094 HL = &moving_object_initial_data__dst[0xA]
 	ld (hl),000h		;7095 moving_object_initial_data__dst[0x0A] = 0x00
 	
@@ -18441,12 +18604,12 @@ C
 	ex de,hl		;709b
 	
 	exx			;709c Exchange BC, DE, HL with shadow registers.
-		ld hl,0e0c2h	;709d HL = 0xE0C2
+		ld hl,0e0c2h	;709d HL = &initial_moving_object_loop_counter
 		inc (hl)	;70a0
 		ld a,002	;70a1 A = 0x02
-		cp (hl)		;70a3 Compute A - *(0xE0C2) and update Z/NZ flag.
+		cp (hl)		;70a3 Compute A - initial_moving_object_loop_counter and update Z/NZ flag.
 	exx			;70a4 Exchange BC, DE, HL with shadow registers.
-	jr nz,$-70		;70a5 if (*(0xE0C2) != 0x02) jump to 0x705F (self.start)
+	jr nz,$-70		;70a5 if (initial_moving_object_loop_counter != 0x02) jump to 0x705F (self.start)
 	
 	ret			;70a7
 
@@ -18487,28 +18650,32 @@ C
 	push hl			;70c5 Return to 728a_moving_object_state__post_state_specific_routine after jump table routine.
 	call 04045h		;70c6 PC = PC[2 * A]
 	
-	defw 0x7289		;70c9 state #00 ?No cars in screen? 7289_moving_object_state_00__not_visible_so_return
-	defw 0x70D9		;70cb state #01 ?Cars in screen?
+	defw 0x7289		;70c9 state #00 Moving object is NOT visible on screen.
+	defw 0x70D9		;70cb state #01 Moving object is visible on screen.
 	defw 0x71A2		;70cd state #02 ?2 cars colliding?
-	defw 0x71C6		;70cf state #03
-	defw 0x70D9		;70d1 state #04
+	defw 0x71C6		;70cf state #03 ???
+	defw 0x70D9		;70d1 state #04 ???
 	defw 0x7209		;70d3 state #05 ?Purple car moves?
-	defw 0x728A		;70d5 state #06
+	defw 0x728A		;70d5 state #06 ???
 	defw 0x7209		;70d7 state #07 ?Blue car from behind?
 
 
 
+; Moving object state #01: Moving object is visible on screen.
+; Moving object state #04: ???
+;
 ; We can get here from:
 ;   0x70C6 (jump) [from=70ac_handle_moving_object_something] jump table, index 0x01
 ;   0x70C6 (jump) [from=70ac_handle_moving_object_something] jump table, index 0x04
 70d9_moving_object_state_01_and_04:
 	call 072b8h		;70d9 72b8_play_sound_if_regular_blue_car_is_near
 	call 071c6h		;70dc 71c6_moving_object_state_03_and_partly_01_and_04
-	call 053ddh		;70df 53dd_fixme
+	call 053ddh		;70df 53dd_setup_spinning_oil_drum
 	call 0716dh		;70e2 716d_purple_car_something
 
 
 
+;
 ; We can get here from:
 ;   0x70E2 (fall) [from=70d9_moving_object_state_01_and_04]
 ;   0x7226 (jump) [from=7209_moving_object_state_05_and_07]
@@ -18561,7 +18728,7 @@ C
 	ld d,000h		;711d D = 0x00
 	
 	ld a,c			;711f A = C
-	jp 07145h		;7120
+	jp 07145h		;7120 jump to 7145_decrement_regA_and_continue_at_7146_moving_object__horizontal_position__add_or_subtract_DE
 
 
 
@@ -18598,19 +18765,19 @@ C
 ;   0x7120 (jump) DE == 2 * abs(car_speed - current_moving_object_rival.delta_vpos_per_frame_lo_byte)
 ;   0x7144 (fall) DE == 0x02F0, A == ?
 ;   0x71B9 (call) DE == 0x0100, A == ?
-7145_fixme:
+7145_decrement_regA_and_continue_at_7146_moving_object__horizontal_position__add_or_subtract_DE:
 	dec a			;7145 --A and update Z/NZ flag.
 
 
 
 ; Input:
-;   DE: offset (positive, or perhap not negative)
+;   DE: offset (positive, or perhaps not negative)
 ;   Z/NZ flag:
 ;     Z:  Subtract DE from current horizontal position
 ;     NZ: Add DE to from current horizontal position
 ;
 ; We can get here from:
-;   0x7145 (fall) [from=7145_fixme]
+;   0x7145 (fall) [from=7145_decrement_regA_and_continue_at_7146_moving_object__horizontal_position__add_or_subtract_DE]
 ;   0x7223 (call) [from=7209_moving_object_state_05_and_07]
 7146_moving_object__horizontal_position__add_or_subtract_DE:
 	jr nz,$+9		;7146 if (nz) jump to 0x714F
@@ -18771,6 +18938,8 @@ C
 
 
 
+; State #02 is colliding with other moving object.
+; 
 ; We can get here from:
 ;   0x70C6 (jump) [from=70ac_handle_moving_object_something] jump table, index 0x02
 71a2_moving_object_state_02:
@@ -18790,7 +18959,7 @@ C
 	dec hl			;71b4 HL = &current_moving_object.0E
 	ld a,(hl)		;71b5 A = current_moving_object.0E
 	ld de,00100h		;71b6 DE = 0x0100
-	call 07145h		;71b9 7145_fixme
+	call 07145h		;71b9 7145_decrement_regA_and_continue_at_7146_moving_object__horizontal_position__add_or_subtract_DE
 	ld de,0ff00h		;71bc DE = 0xFF00
 	jp 07168h		;71bf 7168_current_moving_object__change_vpos_by_DE
 
@@ -19253,13 +19422,15 @@ C
 ; We can get here from:
 ;   0x70E5 (call) [from=70e5_moving_object_state_common_for_01_and_04_and_05_and_07]
 72fe_fixme:
-	; Return if current rival car is not in screen.
+	; Return if current moving object is not in screen.
 	ld hl,(0e0bfh)		;72fe HL = &current_moving_object
 	inc hl			;7301 HL = &current_moving_object.state
 	ld a,(hl)		;7302 A = current_moving_object.state
 	or a			;7303
 	ret z			;7304 if (current_moving_object.state == 0x00) return
 
+	; HL = &current_moving_object.delta_vpos_per_frame
+	; A = current_moving_object.delta_vpos_per_frame
 	ld c,009h		;7305 C = 0x09
 	call 072f6h		;7307 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
 
@@ -19271,10 +19442,12 @@ C
 	dec hl			;730e HL = &current_moving_object + 0x07
 	dec hl			;730f HL = &current_moving_object + 0x06 (vpos)
 	
+	; Determine the address of the other moving object.
 	ld a,(0e0e4h)		;7310 A = moving_object_idx
 	ld de,0e0ebh		;7313 DE = &moving_object_00.vpos
-	or a			;7316
+	or a			;7316 Update Z/NZ flag.
 	jr nz,$+4		;7317 if (moving_object_idx == 0x01) jump to 0x731B
+	; Post: moving_object_idx == 0x00
 	ld e,0fbh		;7319 DE = &moving_object_01.vpos
 	
 	; We can get here from:
@@ -19286,7 +19459,7 @@ C
 	sub (hl)		;731c A = other_moving_object.vpos - current_moving_object.vpos
 	sub 010h		;731d A = other_moving_object.vpos - current_moving_object.vpos - 0x10
 	add a,020h		;731f A = other_moving_object.vpos - current_moving_object.vpos - 0x10 + 0x20
-	ret nc			;7321
+	ret nc			;7321 if (no vertical overlap between the two moving objects) return
 	
 	inc hl			;7322 HL = &current_moving_object + 0x07
 	inc hl			;7323 HL = &current_moving_object + 0x08 (hpos)
@@ -19296,37 +19469,59 @@ C
 	sub (hl)		;7327 A = other_moving_object.hpos - current_moving_object.hpos
 	sub 00ah		;7328 A = other_moving_object.hpos - current_moving_object.hpos - 0x0A
 	add a,014h		;732a A = other_moving_object.hpos - current_moving_object.hpos - 0x0A + 0x14
-	ret nc			;732c
+	ret nc			;732c if (no horizontal overlap between the two moving objects) return
 	
+	;
+	; Post: detected that the two moving objects are colliding with 
+	; eachother.
+	;
+	
+	; Update the carry flag.
 	ld a,(de)		;732d A = other_moving_object.hpos
-	sub (hl)		;732e A = other_moving_object.hpos - current_moving_object.hpos
+	sub (hl)		;732e A = other_moving_object.hpos - current_moving_object.hpos, update carry flag.
+	
+	; Set move direction.
 	ld a,001h		;732f A = 0x01
 	jr c,$+3		;7331 if (other_moving_object.hpos < current_moving_object.hpos) jump to 0x7334
 	xor a			;7333 A = 0x00
 	
 	; We can get here from:
-	;   0x7331 (jump) A == 0x01 Clockwise, must steer left to stop skidding.
-	;   0x7333 (fall) A == 0x00 Counter clockwise, must steer right to stop skidding.
-	ex de,hl		;7334
-	ld bc,0fff9h		;7335 BC = 0xFFF9
-	add hl,bc		;7338 HL -= 7
-	call 07352h		;7339 7352_update_bounce_something, can increase A
-	ret z			;733c
+	;   0x7331 (jump) A == 0x01 other_moving_object is left of current_moving_object.
+	;   0x7333 (fall) A == 0x00 current_moving_object is left of other_moving_object.
+	ex de,hl		;7334 DE = other_moving_object.hpos, HL = current_moving_object.hpos
+	ld bc,0fff9h		;7335 BC = 0xFFF9 (BC == -7)
+	add hl,bc		;7338 HL = &current_moving_object.state (== &current_moving_object + 0x01)
+	call 07352h		;7339 7352_update_collision_something, can increase A
+	ret z			;733c if (current_moving_object.state == MO_STATE__INVISIBLE) return (see 0x735D)
 	
-	dec a			;733d --A
+	; FIXME. Weird situation.
+	; 
+	; 0x7369 (inc a) assures that the NZ flagg is set, and 
+	; the increment needs to be undone.
+	; 
+	; However, we can also get here from 0x735A (ret c). The "inc a" 
+	; (0x7369) wasn't done yet, so we are undoing something that 
+	; hasn't be done. Weird.
+	;
+	; From		reg A		reg A after 0x733D	When?
+	; 0x735A	in [0, 1]	in [0xFF, 0]		When moving object collides with truck.
+	; 0x736A	in [1, 2]	in [0, 1]		All other cases.
+	dec a			;733d --A, this undoes 0x7369
+
 	ld hl,(0e0bfh)		;733e HL = &current_moving_object
 	inc hl			;7341 HL = &current_moving_object.state
-	ld (hl),002h		;7342 current_moving_object.state = 0x02 (?collision?)
+	ld (hl),002h		;7342 current_moving_object.state = MO_STATE__COLLIDING
 	xor 001h		;7344 A ^= 0x01, flip bit 0
 
 	push af			;7346 Store A. Restore at 0x734C.
 	ld c,00eh		;7347 C = 0x0E
 	call 072f6h		;7349 72f6_set_HL_to_current_moving_object_index_regC_and_set_A_to_the_value_of_that_address
-	pop af			;734c A in [0xFF,0x00]
+	; Post: HL == &current_moving_object.move_direction
+	pop af			;734c A in [1, 0] (... or A in [0xFE, 1] in case of 0x735A)
 
-	ld (hl),a		;734d current_moving_object.0E = A
-	inc hl			;734e HL = &current_moving_object + 0x0F
-	ld (hl),010h		;734f current_moving_object.0F = 0x10
+	ld (hl),a		;734d current_moving_object.move_direction = A
+	inc hl			;734e HL = &current_moving_object.state_02__timer
+	ld (hl),010h		;734f current_moving_object.state_02__timer = 0x10
 	
 	ret			;7351
 
@@ -19341,37 +19536,58 @@ C
 ;   HL: moving_object+1
 ;     0xE0E6 Moving object #00, offset #01 (NOT offset #00)
 ;     0xE0F6 Moving object #01, offset #01 (NOT offset #00)
+;
+; Output:
+;   Z/NZ:
+;      Z if the moving object is invisible. This is used at 0x733C.
+;     NZ otherwise.
 ; 
 ; We can get here from:
 ;   0x6ECC (call) A == *(0xE054) ^ 0x01 (flipped skid turning direction), HL == *(0xE0BF) + 1
 ;   0x7339 (call) A == 0x00 or 0x01
-7352_update_bounce_something:
+7352_update_collision_something:
 	ld b,a			;7352 B = A, store input, restore at 0x735E.
-	dec hl			;7353 HL = moving_object + 0x00
+	dec hl			;7353 HL = &moving_object + 0x00
 
-	ld a,(hl)		;7354 Load moving object type.
+	; moving_object.type              | sub 006h | cp 002h | Carry flag | Remark(s)
+	; --------------------------------+----------+---------+------------+----------
+	; 0x00 (MO__GREEN_CAR)            |     0xFA |   0xF8  |         NC |
+	; 0x01 (MO__BLUE_CAR__REGULAR)    |     0xFB |   0xF9  |         NC |
+	; 0x02 (MO__BLUE_CAR__SPEEDING)   |     0xFC |   0xFA  |         NC |
+	; 0x03 (MO__PURPLE_CAR)           |     0xFD |   0xFB  |         NC |
+	; 0x04 (MO__REDNECK_HOT_RODDER_X) |     0xFE |   0xFC  |         NC |
+	; 0x05 (MO__REDNECK_HOT_RODDER)   |     0xFF |   0xFD  |         NC |
+	; 0x06 (MO__TRUCK__NO_OIL_DRUM)   |     0x00 |   0xFE  |          C | This is what the check is for.
+	; 0x07 (MO__TRUCK__WITH_OIL_DRUM) |     0x01 |   0xFF  |          C | This is what the check is for.
+	; 0x08 (MO__BONUS_FUEL_HEART)     |     0x02 |   0x00  |         NC |
+	; --------------------------------+----------+---------+------------+----------
+	ld a,(hl)		;7354 A = moving_object.type
 	sub 006h		;7355 A -= 0x06
 	cp 002h			;7357 Compute A - 0x02 and update C/NC flag.
-	inc hl			;7359 HL = moving_object + 0x01
-	ret c			;735a if (moving_object[0] in [6, 7]) return
+	inc hl			;7359 HL = &moving_object + 0x01
+	; Check for type 6 and 7, both truck types.
+	;
+	; Note: when this instruction return, the Z flag is not set 
+	; (since the outcome was negative). This is important for 
+	; 0x733C.
+	ret c			;735a if (moving_object.type in [MO__TRUCK__NO_OIL_DRUM, MO__TRUCK__WITH_OIL_DRUM]) return
 
-	ld a,(hl)		;735b A = (bool) moving_object_is_visible
+	ld a,(hl)		;735b A = moving_object.state
 	or a			;735c Update Z/NZ flag.
-	ret z			;735d if (moving object is not visible) return
-
+	ret z			;735d if (moving_object.state == MO_STATE__INVISIBLE) return
+	; Post: moving object is visible.
 	ld a,b			;735e B = A, restore input stored at 0x7352: skidding direction.
-	ld (hl),002h		;735f Store 0x02. ?Bounce flag?
+	ld (hl),002h		;735f moving_object.state = MO_STATE__COLLIDING
 	ld bc,0000dh		;7361 BC = 0x000D
-	add hl,bc		;7364 HL += 0x0D, so HL == moving_object + 0x0E
-	ld (hl),a		;7365 ?Moving object is moving sideways, because of bounce or because of being purple?
+	add hl,bc		;7364 HL = &moving_object.move_direction (== &moving_object + 0x0E)
+	ld (hl),a		;7365 moving_object.move_direction = A
 	
-	; Set timer.
+	; Set skid/move/post collision timer.
 	inc hl			;7366 HL = &moving_object.state_02__timer
 	ld (hl),00ch		;7367 moving_object.state_02__timer = 0x0C
 
-	inc a			;7369 ++A ?why?
+	inc a			;7369 ++A, this will set the NZ flag since A becomes 0x01 or 0x02.
 	ret			;736a
-
 
 
 ; Set HL to the start of sprite attributes of moving object defined by 
@@ -21650,6 +21866,13 @@ C
 
 
 ; Stage 1, data pointer 1. See 0x5161.
+;
+; Debugging: "debug set_watchpoint read_mem 0x78c4"
+; Hits:
+;   0x586A [5810_fixme] distance == 0x000000 (road isn't even drawn yet)
+;   0x586A [5810_fixme] distance == 0x03C169
+;   0x586A [5810_fixme] distance == 0x07804D
+;   0x586A [5810_fixme] distance == 0x0B40D3
 	defb 0x10		;78c4 ?2 lanes?
 	defb 0x19		;78c5
 	defb 0x11		;78c6

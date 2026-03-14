@@ -567,9 +567,16 @@ This table was generated with:
 0xE06D		Byte #15
 0xE06E		Seen at 0x55F2 (stage 4)
 		Seen at 0x568D (stage 5)
-0xE06F		Track pointer. Track data starts at 0x5998, 0x5931, 0x5A19, 0x5A1B, 0x59C3. See 0x593A.
+0xE06F		[&track_data_pointer] Track pointer.
+		Track data starts at:
+			0x5998
+			0x5931
+			0x5A19
+			0x5A1B
+			0x59C3
+		See 0x593A.
 0xE071-0xE076	3 data pointers, see 0x5146. Data source: 0x5161
-		0xE071 (word)	Data pointer. Seen at 0x514D, 0x5157.
+		0xE071 (word)	Data pointer. Seen at 0x514D, 0x5157, 0x585F.
 		0xE073 (word)	Data pointer. Seen at 0x58C1.
 		0xE075 (word)	Data pointer. Seen at 0x58D0.
 0xE077-0xE079 (3 bytes!)
@@ -629,7 +636,7 @@ This table was generated with:
 			0x00 means empty
 		
 		Fuel heart: +0x20, see 0x7763
-0xE084		Fuel related?
+0xE084		Fuel related? Fuel flip-flop?
 			Seems to go from 0x00 to 0x20 and back
 			0x00 ?
 			0x20 ?
@@ -763,10 +770,19 @@ This table was generated with:
 		Initial values of moving object #00
 		Seen at 0x6F3C
 		Whole 16 bytes are copied to 0xE0E5 at 0x6FF4.
-0xE0C3		#00
+0xE0C3		#00 Type of moving object (set at 0x7062)
 0xE0C4		#01 0x01 (set at 0x7066)
-0xE0C5		#02
-0xE0C6		#03 [wait_ticks] Level A: 2 times value 0x5312/0x5315/0x5318, level B: just the value.
+0xE0C5		#02 [unknown] Does not seem to be used.
+0xE0C6		#03 [wait_ticks]
+			The number of VDP ticks before this initial 
+			object is copied to a real moving object. Why? 
+			Since the number of moving objects must appear 
+			to be lower than on level B. This is implemented 
+			by making objects less frequently appear in 
+			level A.
+
+			Level A: 2 times value 0x5312/0x5315/0x5318
+			Level B: just the value.
 0xE0C7		#04 Value of 0x5313/0x5316/0x5319/... (value of third element)
 0xE0C8		#05
 0xE0C9		#06
@@ -812,7 +828,7 @@ This table was generated with:
 		0xE0E6 +1 [state]
 			0x00: MO_STATE__INVISIBLE	This is NOT a VISIBLE moving object. I.e. don't draw it.
 			0x01: Moving object is visible in screen.
-			0x02: Colliding with other object. See 0x735F.
+			0x02: MO_STATE__COLLIDING	Colliding with other object. See 0x735F.
 			0x03: Not observed by these debug commands:
 				debug set_condition {[debug read_block memory 0xE0E6 1] == [binary format c 0x03]}
 				debug set_condition {[debug read_block memory 0xE0F6 1] == [binary format c 0x03]}
@@ -824,8 +840,20 @@ This table was generated with:
 				debug set_condition {[debug read_block memory 0xE0E6 1] == [binary format c 0x06]}
 				debug set_condition {[debug read_block memory 0xE0F6 1] == [binary format c 0x06]}
 			0x07: ? Set by 0x7207.
-		0xE0E7 +2 ?
-		0xE0E8 +3 Space between objects? See 0x706D
+		0xE0E7 +2 [unknown]
+			Copied from 0xE0C5 or 0xE0D5 in LDIR 0x6FF4.
+
+			This seems to be always zero, even in the 
+			initial object.
+
+		0xE0E8 +3 [wait_ticks] Always zero.
+			Copied from 0xE0C6 or 0xE0D6 in LDIR 0x6FF4.
+			
+			This is always zero. Why? Because wait_ticks is 
+			only used when it is still an initial moving 
+			object, waiting to appear. Once it reaches 0 as 
+			an initial moving object, it is copied here, 
+			hence it is always zero here.
 		0xE0E9 +4 [hpos_offset] Offset from left side of track
 		0xE0EA +5 Vertical position on screen, "decimals"
 		0xE0EB +6 [vpos] Vertical position on screen
@@ -837,16 +865,18 @@ This table was generated with:
 		0xE0F0 +B ?
 		0xE0F1 +C 0x03: ?
 		0xE0F2 +D ?
-		0xE0F3 +E
-			Green car:
-				0x01: bounced?
+		0xE0F3 +E [move_direction]
+			After colliding with other moving object:
+				0x00: MO_MOVE_DIRECTION__RIGHT
+				0x01: MO_MOVE_DIRECTION__LEFT
+				See 0x7365
 			Purple car:
 			0x00 Player is left  of purple car
 			0x01 Player is right of purple car (or equal hpos)
 
-		0xE0F4 +F [state_02__timer]
+		0xE0F4 +F [state_02__timer] The number of VDP ticks to move sideways.
 			0x00: Seen at 0x713E
-			0x0C: Seen at 0x7367
+			0x0C: Seen at 0x7367 (when colliding)
 			0x10: Seen at 0x734F
 			
 			State #05:
