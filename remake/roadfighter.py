@@ -4,7 +4,6 @@ from   konami import Konami
 from   memory import Memory
 import numpy as np
 import pygame
-import pygame.locals
 import rom as _rom
 import sys
 from   tms9918a import TMS9918A
@@ -13,7 +12,7 @@ from   typing import cast
 ## Initialize all used pygame modules.
 pygame.init()
 
-FPS = 50
+FPS = 10
 fps_clock = pygame.time.Clock()
 
 width = 32 * 8
