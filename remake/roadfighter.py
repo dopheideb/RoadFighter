@@ -43,7 +43,7 @@ def write_upwards_scrolling_konami_logo(vdp: TMS9918A, mem: Memory):
 	mem.set_word(KONAMI_LOGO_PNT_ADDRESS, name_offset)
 
 	## Patterns start at 0x490F, see 0x48C9.
-	patterns = Konami(mem).uncompress_patterns(address=mem.get_word(0x48C9 + 1))
+	patterns = Konami(mem, vdp).uncompress_patterns(address=mem.get_word(0x48C9 + 1))
 	num_patterns = len(patterns)
 	## Just 1 color (white), see 0x48D8.
 	color = mem.get_word(0x48D8 + 1)
