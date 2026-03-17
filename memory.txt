@@ -584,7 +584,6 @@ This table was generated with:
 		0xE077 low byte
 		0xE078 middle byte
 		0xE079 high byte
-
 		0x0F1255 (high=0x0F, mid=0x12, low=0x55): Finished stage 1
 		0x0F09XX (high=0x0F, mid=0x09, low=0xXX): Draw checkpoint/goal (see 0x5944)
 		
@@ -593,6 +592,7 @@ This table was generated with:
 0xE07A		Seen at 0x5150, stage related
 			0xFE:
 				special value, see 0x56FA, 0x78E4.
+			Bit 0+1, see 0x591C
 			Bit 0+1+2+3, see 0x5875:
 				0x02: Decrease 0xE07D, i.e move left side of the road 1 character to the left.
 			Bit 0+1+2+3, see 0x5704:
@@ -622,7 +622,7 @@ This table was generated with:
 		See 0x58A5, value from array at 0x58AB.
 0xE083		[&fuel_remaining]
 		Fuel remaining:
-			0xD7 MAX_FUEL means really full of fuel (see 0x7765)
+			0xD7 [MAX_FUEL] means really full of fuel (see 0x7765)
 			0xD0 At start of stage ("full fuel")
 			0x09 low fuel warning, see 0x7437
 			0x08 low fuel warning, see 0x7437
@@ -650,8 +650,8 @@ This table was generated with:
 0xE089		[&stage_specific_default_coarse_pattern_ID]
 		Default coarse pattern name, see 0x592A.
 			Stage 04: pattern 0x06 (completely dark red)
-0xE08A-0xE095	Seen at 0x510D.
-0xE08A (word)	?
+0xE08A-0xE095	Words
+0xE08A (word)	?current shoreline_pattern?
 			stage 2: 0x7DC5 (see 0x50EB)
 			stage 4: 0x7E7C (see 0x5116)
 			stage 5: 0x7E7C (see 0x5116)
@@ -669,7 +669,7 @@ This table was generated with:
 			0x7E25
 0xE098-0xE0AF	[&left_side_of_road_ish_table]
 		Value seems to count from the first scenery pixel (i.e. hpos 8). But not per 1 pixel, not per character, but per 2 pixels.
-		Table of 0x18 (24) bytes, keeps of (derivative of) left side of road
+		Table of 0x18 (24) bytes, keeps (derivative of) left side of road
 			See 0x6FA3 to 0x6FAD.
                         Val        | Remarks                        | >> 2 << 3 | +0x10 | +0x18 | +0x1C | +0x20 | +0x28
 			-----------+--------------------------------+-----------+-------+-------+-------+-------+------

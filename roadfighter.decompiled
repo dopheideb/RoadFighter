@@ -6174,7 +6174,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x50C6 (jump) index #01 of jump table (stage 2)
 50e8_init_stage_2:
-	ld hl,07dc5h		;50e8 HL = 0x7DC5
+	ld hl,07dc5h		;50e8 HL = 7dc5_shoreline_pattern_names
 	ld (0e08ah),hl		;50eb
 	ret			;50ee
 
@@ -6220,7 +6220,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defw 0x7E57		;511c Initial value for 0xE090 (stage 4+5).
 	defb 0x3F		;511e Initial value for 0xE092 (stage 4+5).
 	defb 0x01		;511f Initial value for 0xE093 (stage 4+5).
-	defw 0x7DC5		;5120 Initial value for 0xE094 (stage 4+5).
+	defw 0x7DC5		;5120 Initial value for 0xE094 (stage 4+5). 7dc5_shoreline_pattern_names
 
 
 
@@ -6249,7 +6249,24 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld hl,05161h		;513a HL = 0x5161
 	call 0403bh		;513d HL = 0x5161 + 6 * stage_0based
 	
-	; Copy 3 data pointers (3 words, 6 bytes) from HL to 0xE071.
+	;
+	; ---------+---------------+--------------------------------+--------------------------+----------
+	;          | Offset 0x5161 | Absolute addresses of pointers | Value of pointers        | Remark(s)
+	; ---------+---------------+--------------------------------+--------------------------+----------
+	; Stage 01 |            0  |  0x5161  |  0x5163  |  0x5165  | 0x78C4 | 0x78E5 | 0x7960 | Data pointers 2 and 3 are the same as stage 4 and 5.
+	; ---------+---------------+--------------------------------+--------------------------+----------
+	; Stage 02 |            6  |  0x5167  |  0x5169  |  0x516B  | 0x7AAA | 0x7BAA | 0x7ACD | Completely the same as stage 3.
+	; ---------+---------------+--------------------------------+--------------------------+----------
+	; Stage 03 |           12  |  0x516D  |  0x5163  |  0x5165  | 0x7AAA | 0x7BAA | 0x7ACD | Completely the same as stage 2.
+	; ---------+---------------+--------------------------------+--------------------------+----------
+	; Stage 04 |           18  |  0x5173  |  0x5175  |  0x5177  | 0x7E83 | 0x78E5 | 0x7960 | Data pointers 2 and 3 are the same as stage 1 and 5.
+	; ---------+---------------+--------------------------------+--------------------------+----------
+	; Stage 05 |           24  |  0x5179  |  0x517B  |  0x517D  | 0x7E60 | 0x78E5 | 0x7960 | Data pointers 2 and 3 are the same as stage 1 and 4.
+	; ---------+---------------+--------------------------------+--------------------------+----------
+	; Stage 06 |           30  |  0x517F  |  0x5181  |  0x5183  | 0x7EA8 | 0x7F6B | 0x7ED1 |
+	; ---------+---------------+--------------------------------+--------------------------+----------
+	;
+	; Copy 3 data pointers (3 words, 6 bytes) from HL to 0xE071-0xE6.
 	ld bc,00006h		;5140 LDIR: count
 	ld de,0e071h		;5143 LDIR: destination
 	ldir			;5146 Copy HL to DE, 0x06 times. Copy 3 data pointers.
@@ -6271,27 +6288,27 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Data, 6 bytes per element (see 0x5140)
-	defw 0x78C4		;5161 #00 Stage 1
+	defw 0x78C4		;5161 #00 Stage 1: track layout
 	defw 0x78E5		;5163 #00
 	defw 0x7960		;5165 #00
 	
-	defw 0x7AAA		;5167 #01 Stage 2
+	defw 0x7AAA		;5167 #01 Stage 2: track layout
 	defw 0x7BAA		;5169 #01
 	defw 0x7ACD		;516b #01
 	
-	defw 0x7AAA		;516d #02 Stage 3
+	defw 0x7AAA		;516d #02 Stage 3: track layout
 	defw 0x7BAA		;516f #02
 	defw 0x7ACD		;5171 #02
 	
-	defw 0x7E83		;5173 #03 Stage 4
+	defw 0x7E83		;5173 #03 Stage 4: track layout
 	defw 0x78E5		;5175 #03
 	defw 0x7960		;5177 #03
 	
-	defw 0x7E60		;5179 #04 Stage 5
+	defw 0x7E60		;5179 #04 Stage 5: track layout
 	defw 0x78E5		;517b #04
 	defw 0x7960		;517d #04
 	
-	defw 0x7EA8		;517f #05 Stage 6
+	defw 0x7EA8		;517f #05 Stage 6: track layout
 	defw 0x7F6B		;5181 #05
 	defw 0x7ED1		;5183 #05
 	
@@ -7473,7 +7490,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;554b
 	inc a			;554c
 	jr nz,$+8		;554d if (nz) jump to 0x5555
-	ld hl,07dc5h		;554f HL = 0x7DC5
+	ld hl,07dc5h		;554f HL = 7dc5_shoreline_pattern_names
 	ld (0e08ah),hl		;5552
 	
 	ld de,0e058h		;5555
@@ -7737,7 +7754,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; Data, see 0x5669. Only for stage 5? Railroad track
 	defw 0x7D94		;56a4 #00
-	defw 0x7DC5		;56a6 #01
+	defw 0x7DC5		;56a6 #01 7dc5_shoreline_pattern_names
 	defw 0x7E26		;56a8 #02
 	defw 0x7D94		;56aa #03
 
@@ -7839,8 +7856,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x5537 (call) [from=5537_post_routine_for_stage_01_02_04_06]
 ;   0x5642 (call) [from=5642_stage_05_specific_code]
-;   0x5890 (jump) [from=5810_fixme]
-;   0x58A8 (jump) [from=5810_fixme]
+;   0x5890 (jump) [from=585f_read_and_handle_new_track_data_pointer_1]
+;   0x58A8 (jump) [from=585f_read_and_handle_new_track_data_pointer_1]
 56f7_fixme:
 	ld a,(0e07ah)		;56f7 A = *(0xE07A)
 	; Special value 0xFE is seen at:
@@ -7865,10 +7882,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	; Jump table for 0x5709.
 	defw 0x5768		;570c #00 5768_update_first_line_of_track_data_in_RAM
-	defw 0x5810		;570e #01
-	defw 0x5810		;5710 #02
-	defw 0x57A7		;5712 #03
-	defw 0x57A7		;5714 #04
+	defw 0x5810		;570e #01 5810_fixme
+	defw 0x5810		;5710 #02 5810_fixme
+	defw 0x57A7		;5712 #03 57a7_fixme
+	defw 0x57A7		;5714 #04 57a7_fixme
 
 
 
@@ -7949,9 +7966,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x5709 (jump) index #00 of jump table
 5768_update_first_line_of_track_data_in_RAM:
+	; if (--*0xE07B == 0) jump to 0x585F
 	ld hl,0e07bh		;5768 HL = 0xE07B
 	dec (hl)		;576b
-	jp z,0585fh		;576c
+	jp z,0585fh		;576c if (*0xE07B == 0) jump to 0x585F
+
 	ld hl,(0e06fh)		;576f HL = track_data_pointer
 	ld a,(hl)		;5772
 	inc a			;5773
@@ -8046,7 +8065,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Target of jump table entries at 0x5712 and 0x5714.
-57a7_:
+57a7_fixme:
 	; Determine which character must be used as left side of the 
 	; track (white or white with black dash).
 	ld hl,05808h		;57a7 HL = 5808_vertical_pattern_of_left_side_of_straight_track
@@ -8089,7 +8108,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;57d6
 	sub 001h		;57d7
 	ld (hl),a		;57d9
-	jp m,0585fh		;57da if (m) jump to 0x585F
+	jp m,0585fh		;57da if (m) jump to 0x585F (585f_read_and_handle_new_track_data_pointer_1)
+
 	ld a,(hl)		;57dd
 	and 007h		;57de
 	ret nz			;57e0
@@ -8108,7 +8128,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld b,a			;57f6
 	and 00fh		;57f7
 	add a,a			;57f9
-	ld hl,0593ah		;57fa HL = 0x593A
+	ld hl,0593ah		;57fa HL = 593a_track_names
 	call 0403bh		;57fd HL += A
 	ld a,(hl)		;5800
 	inc hl			;5801
@@ -8136,17 +8156,22 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; See 0x570E. Track related, data pointer 1.
 5810_fixme:
+	; if (--*(0xE07B) == 0x00) jump to 0x5852
 	ld hl,0e07bh		;5810 HL = 0xE07B
 	dec (hl)		;5813 --(*0xE07B)
 	jr z,$+62		;5814 if (*(0xE07B) == 0x00) jump to 0x5852
 	;
 	; Post: *(HL) != 0x00
 	;
+	; if (*(0xE07B) & 0x07 != 0x00) jump to 0x583E
 	ld a,(hl)		;5816 A = *(0xE07B)
 	and 007h		;5817 A = *(0xE07B) & 0x07, keep lower 3 bits
 	jr nz,$+37		;5819 if (*(0xE07B) & 0x07 != 0x00) jump to 0x583E
 	;
-	; Post: *(HL) & 0x07 == 0x00
+	; Post: *(0xE07B) & 0x07 == 0x00.
+	;
+	; Since 0xE07B is decreased each frame, the following code will 
+	; hit in (roughly) 1 out of 8 frames.
 	;
 	ld a,(0e07ah)		;581b A = *(0xE07A)
 	and 00fh		;581e A = *(0xE07A) & 0x0F, keep low nybble.
@@ -8166,8 +8191,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,a			;5830 A *= 2 (elements at 0x593A are pointers)
 
 	; 0x593A is a list of 5 pointers to (track) data: [0x5998, 0x59C1, 0x5A19, 0x5A1B, 0x59C3]
-	ld hl,0593ah		;5831 HL = 0x593A
-	call 0403bh		;5834 HL = 0x593A + A
+	ld hl,0593ah		;5831 HL = 593a_track_names
+	call 0403bh		;5834 HL = 593a_track_names + A
 
 	; HL = *(HL)
 	ld a,(hl)		;5837
@@ -8188,7 +8213,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	add a,e			;5847
 	ld e,a			;5848
 
-	ldi			;5849 *(DE++) = *(HL++), --BC
+	ldi			;5849 *(DE++) = *(HL++)
 	call 05784h		;584b 5784_copy_track_something
 	ld (0e06fh),hl		;584e track_data_pointer = HL
 	ret			;5851
@@ -8202,10 +8227,18 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr z,$+3		;585c if (z) jump to 0x585F
 	inc (hl)		;585e
 
-	ld hl,(0e071h)		;585f
-	ld de,0e07ah		;5862 DE = 0xE07A
-	ld bc,00002h		;5865 BC = 0x0002
-	ldir			;5868 Two times: *(DE++) = *(HL++)
+
+
+; We can get here from:
+;   0x576C (jump) [from=5768_update_first_line_of_track_data_in_RAM]
+;   0x57DA (jump) [from=57a7_fixme]
+;   0x585E (fall) [from=5810_fixme]
+585f_read_and_handle_new_track_data_pointer_1:
+	; Copy 2 byte from ?data pointer 1?.
+	ld hl,(0e071h)		;585f LDIR: source
+	ld de,0e07ah		;5862 LDIR: destination
+	ld bc,00002h		;5865 LDIR: count
+	ldir			;5868 do { *(DE++) = *(HL++) } while (--BC)
 	ld (0e071h),hl		;586a
 
 	ld a,(0e07ah)		;586d A = *(0xE07A)
@@ -8219,22 +8252,29 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	dec (hl)		;587a --*(HL)
 	
 	; We can get here from:
-	;   0x5875 (jump) A != 2
-	;   0x587A (fall) A == 2
-	add a,a			;587b A *= 2
-	ld hl,0593ah		;587c HL = 0x593A, array of 5 data pointers.
-	call 0403bh		;587f HL += A
-	ld a,(hl)		;5882 A = *(HL)
+	;   0x5875 (jump) [from=self]
+	;   0x587A (fall) [from=self]
+	add a,a			;587b A *= 2, entries are 2 bytes (i.e. words)
+	ld hl,0593ah		;587c HL = 593a_track_names
+	call 0403bh		;587f HL = 593a_track_names + A
+	ld a,(hl)		;5882 A = 593a_track_names[A]
 	inc hl			;5883 ++HL
+
+	; The entries of table 0x593A are pointers. Dereference.
+	; 
+	; HL = *(HL)
 	ld h,(hl)		;5884
 	ld l,a			;5885
+
 	ld (0e06fh),hl		;5886 track_data_pointer = HL
 	ld a,b			;5889 A = *(0xE07A) (see 0x5870)
 	and 00fh		;588a A &= 0x0F
 	sub 003h		;588c A -= 3
 	cp 002h			;588e Compute A - 0x02 and update C/NC flag.
-	jp nc,056f7h		;5890 if ((*(0xE07A) & 0x0F) in [3,4]) jump to 0x56F7 (56f7_fixme)
-	ex af,af'		;5893 A' = *(0xE07A) - 2
+	jp nc,056f7h		;5890 if ((*(0xE07A) & 0x0F) not in [3,4]) jump to 0x56F7 (56f7_fixme)
+	;
+	; Post: (*(0xE07A) & 0x0F) in [3, 4]
+	ex af,af'		;5893 A' = (*(0xE07A) & 0x0F) - 3
 	ld a,b			;5894 A = *(0xE07A) (see 0x5870)
 	
 	; A = *(0xE07A) >> 4, i.e. extract high nybble.
@@ -8244,10 +8284,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	rra			;5898
 	and 00fh		;5899
 
-	ld b,a			;589b Store high nybble.
-	ex af,af'		;589c A = *(0xE07A) - 2 (see 0x5893)
-	add a,b			;589d A = 
-	ld hl,058abh		;589e HL = 0x58AB
+	ld b,a			;589b B = *(0xE07A) >> 4, store high nybble.
+	ex af,af'		;589c A = (*(0xE07A) & 0x0F) - 3 (see 0x5893)
+	add a,b			;589d A = (*(0xE07A) & 0x0F) - 3 + (*(0xE07A) >> 4)
+	ld hl,058abh		;589e HL = 58ab_track_width_table (this table right after this routine)
 	call 0403bh		;58a1 HL += A
 	ld a,(hl)		;58a4
 	ld (0e081h),a		;58a5
@@ -8255,12 +8295,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; See 0x589E
-58ab_fixme:
-	defb 0x04		;58ab
-	defb 0x07		;58ac
-	defb 0x06		;58ad
-	defb 0x09		;58ae
+; Number of bytes of track to copy to VRAM buffer.
+; 
+; Direct code references:
+;   0x589E [from=585f_read_and_handle_new_track_data_pointer_1]: Value is stored in 0xE081.
+58ab_track_width_table:
+	defb 0x04		;58ab #00
+	defb 0x07		;58ac #01
+	defb 0x06		;58ad #02
+	defb 0x09		;58ae #03
 
 
 
@@ -8386,6 +8429,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	or c			;5926 A |= C
 	inc hl			;5927 HL = 0xE098
 	ld (hl),a		;5928 *(0xE098) = A
+
 	ret			;5929
 
 
@@ -8413,12 +8457,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x57FA
 ;   0x5831
 ;   0x587C
-593a_fixme:
-	defw 0x5998		;593a Track data
-	defw 0x59C1		;593c
-	defw 0x5A19		;593e
-	defw 0x5A1B		;5940
-	defw 0x59C3		;5942
+593a_track_names:
+	defw 0x5998		;593a Track names: straight ahead
+	defw 0x59C1		;593c Track names: moving to right
+	defw 0x5A19		;593e Track names: moving to left
+	defw 0x5A1B		;5940 Track names: moving to left
+	defw 0x59C3		;5942 Track names: moving to right
 
 
 
@@ -21883,47 +21927,93 @@ C
 
 
 
-; Stage 1, data pointer 1. See 0x5161.
+; Stage N, data pointer 1: track layout.
 ;
-; Debugging: "debug set_watchpoint read_mem 0x78c4"
-; Hits:
-;   0x586A [5810_fixme] distance == 0x000000 (road isn't even drawn yet)
-;   0x586A [5810_fixme] distance == 0x03C169
-;   0x586A [5810_fixme] distance == 0x07804D
-;   0x586A [5810_fixme] distance == 0x0B40D3
-	defb 0x10		;78c4 ?2 lanes?
+; The track layout stage table is at 0x5161. Values:
+;   Stage 01: 0x78C4
+;   Stage 02: 0x7AAA
+;   Stage 03: 0x7AAA (indeed the same layout as stage 02, it is not a copy-paste error)
+;   Stage 04: 0x7E83
+;   Stage 05: 0x7E60
+;   Stage 06: 0x7EA8
+;
+; First byte:
+;   High nybble: (starting) track width (in number of lanes - 1)
+;     0x10: 2 lanes
+;     0x20: 3 lanes
+;   Low nybble: track modifier
+;     0x00: Straigh ahead (no modifier)
+;     0x01: Track bends to left
+;     0x02: Track bends to the right
+;     0x03: Track expands from 2 to 3 lanes, right side expands
+;     0x04: Track squeezes from 3 to 2 lanes, right side squeezes
+;
+;      | High nybble                                  | High nybble
+;      | 0x10                                         | 0x20
+; -----+----------------------------------------------+--------------------
+; 0x00 | 0x10: 2 lanes, straight ahead                | 0x20: 3 lanes, straight ahead
+; 0x01 | 0x11: 2 lanes, bending left                  | 0x21: 3 lanes, bending left
+; 0x02 | 0x12: 2 lanes, bending right                 | 0x22: 3 lanes, bending right
+; 0x03 | 0x13: 2 lanes, expanding to 3 lanes to right | 0x23: ?unused?
+; 0x04 | 0x14: ?unused?                               | 0x24: 3 lanes, squeezing to 2 lanes from right
+
+
+
+; Direct code references:
+;   Table 0x5161, offset 0x00: 0x5161 (for stage 1)
+78c4_track_layout__stage_1:
+	defb 0x10		;78c4 2 lanes, straight ahead, 0x18 lines.
 	defb 0x19		;78c5
-	defb 0x11		;78c6
-	defb 0x21		;78c7 ?3 lanes?
-	defb 0x13		;78c8
+
+	defb 0x11		;78c6 2 lanes, bending left, 0x20 lines.
+	defb 0x21		;78c7
+
+	defb 0x13		;78c8 2 lanes, expanding to 3 lanes to right, 0x17 times.
 	defb 0x18		;78c9
-	defb 0x20		;78ca
+
+	defb 0x20		;78ca 3 lanes, straight ahead, 0x50 times.
 	defb 0x51		;78cb
-	defb 0x22		;78cc
+
+	defb 0x22		;78cc 3 lanes, bending right, 0x30 times.
 	defb 0x31		;78cd
-	defb 0x20		;78ce
+
+	defb 0x20		;78ce 3 lanes, straight ahead, 0x80 times.
 	defb 0x81		;78cf
-	defb 0x21		;78d0
+
+	defb 0x21		;78d0 3 lanes, bending left, 0x30 times.
 	defb 0x31		;78d1
-	defb 0x20		;78d2
+
+	defb 0x20		;78d2 3 lanes, straight ahead, 0xA8 times.
 	defb 0xA9		;78d3
-	defb 0x22		;78d4
+
+	defb 0x22		;78d4 3 lanes, bending right, 0x28 times.
 	defb 0x29		;78d5
-	defb 0x20		;78d6
+
+	defb 0x20		;78d6 3 lanes, straight ahead, 0x20 times.
 	defb 0x21		;78d7
-	defb 0x21		;78d8
+
+	defb 0x21		;78d8 3 lanes, bending left, 0x38 times.
 	defb 0x39		;78d9
-	defb 0x20		;78da
+
+	defb 0x20		;78da 3 lanes, straight ahead, 0x58 times.
 	defb 0x59		;78db
-	defb 0x22		;78dc
+
+	defb 0x22		;78dc 3 lanes, bending right, 0x30 times.
 	defb 0x31		;78dd
-	defb 0x20		;78de
+
+	defb 0x20		;78de 3 lanes, straight ahead, 0x60 times.
 	defb 0x61		;78df
-	defb 0x24		;78e0
+
+	defb 0x24		;78e0 3 lanes, squeezing to 2 lanes from right, 0x17 times.
 	defb 0x18		;78e1
-	defb 0x10		;78e2
+
+	defb 0x10		;78e2 2 lanes, straight ahead, 0x18 times.
 	defb 0x19		;78e3
+
+	; Repeat from start (= 0x78C4).
 	defb 0xFE		;78e4 Special value. Checked for at 0x56FA.
+
+
 
 ; Stage 1+4+5, data pointer 2. See 0x5163, 0x5175, 0x517B.
 	defb 0x94		;78e5
@@ -22482,42 +22572,65 @@ C
 
 
 
-; Stage 2+3, data pointer 1. See 0x5167, 0x516D.
-	defb 0x10		;7aaa
+; Direct code references:
+;   Table 0x5161, offset 0x06: 0x5167 (for stage 2)
+;   Table 0x5161, offset 0x0C: 0x516D (for stage 3)
+7aaa_track_layout__stage_2_and_3:
+	defb 0x10		;7aaa 2 lanes, straight ahead, 0x48 times.
 	defb 0x49		;7aab
-	defb 0x13		;7aac
+
+	defb 0x13		;7aac 2 lanes, expanding to 3 lanes to right, 0x17 times.
 	defb 0x18		;7aad
-	defb 0x20		;7aae
+
+	defb 0x20		;7aae 3 lanes, straight ahead, 0x48 times.
 	defb 0x49		;7aaf
-	defb 0x22		;7ab0
+
+	defb 0x22		;7ab0 3 lanes, bending right, 0x18 times.
 	defb 0x19		;7ab1
-	defb 0x20		;7ab2
+
+	defb 0x20		;7ab2 3 lanes, straight ahead, 0x30 times.
 	defb 0x31		;7ab3
-	defb 0x21		;7ab4
+
+	defb 0x21		;7ab4 3 lanes, bending left, 0x28 times.
 	defb 0x29		;7ab5
-	defb 0x20		;7ab6
+
+	defb 0x20		;7ab6 3 lanes, straight ahead, 0x38 times.
 	defb 0x39		;7ab7
-	defb 0x22		;7ab8
+
+	defb 0x22		;7ab8 3 lanes, bending right, 0x28 times.
 	defb 0x29		;7ab9
-	defb 0x20		;7aba
+
+	defb 0x20		;7aba 3 lanes, straight ahead, 0x50 times.
 	defb 0x51		;7abb
-	defb 0x24		;7abc
+
+	defb 0x24		;7abc 3 lanes, squeezing to 2 lanes from right, 0x17 times.
 	defb 0x18		;7abd
-	defb 0x10		;7abe
+
+	defb 0x10		;7abe 2 lanes, straight ahead, 0x78 times.
 	defb 0x79		;7abf
-	defb 0x13		;7ac0
+
+	defb 0x13		;7ac0 2 lanes, expanding to 3 lanes to right, 0x17 times.
 	defb 0x18		;7ac1
-	defb 0x20		;7ac2
+
+	defb 0x20		;7ac2 3 lanes, straight ahead, 0xA4 times.
 	defb 0xA5		;7ac3
-	defb 0x20		;7ac4
+
+	defb 0x20		;7ac4 3 lanes, straight ahead, 0x64 times.
 	defb 0x65		;7ac5
-	defb 0x21		;7ac6
+
+	defb 0x21		;7ac6 3 lanes, bending left, 0x18 times.
 	defb 0x19		;7ac7
-	defb 0x24		;7ac8
+
+	defb 0x24		;7ac8 3 lanes, squeezing to 2 lanes from right, 0x17 times.
 	defb 0x18		;7ac9
-	defb 0x10		;7aca
+
+	defb 0x10		;7aca 2 lanes, straight ahead, 0x18 times.
 	defb 0x19		;7acb
+
+	; Repeat from start (= 0x7AAA).
 	defb 0xFE		;7acc Special value. Checked for at 0x56FA.
+
+
 
 ; Stage 2+3, data pointer 3. See 0x516B, 0x5171.
 	defb 0xDB		;7acd
@@ -23344,7 +23457,7 @@ C
 ;   0x50E8 (50e8_init_stage_2)
 ;   0x554F (5545_stage_02_something)
 ;   0x56A6 (5642_stage_05_specific_code)
-;   
+7dc5_shoreline_pattern_names:
 	defb 0xC6		;7dc5
 	defb 0xC6		;7dc6
 	defb 0xB9		;7dc7
@@ -23520,6 +23633,8 @@ C
 	defb 0xC5		;7e55
 	defb 0xFF		;7e56
 
+
+
 ; Data.
 ; 
 ; References:
@@ -23534,124 +23649,193 @@ C
 	defb 0x04		;7e5e
 	defb 0x25		;7e5f
 
-; Stage 5, data pointer 1. See 0x5179.
-	defb 0x10		;7e60
-	defb 0x31		;7e61
-	defb 0x13		;7e62
-	defb 0x18		;7e63
-	defb 0x20		;7e64
-	defb 0xAD		;7e65
-	defb 0x20		;7e66
-	defb 0x65		;7e67
-	defb 0x22		;7e68
-	defb 0x21		;7e69
-	defb 0x20		;7e6a
-	defb 0x59		;7e6b
-	defb 0x21		;7e6c
-	defb 0x21		;7e6d
-	defb 0x20		;7e6e
-	defb 0x81		;7e6f
-	defb 0x22		;7e70
-	defb 0x19		;7e71
-	defb 0x20		;7e72
-	defb 0x41		;7e73
-	defb 0x21		;7e74
-	defb 0x19		;7e75
-	defb 0x20		;7e76
-	defb 0x69		;7e77
-	defb 0x24		;7e78
-	defb 0x18		;7e79
-	defb 0x10		;7e7a
-	defb 0x61		;7e7b
-	defb 0xFE		;7e7c Special value. Checked for at 0x56FA.
-	defb 0xFE		;7e7d Special value. Checked for at 0x56FA.
-	defb 0xFE		;7e7e Special value. Checked for at 0x56FA.
-	defb 0xFE		;7e7f Special value. Checked for at 0x56FA.
-	defb 0xFE		;7e80 Special value. Checked for at 0x56FA.
-	defb 0xFE		;7e81 Special value. Checked for at 0x56FA.
-	defb 0xFE		;7e82 Special value. Checked for at 0x56FA.
 
-; Stage 4, data pointer 1. See 0x5173.
-	defb 0x10		;7e83
+
+; Direct code references:
+;   Table 0x5161, offset 0x18: 0x5179 (for stage 5)
+7e60_track_layout__stage_5:
+	defb 0x10		;7e60 2 lanes, straight ahead, 0x30 times.
+	defb 0x31		;7e61
+
+	defb 0x13		;7e62 2 lanes, expanding to 3 lanes to right, 0x17 times.
+	defb 0x18		;7e63
+
+	defb 0x20		;7e64 3 lanes, straight ahead, 0xAC times.
+	defb 0xAD		;7e65
+
+	defb 0x20		;7e66 3 lanes, straight ahead, 0x64 times.
+	defb 0x65		;7e67
+
+	defb 0x22		;7e68 3 lanes, bending right, 0x20 times.
+	defb 0x21		;7e69
+
+	defb 0x20		;7e6a 3 lanes, straight ahead, 0x58 times.
+	defb 0x59		;7e6b
+
+	defb 0x21		;7e6c 3 lanes, bending left, 0x20 times.
+	defb 0x21		;7e6d
+
+	defb 0x20		;7e6e 3 lanes, straight ahead, 0x80 times.
+	defb 0x81		;7e6f
+
+	defb 0x22		;7e70 3 lanes, bending right, 0x18 times.
+	defb 0x19		;7e71
+
+	defb 0x20		;7e72 3 lanes, straight ahead, 0x40 times.
+	defb 0x41		;7e73
+
+	defb 0x21		;7e74 3 lanes, bending left, 0x18 times.
+	defb 0x19		;7e75
+
+	defb 0x20		;7e76 3 lanes, straight ahead, 0x68 times.
+	defb 0x69		;7e77
+
+	defb 0x24		;7e78 3 lanes, squeezing to 2 lanes from right, 0x17 times.
+	defb 0x18		;7e79
+
+	defb 0x10		;7e7a 2 lanes, straight ahead, 0x60 times.
+	defb 0x61		;7e7b
+
+	; Repeat from start (= 0x7E60).
+	defb 0xFE		;7e7c Special value. Checked for at 0x56FA.
+	defb 0xFE		;7e7d DEAD CODE.
+	defb 0xFE		;7e7e DEAD CODE.
+	defb 0xFE		;7e7f DEAD CODE.
+	defb 0xFE		;7e80 DEAD CODE.
+	defb 0xFE		;7e81 DEAD CODE.
+	defb 0xFE		;7e82 DEAD CODE.
+
+
+
+; Direct code references:
+;   Table 0x5161, offset 0x12: 0x5173 (for stage 4)
+7e83_track_layout__stage_4:
+	defb 0x10		;7e83 2 lanes, straight ahead, 0x28 times.
 	defb 0x29		;7e84
-	defb 0x11		;7e85
+
+	defb 0x11		;7e85 2 lanes, bending left, 0x08 times.
 	defb 0x09		;7e86
-	defb 0x13		;7e87
+
+	defb 0x13		;7e87 2 lanes, expanding to 3 lanes to right, 0x17 times.
 	defb 0x18		;7e88
-	defb 0x20		;7e89
+
+	defb 0x20		;7e89 3 lanes, straight ahead, 0x30 times.
 	defb 0x31		;7e8a
-	defb 0x24		;7e8b
+
+	defb 0x24		;7e8b 3 lanes, squeezing to 2 lanes from right, 0x17 times.
 	defb 0x18		;7e8c
-	defb 0x10		;7e8d
+
+	defb 0x10		;7e8d 2 lanes, straight ahead, 0x18 times.
 	defb 0x19		;7e8e
-	defb 0x13		;7e8f
+
+	defb 0x13		;7e8f 2 lanes, expanding to 3 lanes to right, 0x17 times.
 	defb 0x18		;7e90
-	defb 0x20		;7e91
+
+	defb 0x20		;7e91 3 lanes, straight ahead, 0xFA times.
 	defb 0xFB		;7e92
-	defb 0x20		;7e93
+
+	defb 0x20		;7e93 3 lanes, straight ahead, 0x6E times.
 	defb 0x6F		;7e94
-	defb 0x24		;7e95
+
+	defb 0x24		;7e95 3 lanes, squeezing to 2 lanes from right, 0x17 times.
 	defb 0x18		;7e96
-	defb 0x10		;7e97
+
+	defb 0x10		;7e97 2 lanes, straight ahead, 0x18 times.
 	defb 0x19		;7e98
-	defb 0x12		;7e99
+
+	defb 0x12		;7e99 2 lanes, bending right, 0x10 times.
 	defb 0x11		;7e9a
-	defb 0x10		;7e9b
+
+	defb 0x10		;7e9b 2 lanes, straight ahead, 0x48 times.
 	defb 0x49		;7e9c
-	defb 0x11		;7e9d
+
+	defb 0x11		;7e9d 2 lanes, bending left, 0x08 times.
 	defb 0x09		;7e9e
-	defb 0x13		;7e9f
+
+	defb 0x13		;7e9f 2 lanes, expanding to 3 lanes to right, 0x17 times.
 	defb 0x18		;7ea0
-	defb 0x20		;7ea1
+
+	defb 0x20		;7ea1 3 lanes, straight ahead, 0xC0 times.
 	defb 0xC1		;7ea2
-	defb 0x24		;7ea3;
+
+	defb 0x24		;7ea3 3 lanes, squeezing to 2 lanes from right, 0x17 times.
 	defb 0x18		;7ea4
-	defb 0x10		;7ea5
+
+	defb 0x10		;7ea5 2 lanes, straight ahead, 0x18 times.
 	defb 0x19		;7ea6
+
+	; Repeat from start (= 0x7E83).
 	defb 0xFE		;7ea7 Special value. Checked for at 0x56FA.
 
-; Stage 6, data pointer 1. See 0x517F.
-	defb 0x10		;7ea8
+
+
+; Direct code references:
+;   Table 0x5161, offset 0x1E: 0x517F (for stage 6)
+7ea8_track_layout__stage_6:
+	defb 0x10		;7ea8 2 lanes, straight ahead, 0x30 times.
 	defb 0x31		;7ea9
-	defb 0x13		;7eaa
+
+	defb 0x13		;7eaa 2 lanes, expanding to 3 lanes to right, 0x17 times.
 	defb 0x18		;7eab
-	defb 0x20		;7eac
+
+	defb 0x20		;7eac 3 lanes, straight ahead, 0x60 times.
 	defb 0x61		;7ead
-	defb 0x21		;7eae
+
+	defb 0x21		;7eae 3 lanes, bending left, 0x28 times.
 	defb 0x29		;7eaf
+
 	defb 0x24		;7eb0
 	defb 0x18		;7eb1
-	defb 0x10		;7eb2
+
+	defb 0x10		;7eb2 2 lanes, straight ahead, 0x20 times.
 	defb 0x21		;7eb3
-	defb 0x13		;7eb4
+
+	defb 0x13		;7eb4 2 lanes, expanding to 3 lanes to right, 0x17 times.
 	defb 0x18		;7eb5
-	defb 0x20		;7eb6
+
+	defb 0x20		;7eb6 3 lanes, straight ahead, 0x18 times.
 	defb 0x19		;7eb7
-	defb 0x22		;7eb8
+
+	defb 0x22		;7eb8 3 lanes, bending right, 0x28 times.
 	defb 0x29		;7eb9
-	defb 0x20		;7eba
+
+	defb 0x20		;7eba 3 lanes, straight ahead, 0x50 times.
 	defb 0x51		;7ebb
-	defb 0x24		;7ebc
+
+	defb 0x24		;7ebc 3 lanes, squeezing to 2 lanes from right, 0x17 times.
 	defb 0x18		;7ebd
-	defb 0x10		;7ebe
+
+	defb 0x10		;7ebe 2 lanes, straight ahead, 0x60 times.
 	defb 0x61		;7ebf
-	defb 0x13		;7ec0
+
+	defb 0x13		;7ec0 2 lanes, expanding to 3 lanes to right, 0x17 times.
 	defb 0x18		;7ec1
-	defb 0x20		;7ec2
+
+	defb 0x20		;7ec2 3 lanes, straight ahead, 0x90 times.
 	defb 0x91		;7ec3
-	defb 0x24		;7ec4
+
+	defb 0x24		;7ec4 3 lanes, squeezing to 2 lanes from right, 0x17 times.
 	defb 0x18		;7ec5
-	defb 0x10		;7ec6
+
+	defb 0x10		;7ec6 2 lanes, straight ahead, 0x30 times.
 	defb 0x31		;7ec7
-	defb 0x13		;7ec8
+
+	defb 0x13		;7ec8 2 lanes, expanding to 3 lanes to right, 0x17 times.
 	defb 0x18		;7ec9
-	defb 0x20		;7eca
+
+	defb 0x20		;7eca 3 lanes, straight ahead, 0x60 times.
 	defb 0x61		;7ecb
-	defb 0x24		;7ecc
+
+	defb 0x24		;7ecc 3 lanes, squeezing to 2 lanes from right, 0x17 times.
 	defb 0x18		;7ecd
-	defb 0x10		;7ece
+
+	defb 0x10		;7ece 2 lanes, straight ahead, 0x18 times.
 	defb 0x19		;7ecf
+
+	; Repeat from start (= 0x7EA8).
 	defb 0xFE		;7ed0 Special value. Checked for at 0x56FA.
+
+
 
 ; Stage 6, data pointer 3. See 0x5183.
 	defb 0xD9		;7ed1
