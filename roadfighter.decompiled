@@ -6274,7 +6274,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,001h		;5148 A = 1
 	ld (0e07fh),a		;514a *(0xE07F) = 1
 	ld hl,(0e071h)		;514d HL = stage_something_pointer[0]
-	ld de,0e07ah		;5150 LDIR: destination = 0xE07A
+	ld de,0e07ah		;5150 LDIR: destination = &current_track_layout
 	ld c,002h		;5153 LDIR: count = 2 (B is still 0)
 	ldir			;5155 Copy HL to DE, 0x02 times. Copies 2 stage/track related bytes.
 	ld (0e071h),hl		;5157 Store HL
@@ -7859,7 +7859,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x5890 (jump) [from=585f_read_and_handle_new_track_data_pointer_1]
 ;   0x58A8 (jump) [from=585f_read_and_handle_new_track_data_pointer_1]
 56f7_fixme:
-	ld a,(0e07ah)		;56f7 A = *(0xE07A)
+	ld a,(0e07ah)		;56f7 A = current_track_layout
 	; Special value 0xFE is seen at:
 	;   Stage 1: 0x78E4
 	;   Stage 2: 0x7ACC
@@ -7867,23 +7867,23 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   Stage 4: 0x7EA7
 	;   Stage 5: 0x7E7C-0x7E82
 	;   Stage 6: 0x7ED0
-	cp 0feh			;56fa Compute A - 0xFE and set flags.
-	jr nz,$+5		;56fc if (not special) jump to 0x5701
+	cp 0feh			;56fa Compute A - 0xFE and update Z/NZ flag.
+	jr nz,$+5		;56fc if (current_track_layout != 0xFE) jump to 0x5701
 	call 050bfh		;56fe 50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code
 
 	; We can get here from:
-	;   0x56FC (jump) *(0xE07A) != 0xFE (call to 0x50BF is SKIPPED)
-	;   0x56FE (fall) *(0xE07A) == 0xFE (call to 0x50BF is DONE)
+	;   0x56FC (jump) current_track_layout != 0xFE (call to 0x50BF is SKIPPED)
+	;   0x56FE (fall) current_track_layout == 0xFE (call to 0x50BF is DONE)
 	call 0590eh		;5701 590e_update_left_side_of_the_road
 
-	ld a,(0e07ah)		;5704 A = *(0xE07A)
-	and 00fh		;5707 A &= 0x0F (extract low nybble)
+	ld a,(0e07ah)		;5704 A = current_track_layout
+	and 00fh		;5707 A = current_track_layout__modifier
 	call 04045h		;5709 PC = PC[2 * A]
 
 	; Jump table for 0x5709.
 	defw 0x5768		;570c #00 5768_update_first_line_of_track_data_in_RAM
-	defw 0x5810		;570e #01 5810_fixme
-	defw 0x5810		;5710 #02 5810_fixme
+	defw 0x5810		;570e #01 5810_handle_track_layout_data__track_must_bend
+	defw 0x5810		;5710 #02 5810_handle_track_layout_data__track_must_bend
 	defw 0x57A7		;5712 #03 57a7_fixme
 	defw 0x57A7		;5714 #04 57a7_fixme
 
@@ -7966,10 +7966,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x5709 (jump) index #00 of jump table
 5768_update_first_line_of_track_data_in_RAM:
-	; if (--*0xE07B == 0) jump to 0x585F
-	ld hl,0e07bh		;5768 HL = 0xE07B
-	dec (hl)		;576b
-	jp z,0585fh		;576c if (*0xE07B == 0) jump to 0x585F
+	; if (--track_layout_lines_left == 0) jump to 0x585F
+	ld hl,0e07bh		;5768 HL = &track_layout_lines_left
+	dec (hl)		;576b --track_layout_lines_left
+	jp z,0585fh		;576c if (track_layout_lines_left == 0) jump to 0x585F
 
 	ld hl,(0e06fh)		;576f HL = track_data_pointer
 	ld a,(hl)		;5772
@@ -7995,19 +7995,20 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x5783 (fall) [from=5768_update_first_line_of_track_data_in_RAM]
-;   0x584B (call) [from=5810_fixme]
+;   0x584B (call) [from=5810_handle_track_layout_data__track_must_bend]
 5784_copy_track_something:
 	; Copy left border of track.
 	ldi			;5784 *(DE++) = *(HL++), --BC
 	
-	; B = (*(0xE07A) >> 4) & 3, extract high nybble, then keep only bit 0 and 1.
+	; B = current_track_layout__num_lanes & 0x03
 	; 
-	; Hence, B in [0,1,2,3] (although 3 is not used).
+	; Hence, B in [0,1,2,3] (although 0 and 3 are not used).
 	; 
-	; B == 0 means: must copy 1 lane
+	; B == 0 means: must copy 1 lane: not used, but it is (somehwat playable)
 	; B == 1 means: must copy 2 lanes
 	; B == 2 means: must copy 3 lanes
-	ld a,(0e07ah)		;5786 A = *(0xE07A)
+	; B == 3 means: must copy 4 lanes: not used, game freezes is used (through poking)
+	ld a,(0e07ah)		;5786 A = current_track_layout
 	rra			;5789 A >>= 1
 	rra			;578a A >>= 1, total: 2
 	rra			;578b A >>= 1, total: 3
@@ -8017,26 +8018,23 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; Note: -(A - 2) == 2 - A
 	;
-	; *(0xE07A) & 0x30 == 0x00 --> B == 0 --> A == 2
-	; *(0xE07A) & 0x30 == 0x10 --> B == 1 --> A == 1
-	; *(0xE07A) & 0x30 == 0x20 --> B == 2 --> A == 0
+	; current_track_layout & 0x30 == 0x10 --> B == 1 --> A == 1
+	; current_track_layout & 0x30 == 0x20 --> B == 2 --> A == 0
 	sub 002h		;5790 A -= 0x02
 	neg			;5792
 	
 	; A *= 3
 	;
-	; *(0xE07A) & 0x30 == 0x00 --> B == 0 --> A == 6
-	; *(0xE07A) & 0x30 == 0x10 --> B == 1 --> A == 3
-	; *(0xE07A) & 0x30 == 0x20 --> B == 2 --> A == 0
+	; current_track_layout & 0x30 == 0x10 --> B == 1 --> A == 3
+	; current_track_layout & 0x30 == 0x20 --> B == 2 --> A == 0
 	ld c,a			;5794 C = A
 	add a,a			;5795 A *= 2
 	add a,c			;5796 A += C
 	
 	; Compute which track data to start copying.
 	;
-	; *(0xE07A) & 0x30 == 0x00 --> B == 0 --> A == 6 --> HL + 6 (skip 2 lanes)
-	; *(0xE07A) & 0x30 == 0x10 --> B == 1 --> A == 3 --> HL + 3 (skip 1 lane)
-	; *(0xE07A) & 0x30 == 0x20 --> B == 2 --> A == 0 --> HL + 0 (skip 0 lanes)
+	; current_track_layout & 0x30 == 0x10 --> B == 1 --> A == 3 --> HL + 3 (skip 1 lane)
+	; current_track_layout & 0x30 == 0x20 --> B == 2 --> A == 0 --> HL + 0 (skip 0 lanes)
 	call 0403bh		;5797 HL += A
 	
 	; Compute the LDIR loop count (BC):
@@ -8044,9 +8042,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;     C = 3 * (B + 1)
 	;     (and set B = 0 afterwards)
 	;
-	; *(0xE07A) & 0x30 == 0x00 --> B == 0 --> C == 3
-	; *(0xE07A) & 0x30 == 0x10 --> B == 1 --> C == 6
-	; *(0xE07A) & 0x30 == 0x20 --> B == 2 --> C == 9
+	; current_track_layout & 0x30 == 0x10 --> B == 1 --> C == 6
+	; current_track_layout & 0x30 == 0x20 --> B == 2 --> C == 9
 	inc b			;579a ++B
 	ld a,b			;579b A = B
 	add a,a			;579c A *= 2
@@ -8069,8 +8066,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Determine which character must be used as left side of the 
 	; track (white or white with black dash).
 	ld hl,05808h		;57a7 HL = 5808_vertical_pattern_of_left_side_of_straight_track
-	ld a,(0e07bh)		;57aa
-	and 007h		;57ad A &= 0x07 (keep bits 0+1+2)
+	ld a,(0e07bh)		;57aa A = track_layout_lines_left
+	and 007h		;57ad A = track_layout_lines_left & 0x07 (keep bits 0+1+2)
 	call 0403bh		;57af HL += A
 	
 	; DE = 0xE058 + *(0xE07D)
@@ -8104,8 +8101,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;57cf
 	ld (0e06fh),hl		;57d0 track_data_pointer = HL
 
-	ld hl,0e07bh		;57d3
-	ld a,(hl)		;57d6
+	ld hl,0e07bh		;57d3 HL = &track_layout_lines_left
+	ld a,(hl)		;57d6 A = track_layout_lines_left
 	sub 001h		;57d7
 	ld (hl),a		;57d9
 	jp m,0585fh		;57da if (m) jump to 0x585F (585f_read_and_handle_new_track_data_pointer_1)
@@ -8116,24 +8113,31 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(hl)		;57e1
 	and a			;57e2
 	ret z			;57e3
-	ld a,(0e07ah)		;57e4
+	ld a,(0e07ah)		;57e4 A = current_track_layout
 	ld hl,0e081h		;57e7
 	inc (hl)		;57ea
-	and 00fh		;57eb
-	cp 003h			;57ed
-	jr z,$+4		;57ef if (z) jump to 0x57F3
+	and 00fh		;57eb A = current_track_layout__modifier
+	cp 003h			;57ed Compute A - 0x03 and update Z/NZ flag.
+	jr z,$+4		;57ef if (current_track_layout__modifier == 0x03) jump to 0x57F3
 	dec (hl)		;57f1
 	dec (hl)		;57f2
-	ld a,(0e07ah)		;57f3
-	ld b,a			;57f6
-	and 00fh		;57f7
-	add a,a			;57f9
+
+	; We can get here from:
+	;   0x57EF (jump) [from=self]
+	;   0x57F2 (fall) [from=self]
+	ld a,(0e07ah)		;57f3 A = current_track_layout
+	ld b,a			;57f6 B = current_track_layout
+	and 00fh		;57f7 A = current_track_layout__modifier
+	add a,a			;57f9 A *= 2
 	ld hl,0593ah		;57fa HL = 593a_track_names
 	call 0403bh		;57fd HL += A
+
+	; HL = *(HL)
 	ld a,(hl)		;5800
 	inc hl			;5801
 	ld h,(hl)		;5802
 	ld l,a			;5803
+
 	ld (0e06fh),hl		;5804 track_data_pointer = HL
 	ret			;5807
 
@@ -8154,40 +8158,51 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
-; See 0x570E. Track related, data pointer 1.
-5810_fixme:
-	; if (--*(0xE07B) == 0x00) jump to 0x5852
-	ld hl,0e07bh		;5810 HL = 0xE07B
-	dec (hl)		;5813 --(*0xE07B)
-	jr z,$+62		;5814 if (*(0xE07B) == 0x00) jump to 0x5852
+; This routines handles the track layout data, defined by table 0x5161:
+;   Stage 01: 0x78C4
+;   Stage 02: 0x7AAA
+;   Stage 03: 0x7AAA
+;   Stage 04: 0x7E83
+;   Stage 05: 0x7E60
+;   Stage 06: 0x7EA8
+;
+; We can get here from:
+;   0x5709 (jump) [from=56f7_fixme] Jump table entry #01: Track must bend to the left
+;   0x5709 (jump) [from=56f7_fixme] Jump table entry #02: Track must bend to the right
+5810_handle_track_layout_data__track_must_bend:
+	; if (--track_layout_lines_left == 0x00) jump to 0x5852
+	ld hl,0e07bh		;5810 HL = &track_layout_lines_left
+	dec (hl)		;5813 --track_layout_lines_left
+	jr z,$+62		;5814 if (track_layout_lines_left == 0x00) jump to 0x5852
 	;
-	; Post: *(HL) != 0x00
+	; Post: track_layout_lines_left != 0x00
 	;
-	; if (*(0xE07B) & 0x07 != 0x00) jump to 0x583E
-	ld a,(hl)		;5816 A = *(0xE07B)
-	and 007h		;5817 A = *(0xE07B) & 0x07, keep lower 3 bits
-	jr nz,$+37		;5819 if (*(0xE07B) & 0x07 != 0x00) jump to 0x583E
+	; if (track_layout_lines_left & 0x07 != 0x00) jump to 0x583E
+	ld a,(hl)		;5816 A = track_layout_lines_left
+	and 007h		;5817 A = track_layout_lines_left & 0x07, keep lower 3 bits
+	jr nz,$+37		;5819 if (track_layout_lines_left & 0x07 != 0x00) jump to 0x583E
 	;
-	; Post: *(0xE07B) & 0x07 == 0x00.
+	; Post: track_layout_lines_left & 0x07 == 0x00.
 	;
-	; Since 0xE07B is decreased each frame, the following code will 
-	; hit in (roughly) 1 out of 8 frames.
+	; Since 0xE07B is decreased when a new track line is added, the 
+	; following code will hit after 8 add track lines. (Track layout 
+	; lines are always a multiple of 8.)
 	;
-	ld a,(0e07ah)		;581b A = *(0xE07A)
-	and 00fh		;581e A = *(0xE07A) & 0x0F, keep low nybble.
+	ld a,(0e07ah)		;581b A = current_track_layout
+	and 00fh		;581e A = current_track_layout__modifier
 	ld hl,0e07dh		;5820 HL = 0xE07D
 	inc (hl)		;5823 Track starts 1 character more to the right.
 	cp 002h			;5824 Compute A - 0x02 and update Z/NZ flag.
-	jr z,$+4		;5826 if (*(0xE07A) & 0x0F == 0x02) jump to 0x582A
+	jr z,$+4		;5826 if (current_track_layout__modifier == 0x02) jump to 0x582A
 	dec (hl)		;5828 Undo 0x5823.
 	dec (hl)		;5829 Track starts 1 character more to the left.
 	
 	; We can get here from:
 	;   0x5826 (jump)
 	;   0x5829 (fall)
-	ld a,(0e07ah)		;582a A = *(0xE07A)
-	ld b,a			;582d B = *(0xE07A)
-	and 00fh		;582e A = *(0xE07A) & 0x0F (keep low nybble)
+	ld a,(0e07ah)		;582a A = current_track_layout
+	ld b,a			;582d B = current_track_layout
+	and 00fh		;582e A = current_track_layout__modifier
 	add a,a			;5830 A *= 2 (elements at 0x593A are pointers)
 
 	; 0x593A is a list of 5 pointers to (track) data: [0x5998, 0x59C1, 0x5A19, 0x5A1B, 0x59C3]
@@ -8220,11 +8235,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; We can get here from:
 	;   0x5814 (jump)
-	ld a,(0e07ah)		;5852
-	and 00fh		;5855 A &= 0x0F
+	ld a,(0e07ah)		;5852 A = current_track_layout
+	and 00fh		;5855 A = current_track_layout__modifier
 	ld hl,0e07dh		;5857 HL = 0xE07D
-	cp 001h			;585a
-	jr z,$+3		;585c if (z) jump to 0x585F
+	cp 001h			;585a Compute A - 0x01 and update Z/NZ flag.
+	jr z,$+3		;585c if (current_track_layout__modifier == 0x01) jump to 0x585F
 	inc (hl)		;585e
 
 
@@ -8232,20 +8247,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x576C (jump) [from=5768_update_first_line_of_track_data_in_RAM]
 ;   0x57DA (jump) [from=57a7_fixme]
-;   0x585E (fall) [from=5810_fixme]
+;   0x585C (jump] [from=5810_handle_track_layout_data__track_must_bend]
+;   0x585E (fall) [from=5810_handle_track_layout_data__track_must_bend]
 585f_read_and_handle_new_track_data_pointer_1:
 	; Copy 2 byte from ?data pointer 1?.
 	ld hl,(0e071h)		;585f LDIR: source
-	ld de,0e07ah		;5862 LDIR: destination
+	ld de,0e07ah		;5862 LDIR: destination: &current_track_layout
 	ld bc,00002h		;5865 LDIR: count
 	ldir			;5868 do { *(DE++) = *(HL++) } while (--BC)
 	ld (0e071h),hl		;586a
 
-	ld a,(0e07ah)		;586d A = *(0xE07A)
-	ld b,a			;5870 Save value in B.
-	and 00fh		;5871 A = *(0xE07A) & 0x0F
-	cp 002h			;5873 Compute A - 2 and update Z/NZ flag.
-	jr nz,$+6		;5875 if (A != 2) jump to 0x587B
+	ld a,(0e07ah)		;586d A = current_track_layout
+	ld b,a			;5870 B = current_track_layout
+	and 00fh		;5871 A = &current_track_layout__modifier
+	cp 002h			;5873 Compute A - 0x02 and update Z/NZ flag.
+	jr nz,$+6		;5875 if (&current_track_layout__modifier != 0x02) jump to 0x587B
 	
 	; Move left side of the road 1 character to the left.
 	ld hl,0e07dh		;5877 HL = 0xE07D
@@ -8267,27 +8283,27 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld l,a			;5885
 
 	ld (0e06fh),hl		;5886 track_data_pointer = HL
-	ld a,b			;5889 A = *(0xE07A) (see 0x5870)
-	and 00fh		;588a A &= 0x0F
-	sub 003h		;588c A -= 3
+	ld a,b			;5889 A = current_track_layout (see 0x5870)
+	and 00fh		;588a A = current_track_layout__modifier
+	sub 003h		;588c A = current_track_layout__modifier - 3
 	cp 002h			;588e Compute A - 0x02 and update C/NC flag.
-	jp nc,056f7h		;5890 if ((*(0xE07A) & 0x0F) not in [3,4]) jump to 0x56F7 (56f7_fixme)
+	jp nc,056f7h		;5890 if (current_track_layout__modifier not in [3,4]) jump to 0x56F7 (56f7_fixme)
 	;
-	; Post: (*(0xE07A) & 0x0F) in [3, 4]
-	ex af,af'		;5893 A' = (*(0xE07A) & 0x0F) - 3
-	ld a,b			;5894 A = *(0xE07A) (see 0x5870)
+	; Post: current_track_layout__modifier in [3, 4]
+	ex af,af'		;5893 A' = current_track_layout__modifier - 3
+	ld a,b			;5894 A = current_track_layout (see 0x5870)
 	
-	; A = *(0xE07A) >> 4, i.e. extract high nybble.
+	; A = current_track_layout__num_lanes
 	rra			;5895
 	rra			;5896
 	rra			;5897
 	rra			;5898
 	and 00fh		;5899
 
-	ld b,a			;589b B = *(0xE07A) >> 4, store high nybble.
-	ex af,af'		;589c A = (*(0xE07A) & 0x0F) - 3 (see 0x5893)
-	add a,b			;589d A = (*(0xE07A) & 0x0F) - 3 + (*(0xE07A) >> 4)
-	ld hl,058abh		;589e HL = 58ab_track_width_table (this table right after this routine)
+	ld b,a			;589b B = current_track_layout__num_lanes
+	ex af,af'		;589c A = current_track_layout__modifier - 3 (see 0x5893)
+	add a,b			;589d A = current_track_layout__modifier - 3 + current_track_layout__num_lanes
+	ld hl,058abh		;589e HL = 58ab_track_width_table (this table is right after this routine)
 	call 0403bh		;58a1 HL += A
 	ld a,(hl)		;58a4
 	ld (0e081h),a		;58a5
@@ -8417,18 +8433,18 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; Calculate the new left side of the road and store in 0xE098.
 	
-	; C = *(0xE07A) & 0x03
+	; C = current_track_layout__modifier
 	ld a,(0e07ah)		;5919
 	and 003h		;591c Keep only bit 0 and 1.
 	ld c,a			;591e
 	
-	; *(0xE098) = (*(0xE07D) << 2) | (*(0xE07A) & 0x03)
+	; left_side_of_road_ish_table[0] = (*(0xE07D) << 2) | current_track_layout__modifier
 	ld a,(0e07dh)		;591f
 	sla a			;5922 A *= 2
 	sla a			;5924 A *= 2
-	or c			;5926 A |= C
-	inc hl			;5927 HL = 0xE098
-	ld (hl),a		;5928 *(0xE098) = A
+	or c			;5926 A |= current_track_layout__modifier
+	inc hl			;5927 HL = &left_side_of_road_ish_table
+	ld (hl),a		;5928 left_side_of_road_ish_table[0] = A
 
 	ret			;5929
 

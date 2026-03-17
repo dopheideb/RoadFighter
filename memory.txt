@@ -589,22 +589,9 @@ This table was generated with:
 		
 
 		0x738C: update distance travelled
-0xE07A		Seen at 0x5150, stage related
-			0xFE:
-				special value, see 0x56FA, 0x78E4.
-			Bit 0+1, see 0x591C
-			Bit 0+1+2+3, see 0x5875:
-				0x02: Decrease 0xE07D, i.e move left side of the road 1 character to the left.
-			Bit 0+1+2+3, see 0x5704:
-				0x00: call 5768_update_first_line_of_track_data_in_RAM
-				0x01: call 5810_fixme
-				0x02: call 5810_fixme
-				0x03: call 57a7_fixme
-				0x04: call 57a7_fixme
-			Bit 4+5, see 0x5786:
-				0x00: Copy 1 lane width of track
-				0x10: Copy 2 lane widths of track
-				0x20: Copy 3 lane widths of track
+0xE07A		[&current_track_layout]
+		[&current_track_layout__num_lanes] (high nybble)
+		[&current_track_layout__modifier] (low nybble)
 		The value in 0xE07A comes from:
 			Stage 1: 0x78C4 (see 0x5161)
 			Stage 2: 0x7AAA (see 0x5167)
@@ -612,7 +599,28 @@ This table was generated with:
 			Stage 4: 0x7E83 (see 0x5173)
 			Stage 5: 0x7E60 (see 0x5179)
 			Stage 6: 0x7EA8 (see 0x517F)
-0xE07B		Bitmask 0x07: offset for table at 0x5808 (vertical pattern of left side of straight track)
+		
+		Seen at 0x5150.
+
+		0xFE:	special value, see 0x56FA, 0x78E4.
+		High nybble: (starting) track width (in number of lanes - 1)
+			0x10: 2 lanes
+			0x20: 3 lanes
+		Low nybble: track modifier
+			0x00: [TLM_STRAIGHT_AHEAD] Straigh ahead (no modifier)
+			0x01: Track bends to left
+			0x02: Track bends to the right
+			0x03: Track expands from 2 to 3 lanes, right side expands
+			0x04: Track squeezes from 3 to 2 lanes, right side squeezes
+0xE07B		[&track_layout_lines_left]
+		The value in 0xE07A comes from:
+			Stage 1: 0x78C4 (see 0x5161)
+			Stage 2: 0x7AAA (see 0x5167)
+			Stage 3: 0x7AAA (see 0x516D)
+			Stage 4: 0x7E83 (see 0x5173)
+			Stage 5: 0x7E60 (see 0x5179)
+			Stage 6: 0x7EA8 (see 0x517F)
+
 0xE07D		Side of left road?
 0xE07E		[&previous_last_bit_of_distance_travelled_middle_byte]
 		0xE078_of_previous_frame&1. Distance travelled, middle byte. Seen at 0x550D.
