@@ -436,8 +436,7 @@ This table was generated with:
 			0x10: As soon at the score is above 50,000.
 			0x15: As soon at the score is above 100,000.
 			(...)
-			0xFF: Cap, see 0x44B4
-, starts at 5, is increased with 5 at every 50000.
+			0xFF: Cap, see 0x44B4, starts at 5, is increased with 5 at every 50000.
 0xE045		Seen at 0x413F, 0x6C36, 0x425E, 0x413D.
 0xE046-0xE047	Pointer to coarse pattern names (22 per line, not 32)
 0xE048		Seen at 0x6A75, 0x6E04. ?Stored if left or right is NEWLY pressed?
@@ -567,18 +566,34 @@ This table was generated with:
 0xE06D		Byte #15
 0xE06E		Seen at 0x55F2 (stage 4)
 		Seen at 0x568D (stage 5)
-0xE06F		[&track_data_pointer] Track pointer.
-		Track data starts at:
-			0x5998
-			0x5931
-			0x5A19
-			0x5A1B
-			0x59C3
-		See 0x593A.
+0xE06F (word)	[&track_data_pointer] Track pointer.
+
+		Stage ??: 0x5998 (initial value), track names for straight ahead
+		Stage 03: 0x7C54 (initial value)
+
+		See table 0x593A.
 0xE071-0xE076	3 data pointers, see 0x5146. Data source: 0x5161
-		0xE071 (word)	Data pointer. Seen at 0x514D, 0x5157, 0x585F.
-		0xE073 (word)	Data pointer. Seen at 0x58C1.
-		0xE075 (word)	Data pointer. Seen at 0x58D0.
+0xE071 (word)	[&track_layout_pointer]. Seen at 0x514D, 0x5157, 0x585F.
+		This element 1 (1 based) of table 0x5161.
+0xE073 (word)	[&coarse_scenery_placement_pointer]. Seen at 0x58C1.
+		This element 2 (1 based) of table 0x5161.
+		Stage 1: starts as 0x78E5 (see 0x5163)
+		Stage 2: starts as 0x7BAA (see 0x5169)
+		Stage 3: starts as 0x7BAA (see 0x517F)
+		Stage 4: starts as 0x78E5 (see 0x5175)
+		Stage 5: starts as 0x78E5 (see 0x517B)
+		Stage 6: starts as 0x7F6B (see 0x5181)
+
+		low nybble: use this element of table pointed to by 0xE075. See 0x58D3.
+		high nybble:
+0xE075 (word)	[&coarse_scenery_pointer] Seen at 0x58D0.
+		This element 3 (1 based) of table 0x5161.
+		Stage 1: starts as 0x7960 (see 0x5165)
+		Stage 2: starts as 0x7ACD (see 0x516B)
+		Stage 3: starts as 0x7ACD (see 0x5171)
+		Stage 4: starts as 0x7960 (see 0x5177)
+		Stage 5: starts as 0x7960 (see 0x517D)
+		Stage 6: starts as 0x7ED1 (see 0x5183)
 0xE077-0xE079 (3 bytes!)
 		Distance travelled
 		0xE077 low byte
@@ -620,12 +635,15 @@ This table was generated with:
 			Stage 4: 0x7E83 (see 0x5173)
 			Stage 5: 0x7E60 (see 0x5179)
 			Stage 6: 0x7EA8 (see 0x517F)
-
+0xE07C (byte)	Seen at 0x5594 (stage 3).
 0xE07D		Side of left road?
 0xE07E		[&previous_last_bit_of_distance_travelled_middle_byte]
 		0xE078_of_previous_frame&1. Distance travelled, middle byte. Seen at 0x550D.
-0xE07F		Seen at 0x514A, 0x58AF
-		0x58BF: set value to 0x08
+0xE07F		[&???]
+		?Number of lines left to copy for current scenery element?
+		0x514A: set value to 0x01 (hardcoded)
+		0x58B2: value is decremented
+		0x58BF: set value to 0x08 (hardcoded)
 0xE081		Bytes of track to copy to VRAM buffer. Max 9 (3 lanes).
 		See 0x58A5, value from array at 0x58AB.
 0xE083		[&fuel_remaining]
@@ -648,28 +666,60 @@ This table was generated with:
 			Seems to go from 0x00 to 0x20 and back
 			0x00 ?
 			0x20 ?
-0xE085		?LDIR count, for copying non-default scenery?
-			0x58FF (read) LDIR count, for copying non-default scenery?
+0xE085 (word)	[&current_coarse_scenery_item__size]
+		Written as word at 0x58DD, but used as separate bytes.
+
+0xE085 (byte)	[&current_coarse_scenery_item__num_cols]
+		Number of columns of current coarse scenery item.
 			0x58DD Set new value
-0xE086		?Number of blocks with size *(0xE085)?
-			0x58B5 ?
+0xE086 (byte)	[&current_coarse_scenery_item__num_rows]
+		Number of rows of current coarse scenery item.
 			0x58DD Set new value
-0xE087		Seen at 0x58E2 Current location for writing non-default scenery?
+
+0xE087		[&current_coarse_scenery_item__pointer]
+
+		Points to the pattern names of the current coarse 
+		scenery item. Example value: 0x7972. The value at 
+		address is 0x80, the pattern name of a horizontal bash.
+
+		Seen at 0x58E2: the value is stored, right after reading 
+		the size of the coarse scenery item.
+
 0xE089		[&stage_specific_default_coarse_pattern_ID]
 		Default coarse pattern name, see 0x592A.
+
+		The value comes from table 0x5191:
+		[stage 01] 0x5191 0xA0: Grass (green) with yellow speckles
+		[stage 02] 0x5192 0xC5: Sand (yellow) with white speckles
+		[stage 03] 0x5193 0xAB: Just a piece of the bridge support (water would have been more logical IMHO)
+		[stage 04] 0x5194 0x06: Solid dark red
+		[stage 05] 0x5195 0x09: Solid light red
+		[stage 06] 0x5196 0x80: ?
+			
 			Stage 04: pattern 0x06 (completely dark red)
 0xE08A-0xE095	Words
 0xE08A (word)	?current shoreline_pattern?
 			stage 2: 0x7DC5 (see 0x50EB)
+			stage 3:
+				0x0601 (see 0x55A0) ?Draw pylon 0x01 times?
+				0x0610 (see 0x55A9) ?Draw non-pylon 0x10 times?
 			stage 4: 0x7E7C (see 0x5116)
-			stage 5: 0x7E7C (see 0x5116)
-0xE08D		Number of rows of 0xE08E
+			stage 5:
+				0x7E7C (see 0x5116)
+				0x7D8A (see 0x5128)
+0xE08C (byte)	Seen at 0x55D0, in stage 3 specific code.
+		Seen at 0x5616, in stage 4/5 specific code.
+0xE08D (byte)	Number of rows of 0xE08E
 0xE08E (word)	Pointer to some coarse data, probably scenery on the left. See 0x5639.
-0xE090 (word)	Seen at 0x56CE, pointer to data
-		0x50D8: set value to 0x7FE4 (0x0000)
-		0x50F2: set value to 0x7C85 (0x4092 or 0x9240)
-		0x557D: set value to 0x7C85 (0x4092 or 0x9240)
-		0x56C6: set value to 0x7FE4 (0x0000)
+0xE090 (word)	Stage 03: Control where water with waves appear.
+		Stage 06: ?
+
+		Read at 0x56CE.
+
+		Stage 03 (init): 0x50F2: set value to 0x7C85 (start)
+		Stage 06 (init): 0x50D8: set value to 0x7FE4 (start)
+		Stage 03 (special value 0xFF): 0x557D: set value to 0x7C85 (back to start)
+		Stage 06 (special value 0xFF): 0x56C6: set value to 0x7FE4 (back to start)
 0xE092		?
 0xE093		?
 0xE094 (word)	Seen at 0x5648. Stage 5 specific? Pointer to byte. Example values:
