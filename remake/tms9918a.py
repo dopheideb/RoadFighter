@@ -9,9 +9,12 @@ np.set_printoptions(threshold=sys.maxsize)
 
 class TMS9918A:
 	## Define 1 RGB value to be interpreted as transparent. The 
-	## actual values are not important. Use surface.set_key(0) to 
-	## map color index 0 to transparent.
-	transparent_color = (42,42,42)
+	## actual values are not important. Use surface.set_colorkey(0) 
+	## to map color index 0 to transparent.
+	## 
+	## Currently, we don't do sprites, so we have basically just 1 
+	## display plane. So every transparent pixel will be black.
+	transparent_color = (0, 0, 0)
 
 	palette_msx1 = (
 		transparent_color,	##  0. Transparent
@@ -59,6 +62,9 @@ class TMS9918A:
 		self._register[5] = 0x76		## 0x3B00 (sprite attribute table)
 		self._register[6] = 0x03		## 0x1800 (sprite pattern (generator) table)
 		self._register[7] = 0xE0		## Foreground: gray, background: transparent
+
+	def FILVRM(self: Self, address: int, byte: int, num: int) -> None:
+		self._vram[address:address+num] = np.full(shape=(num,), fill_value=byte)
 
 	def RDVRM(self: Self, address: int) -> int:
 		return self._vram[address]
@@ -283,10 +289,14 @@ class TMS9918A:
 		depth = 8
 		surface = pygame.Surface((256, 192), depth=8)
 		surface.set_palette(TMS9918A.palette_msx1)
-		surface.set_colorkey(0)
+
+		## Define the transparent color. But we don't do sprites 
+		## yet, so just skip true transparency for now.
+		#surface.set_colorkey(0, pygame.RLEACCEL)
+
 		pygame.pixelcopy.array_to_surface(
 			surface,
-			framebuffer.reshape(192,256).swapaxes(0,1)
+			framebuffer.reshape(192, 256).swapaxes(0,1)
 		)
 		return surface
 
