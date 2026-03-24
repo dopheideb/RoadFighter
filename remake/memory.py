@@ -1,7 +1,5 @@
 from typing import Self, Final, cast, Any
 
-#BYTE: Final[int] = 1
-#WORD: Final[int] = 2
 class Memory:
 	def __init__(self: Self, rom: bytes, bios=None) -> None:
 		self._bios = bios
@@ -10,19 +8,21 @@ class Memory:
 
 	def __getitem__(self: Self, key: int|slice) -> Any:
 		if isinstance(key, int):
-			(mem, offset) = self.unmap(address=key)
-			return cast(int, mem[offset])
+			(mem, address) = self.unmap(address=key)
+			if mem is None:
+				raise ValueError(f"Address 0x{address:04X} is not mapped.")
+			return cast(int, mem[address])
 
 		if isinstance(key, slice):
-			(mem,      offset_start) = self.unmap(address=key.start)
-			(mem_stop, offset_stop)  = self.unmap(address=key.stop)
+			(mem,      address_start) = self.unmap(address=key.start)
+			(mem_stop, address_stop)  = self.unmap(address=key.stop)
 
 			if mem is not mem_stop:
 				raise IndexError('Mixing RAM and ROM in a slice is not supported.')
 
 			mem_slice = slice(
-				offset_start,
-				offset_stop,
+				address_start,
+				address_stop,
 				key.step
 			)
 			return mem[mem_slice]
@@ -31,19 +31,19 @@ class Memory:
 
 	def __setitem__(self: Self, key: int|slice, val) -> None:
 		if isinstance(key, int):
-			(mem, offset) = self.unmap(address=key)
-			mem[offset] = val
+			(mem, address) = self.unmap(address=key)
+			mem[address] = val
 			return
 
 		if isinstance(key, slice):
-			(mem,      offset_start) = self.unmap(address=key.start)
-			(mem_stop, offset_stop)  = self.unmap(address=key.stop)
+			(mem,      address_start) = self.unmap(address=key.start)
+			(mem_stop, address_stop)  = self.unmap(address=key.stop)
 			if mem is not self._ram:
 				raise ValueError("Can't write to ROM.")
 
 			mem_slice = slice(
-				offset_start,
-				offset_stop,
+				address_start,
+				address_stop,
 				key.step
 			)
 			mem[mem_slice] = val
@@ -54,13 +54,14 @@ class Memory:
 	##
 	## Byte
 	##
-	def get_byte(self: Self, offset: int, signed=False) -> int:
+	def get_byte(self: Self, address: int, signed=False) -> int:
 		'''
 		Return a byte from memory as int.
 
-		If you need bytes type, just slice the object.
+		If you need bytes type, just slice the Memory object 
+		instead of calling this member.
 		'''
-		byte = cast(int, self[offset])
+		byte = cast(int, self[address])
 		if not signed:
 			## Unsigned
 			return byte
@@ -68,33 +69,33 @@ class Memory:
 			return byte
 		return -128 + (byte & 0x7F)
 
-	def set_byte(self: Self, offset: int, value: int) -> None:
+	def set_byte(self: Self, address: int, value: int) -> None:
 		'''
 		Adjust a byte in memory.
 
 		Note: using the [] operator is a more readable way to 
 		change a byte.
 		'''
-		self[offset] = value
+		self[address] = value
 
 
 
 	##
 	## Char
 	##
-	def get_char(self: Self, offset: int) -> str:
+	def get_char(self: Self, address: int) -> str:
 		'''
 		Return a byte from memory as (1 character) str. This is 
 		a convenience member, without a setter equivalent.
 		'''
-		byte = self.get_byte(offset=offset)
+		byte = self.get_byte(address=address)
 		return chr(byte)
 
 
 	##
 	## Word
 	##
-	def get_word(self: Self, offset: int) -> int:
+	def get_word(self: Self, address: int, endianness='little') -> int:
 		'''
 		Return a word (=2 bytes) from memory as int. A 'word' in 
 		Z80 is read litte endian. So if you read memory b'\dead', 
@@ -102,13 +103,17 @@ class Memory:
 		
 		If you need bytes type, just slice the object.
 		'''
-		lo_byte = cast(int, self[offset+0])
-		hi_byte = cast(int, self[offset+1])
+		if endianness == 'big':
+			hi_byte = cast(int, self[address+0])
+			lo_byte = cast(int, self[address+1])
+		else:
+			lo_byte = cast(int, self[address+0])
+			hi_byte = cast(int, self[address+1])
 		return (hi_byte << 8) | lo_byte
 
-	def set_word(self: Self, offset: int, value: int) -> None:
+	def set_word(self: Self, address: int, value: int) -> None:
 		'''
-		Write a little endian word to memory at specified offset.
+		Write a little endian word to memory at specified address.
 		'''
 		if value < 0 or value > 0xFFFF:
 			raise ValueError("Value must be a 16 bit unsigned int value.")
@@ -116,20 +121,24 @@ class Memory:
 		lo_byte = value & 0xFF
 		hi_byte = value >> 8
 
-		## Perhaps we are being paranoid, but splitting we 
+		## Perhaps we are being paranoid, but by splitting we 
 		## handle the case of writing to memory mapped I/O, say 
 		## to 0xFFFE, as 0xFFFF is not RAM but the subslot 
 		## select register.
-		(mem_lo_byte, offset_lo_byte) = self.unmap(address=offset+0)
-		(mem_hi_byte, offset_hi_byte) = self.unmap(address=offset+1)
+		(mem_lo_byte, address_lo_byte) = self.unmap(address=address+0)
+		(mem_hi_byte, address_hi_byte) = self.unmap(address=address+1)
 
-		mem_lo_byte[offset_lo_byte] = lo_byte
-		mem_hi_byte[offset_hi_byte] = hi_byte
+		mem_lo_byte[address_lo_byte] = lo_byte
+		mem_hi_byte[address_hi_byte] = hi_byte
+
+	def get(self: Self, address: int, num: int) -> bytearray:
+		slc = slice(address, address + num)
+		return self[slc]
 
 	def unmap(self: Self, address: int) -> tuple:
 		'''
-		Unmap an offset, returning the actual memory object and 
-		the actual offset for said object.
+		Unmap an address, returning the actual memory object and 
+		the actual address for said object.
 
 		What does 'unmap' mean here? Reading/writing to memory 
 		mapped I/O means that the Z80 has to read/write from 
@@ -160,10 +169,10 @@ if __name__ == '__main__':
 	mem = Memory(rom=rf_rom)
 
 	## Test the cartridge header in various ways.
-	assert  'A' == mem.get_char(offset=0x4000)
+	assert  'A' == mem.get_char(address=0x4000)
 	assert b'A' == mem[0x4000:0x4001]
-	assert ord('B') == mem.get_byte(offset=0x4001)
-	assert 0x4241 == mem.get_word(offset=0x4000)
+	assert ord('B') == mem.get_byte(address=0x4001)
+	assert 0x4241 == mem.get_word(address=0x4000)
 	assert b'AB' == mem[0x4000:0x4002]
 
 	## Write and read a byte via [] operator.
@@ -193,5 +202,5 @@ if __name__ == '__main__':
 	assert b'CD' == mem[0xE000:0xE002]
 
 	## Write and read a word set_word() and get_word().
-	mem.set_word(offset=0xE002, value=0x4546)
-	assert 0x4546 == mem.get_word(offset=0xE002)
+	mem.set_word(address=0xE002, value=0x4546)
+	assert 0x4546 == mem.get_word(address=0xE002)
