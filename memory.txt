@@ -438,7 +438,25 @@ This table was generated with:
 			(...)
 			0xFF: Cap, see 0x44B4, starts at 5, is increased with 5 at every 50000.
 0xE045		Seen at 0x413F, 0x6C36, 0x425E, 0x413D.
-0xE046-0xE047	Pointer to coarse pattern names (22 per line, not 32)
+0xE046 (word)	[&course_pattern_names__start_address]
+
+		Pointer to coarse pattern names. The coarse is the part 
+		that starts at column 2 (1 based) (i.e. after the all 
+		black column at the left). The coarse ends right before 
+		the column where the H of HISCORE is.
+
+		A whole line of VDP is 32 patterns, the HISCORE part is 
+		7 patterns wide, the far left all black column is 1 
+		character wide, the far right all black columns is 2 
+		characters wide. So the coarse part is 22 columns wide: 
+		32 - 7 - 1 - 2 = 22
+
+		0x50B6: Value is set to 0xE186, at the beginning of each stage.
+
+		Typically points to an address in the range 
+		[0xE186..0xE395], since that range holds the RAM version 
+		of actual course pattern names.
+
 0xE048		Seen at 0x6A75, 0x6E04. ?Stored if left or right is NEWLY pressed?
 			0x04 "Left"
 			0x08 "Right"
@@ -541,7 +559,11 @@ This table was generated with:
 		Low byte of fuel_used.
 0xE057 (byte)	[&fuel_used__high_byte]
 		High byte of fuel_used.
-0xE058-0xE06D	0x16 (22) bytes. Pattern names ?of next coarse line?
+0xE058-0xE06D	[&???]
+		0x16 (22) bytes. Pattern names of next coarse line. 
+		These names will be copied to somewhere inside 
+		[0xE186..0xE395] during routing 0x5716.
+
 0xE058		Byte #00
 0xE059		Byte #01
 0xE05A		Byte #02
@@ -635,7 +657,9 @@ This table was generated with:
 			Stage 4: 0x7E83 (see 0x5173)
 			Stage 5: 0x7E60 (see 0x5179)
 			Stage 6: 0x7EA8 (see 0x517F)
-0xE07C (byte)	Seen at 0x5594 (stage 3).
+0xE07C (byte)	[&stage03_draw_non_bridge_element] Boolean
+		[stage 03] 0x50FD: Initial value is set to 0x01 (draw non-bridge element).
+		[stage 03] 0x5594: boolean is flipped.
 0xE07D		Side of left road?
 0xE07E		[&previous_last_bit_of_distance_travelled_middle_byte]
 		0xE078_of_previous_frame&1. Distance travelled, middle byte. Seen at 0x550D.
@@ -706,22 +730,28 @@ This table was generated with:
 			stage 4: 0x7E7C (see 0x5116)
 			stage 5:
 				0x7E7C (see 0x5116)
-				0x7D8A (see 0x5128)
+				0x7D8A (see 0x5128)z
 0xE08C (byte)	Seen at 0x55D0, in stage 3 specific code.
 		Seen at 0x5616, in stage 4/5 specific code.
 0xE08D (byte)	Number of rows of 0xE08E
 0xE08E (word)	Pointer to some coarse data, probably scenery on the left. See 0x5639.
 0xE090 (word)	Stage 03: Control where water with waves appear.
+		Stage 04: ?Keeps track of where we are in table 0x7E57.?
+		Stage 05: ?Keeps track of where we are in table 0x7E57.?
 		Stage 06: ?
 
 		Read at 0x56CE.
 
 		Stage 03 (init): 0x50F2: set value to 0x7C85 (start)
+		Stage 04 (init): 0x551C: set value to 0x7E57 (start)
+		Stage 05 (init): 0x551C: set value to 0x7E57 (start)
 		Stage 06 (init): 0x50D8: set value to 0x7FE4 (start)
 		Stage 03 (special value 0xFF): 0x557D: set value to 0x7C85 (back to start)
 		Stage 06 (special value 0xFF): 0x56C6: set value to 0x7FE4 (back to start)
-0xE092		?
-0xE093		?
+0xE092 (byte)	Seen at 0x5662. Stage 5 specific. ?Repeat count of current shoreline pattern set, see 0xE090?
+		[stage 05] 0x512E: Initial value is 0x0E.
+		[stage 05] 0x5652: decremented
+0xE093 (byte)	[stage 05] 0x512E: Initial value is 0x01.
 0xE094 (word)	Seen at 0x5648. Stage 5 specific? Pointer to byte. Example values:
 			0x7DC5
 			0x7E25
@@ -1168,44 +1198,63 @@ This table was generated with:
 			0xE170
 			0xE171
 
-0xE186-E395	Coarse pattern name table.
+0xE186-0xE395	Coarse pattern name table.
+
+		This is essentially the RAM version of the pattern name 
+		table. However, there are a few differences to note:
+
+		    1. This is NOT the whole pattern name table.
+
+		    2. The start is not static 0xE186, but dynamical, 
+		       governed by word at 0xE046.
+
+		    3. This table is "wraparound".
+
+		Ad 1. This table is much smaller as it holds only the 
+		pattern names for the coarse part. The coarse has only 
+		22 characters per row (while a whole VDP row has 32 
+		characters). The number of rows is the same: 24. The 
+		size of this table is therefore 22*24=528 bytes.
+
+		Ad 2+3. The start is kept at 0xE046. If the address is 
+		larger than 0xE395, substract the size of the table 
+		(528).
+
+		By using 2+3, Konami did not need to use LDIR to move 
+		old coarse lines "down" to make room for the new coarse 
+		row.
 		
-		The first line of characters looks like this:
+		The first line of pattern names like this if 
+		(*0xE046) == 0xE20A:
+
 		INDEX    00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F   10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F
 		EXAMPLE  00   A0   A0   A0   A0   A0   42   42   A0   58   D0   D0   D1   D0   D0   59   A0   A0   A0   A0   4B   A0   A0   'H'  'I'  'S'  'C'  'O'  'R'  'E'  00   00    
-		MEMORY  ---- E186 E187 E188 E189 E18A E18B E18C E18D E18E E18F E190 E191 E192 E193 E194 E195 E196 E197 E198 E199 E19A E19B ---- ---- ---- ---- ---- ---- ---- ---- ----
+		MEMORY  ---- E20A E20B E20C E20D E20E E20F E210 E211 E212 E213 E214 E215 E216 E217 E218 E219 E21A E21B E21C E21D E21E E21F ---- ---- ---- ---- ---- ---- ---- ---- ----
 		
-		Lookup map:
-		column   |  00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F   10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F
-		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
-		row 0x00 | ---- E186 E187 E188 E189 E18A E18B E18C E18D E18E E18F E190 E191 E192 E193 E194 E195 E196 E197 E198 E199 E19A E19B ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x01 | ---- E19C E19D E19E E19F E1A0 E1A1 E1A2 E1A3 E1A4 E1A5 E1A6 E1A7 E1A8 E1A9 E1AA E1AB E1AC E1AD E1AE E1AF E1B0 E1B1 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x02 | ---- E1B2 E1B3 E1B4 E1B5 E1B6 E1B7 E1B8 E1B9 E1BA E1BB E1BC E1BD E1BE E1BF E1C0 E1C1 E1C2 E1C3 E1C4 E1C5 E1C6 E1C7 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x03 | ---- E1C8 E1C9 E1CA E1CB E1CC E1CD E1CE E1CF E1D0 E1D1 E1D2 E1D3 E1D4 E1D5 E1D6 E1D7 E1D8 E1D9 E1DA E1DB E1DC E1DD ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x04 | ---- E1DE E1DF E1E0 E1E1 E1E2 E1E3 E1E4 E1E5 E1E6 E1E7 E1E8 E1E9 E1EA E1EB E1EC E1ED E1EE E1EF E1F0 E1F1 E1F2 E1F3 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x05 | ---- E1F4 E1F5 E1F6 E1F7 E1F8 E1F9 E1FA E1FB E1FC E1FD E1FE E1FF E200 E201 E202 E203 E204 E205 E206 E207 E208 E209 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x06 | ---- E20A E20B E20C E20D E20E E20F E210 E211 E212 E213 E214 E215 E216 E217 E218 E219 E21A E21B E21C E21D E21E E21F ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x07 | ---- E220 E221 E222 E223 E224 E225 E226 E227 E228 E229 E22A E22B E22C E22D E22E E22F E230 E231 E232 E233 E234 E235 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
-		row 0x08 | ---- E236 E237 E238 E239 E23A E23B E23C E23D E23E E23F E240 E241 E242 E243 E244 E245 E246 E247 E248 E249 E24A E24B ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x09 | ---- E24C E24D E24E E24F E250 E251 E252 E253 E254 E255 E256 E257 E258 E259 E25A E25B E25C E25D E25E E25F E260 E261 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x0A | ---- E262 E263 E264 E265 E266 E267 E268 E269 E26A E26B E26C E26D E26E E26F E270 E271 E272 E273 E274 E275 E276 E277 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x0B | ---- E278 E279 E27A E27B E27C E27D E27E E27F E280 E281 E282 E283 E284 E285 E286 E287 E288 E289 E28A E28B E28C E28D ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x0C | ---- E28E E28F E290 E291 E292 E293 E294 E295 E296 E297 E298 E299 E29A E29B E29C E29D E29E E29F E2A0 E2A1 E2A2 E2A3 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x0D | ---- E2A4 E2A5 E2A6 E2A7 E2A8 E2A9 E2AA E2AB E2AC E2AD E2AE E2AF E2B0 E2B1 E2B2 E2B3 E2B4 E2B5 E2B6 E2B7 E2B8 E2B9 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x0E | ---- E2BA E2BB E2BC E2BD E2BE E2BF E2C0 E2C1 E2C2 E2C3 E2C4 E2C5 E2C6 E2C7 E2C8 E2C9 E2CA E2CB E2CC E2CD E2CE E2CF ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x0F | ---- E2D0 E2D1 E2D2 E2D3 E2D4 E2D5 E2D6 E2D7 E2D8 E2D9 E2DA E2DB E2DC E2DD E2DE E2DF E2E0 E2E1 E2E2 E2E3 E2E4 E2E5 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
-		row 0x10 | ---- E2E6 E2E7 E2E8 E2E9 E2EA E2EB E2EC E2ED E2EE E2EF E2F0 E2F1 E2F2 E2F3 E2F4 E2F5 E2F6 E2F7 E2F8 E2F9 E2FA E2FB ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x11 | ---- E2FC E2FD E2FE E2FF E300 E301 E302 E303 E304 E305 E306 E307 E308 E309 E30A E30B E30C E30D E30E E30F E310 E311 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x12 | ---- E312 E313 E314 E315 E316 E317 E318 E319 E31A E31B E31C E31D E31E E31F E320 E321 E322 E323 E324 E325 E326 E327 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x13 | ---- E328 E329 E32A E32B E32C E32D E32E E32F E330 E331 E332 E333 E334 E335 E336 E337 E338 E339 E33A E33B E33C E33D ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x14 | ---- E33E E33F E340 E341 E342 E343 E344 E345 E346 E347 E348 E349 E34A E34B E34C E34D E34E E34F E350 E351 E352 E353 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x15 | ---- E354 E355 E356 E357 E358 E359 E35A E35B E35C E35D E35E E35F E360 E361 E362 E363 E364 E365 E366 E367 E368 E369 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x16 | ---- E36A E36B E36C E36D E36E E36F E370 E371 E372 E373 E374 E375 E376 E377 E378 E379 E37A E37B E37C E37D E37E E37F ---- ---- ---- ---- ---- ---- ---- ---- ----
-		row 0x17 | ---- E380 E381 E382 E383 E384 E385 E386 E387 E388 E389 E38A E38B E38C E38D E38E E38F E390 E391 E392 E393 E394 E395 ---- ---- ---- ---- ---- ---- ---- ---- ----
-		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
-		row 0x18 | ---- E396 E397 E398 E399 E39A E39B E39C E39D E39E E39F E3A0 E3A1 E3A2 E3A3 E3A4 E3A5 E3A6 E3A7 E3A8 E3A9 E3AA E3AB ---- ---- ---- ---- ---- ---- ---- ---- ----
-		---------+----------------------------------------------------------------------------------------------------------------------------------------------------------------
-		column   |  00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F   10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F
-
+		          | Start address of the row
+		(*0xE046) |  00   01   02   03   04   05   06   07   08   09   10   11   12   13   14   15   16   17   18   19   20   21   22   23
+		----------+-----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+----+
+		0xE186    | E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380
+		0xE19C    | E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186
+                0xE1B2    | E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C
+                0xE1C8    | E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2
+                0xE1DE    | E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8
+                0xE1F4    | E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE
+                0xE20A    | E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4
+                0xE220    | E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A
+                0xE236    | E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220
+                0xE24C    | E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236
+                0xE262    | E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C
+                0xE278    | E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262
+                0xE28E    | E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278
+                0xE2A4    | E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E
+                0xE2BA    | E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4
+                0xE2D0    | E2D0 E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA
+                0xE2E6    | E2E6 E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0
+                0xE2FC    | E2FC E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6
+                0xE312    | E312 E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC
+                0xE328    | E328 E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312
+                0xE33E    | E33E E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328
+                0xE354    | E354 E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E
+                0xE36A    | E36A E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354
+                0xE380    | E380 E186 E19C E1B2 E1C8 E1DE E1F4 E20A E220 E236 E24C E262 E278 E28E E2A4 E2BA E2D0 E2E6 E2FC E312 E328 E33E E354 E36A

@@ -6149,22 +6149,22 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code:
 	call 05132h		;50bf 5132_setup_stage_specific_stuff_something
 	ld a,(0e043h)		;50c2 A = stage
-	dec a			;50c5 Make stage 0 based.
+	dec a			;50c5 Make the value 0 based.
 	call 04045h		;50c6 PC = PC[2 * A]
 
 ; Jump table, see 0x50C6.
-	defw 0x50E7		;50c9 #00: Stage 1 50e7_init_stage_1
-	defw 0x50E8		;50cb #01: Stage 2 50e8_init_stage_2
-	defw 0x50EF		;50cd #02: Stage 3 50ef_init_stage_3
-	defw 0x510A		;50cf #03: Stage 4 510a_init_stage_4_and_partly_stage_5
-	defw 0x5122		;50d1 #04: Stage 5 5122_init_stage_5
-	defw 0x50D5		;50d3 #05: Stage 6 50d5_init_stage_6
+	defw 0x50E7		;50c9 #00: Stage 1 50e7_init_stage_01
+	defw 0x50E8		;50cb #01: Stage 2 50e8_init_stage_02
+	defw 0x50EF		;50cd #02: Stage 3 50ef_init_stage_03
+	defw 0x510A		;50cf #03: Stage 4 510a_init_stage_04_and_partly_stage_05
+	defw 0x5122		;50d1 #04: Stage 5 5122_init_stage_05
+	defw 0x50D5		;50d3 #05: Stage 6 50d5_init_stage_06
 
 
 
 ; We can get here from:
 ;   0x50C6 (jump) index #05 of jump table (stage 6)
-50d5_init_stage_6:
+50d5_init_stage_06:
 	ld hl,07fe4h		;50d5 HL = 0x7FE4
 	ld (0e090h),hl		;50d8 *(0xE090) = 0x7FE4
 	ret			;50db
@@ -6196,14 +6196,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x50C6 (jump) index #00 of jump table (stage 1)
-50e7_init_stage_1:
+50e7_init_stage_01:
 	ret			;50e7
 
 
 
 ; We can get here from:
 ;   0x50C6 (jump) index #01 of jump table (stage 2)
-50e8_init_stage_2:
+50e8_init_stage_02:
 	ld hl,07dc5h		;50e8 HL = 7dc5_shoreline_pattern_names
 	ld (0e08ah),hl		;50eb
 	ret			;50ee
@@ -6212,26 +6212,28 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x50C6 (jump) index #02 of jump table (stage 3)
-50ef_init_stage_3:
+50ef_init_stage_03:
 	ld hl,07c85h		;50ef HL = 0x7C85
-	ld (0e090h),hl		;50f2
+	ld (0e090h),hl		;50f2 *(0xE090) = 0x7C85
 	
 	ld hl,07c54h		;50f5 HL = 7c54_stage_03_left_and_right_side_of_bridge__pattern_names__no_pylon
-	ld (0e06fh),hl		;50f8 track_data_pointer = HL
+	ld (0e06fh),hl		;50f8 track_data_pointer = 7c54_stage_03_left_and_right_side_of_bridge__pattern_names__no_pylon
 	
 	ld a,001h		;50fb A = 0x01
-	ld (0e07ch),a		;50fd
-	ld (0e08ah),a		;5100 ?Set repeat count of non-pylon to 1?
-	ld hl,07aa1h		;5103 HL = 7aa1_location_and_type_of_oil__stage_3
-	ld (0e0b2h),hl		;5106
+	ld (0e07ch),a		;50fd Must draw non-pylon element.
+	ld (0e08ah),a		;5100 Set repeat count of non-pylon to 1.
+
+	ld hl,07aa1h		;5103 HL = 7aa1_location_and_type_of_oil__stage_03
+	ld (0e0b2h),hl		;5106 &oil_details = 7aa1_location_and_type_of_oil__stage_03
+
 	ret			;5109
 
 
 
 ; We can get here from:
 ;   0x50C6 (jump) index #03 of jump table (stage 4)
-;   0x5122 (call) [from=5122_init_stage_5]
-510a_init_stage_4_and_partly_stage_5:
+;   0x5122 (call) [from=5122_init_stage_05]
+510a_init_stage_04_and_partly_stage_05:
 	; Copy whole table 0x5116 to 0xE08A.
 	ld hl,05116h		;510a LDIR: source = 5116_stage_04_05_data
 	ld de,0e08ah		;510d LDIR: destination = 0xE08A
@@ -6258,8 +6260,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x50C6 (jump) index #04 of jump table (stage 5)
-5122_init_stage_5:
-	call 0510ah		;5122 510a_init_stage_4_and_partly_stage_5
+5122_init_stage_05:
+	call 0510ah		;5122 510a_init_stage_04_and_partly_stage_05
 	ld hl,07d8ah		;5125 HL = 0x7D8A
 	ld (0e08ah),hl		;5128
 	ld hl,0010eh		;512b HL = 0x010E
@@ -6802,8 +6804,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	; Element #02. (But the code uses 1-based addressing, so this is element #03.)
 	defb 0x00		;531d [03-A] Green car
-	defb 0x04		;531e [03-A] hpos_offset
-	defb 0x18		;531f [03-A] wait_ticks
+	defb 0x04		;531e [03-A] wait_ticks
+	defb 0x18		;531f [03-A] hpos_offset
 	;
 	defb 0x00		;5320 [03-B] Green car
 	defb 0x08		;5321 [03-B] wait_ticks
@@ -7049,7 +7051,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x06		;53c9 0x532F: Green, blue
 	defb 0x0A		;53ca 0x5347: Green, truck
 	; https://www.msx.org/forum/msx-talk/software-and-gaming/did-anyone-ever-finish-road-fighter-level-b?page=1 
-	; suggest to replace 0x53CB: From 0xFF to 0x05, i.e. insert 
+	; suggests to replace 0x53CB: From 0xFF to 0x05, i.e. insert a 
 	; bonus fuel heart.
 	defb 0xFF		;53cb Repeat
 	defb 0xFF		;53cc (Unused data.)
@@ -7337,7 +7339,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x553D (call) [from=553a_post_routine_for_all_stages_something]
+;   0x553D (call) [from=553a_post_routine_for_all_stages]
 54af_oil_something:
 	ld hl,0e0b4h		;54af HL = 0xE0B4
 	ld a,(hl)		;54b2 A = *(0xE0B4)
@@ -7503,10 +7505,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x55D9 (jump) [stage 3]
 ;   0x55E1 (jump) [stage 3]
 ;   0x5699 (jump) [stage 5]
-553a_post_routine_for_all_stages_something:
+553a_post_routine_for_all_stages:
 	call 05944h		;553a 5944_if_finish_in_sight_then_write_checkpoint_or_goal_to_RAM_buffer
 	call 054afh		;553d 54af_oil_something
-	call 05716h		;5540 5716_fixme
+	call 05716h		;5540 5716_write_new_coarse_lines_to_current_coarse
 	pop hl			;5543 ?Don't return to caller?
 	ret			;5544
 
@@ -7540,19 +7542,24 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x5523 (call) Jump table entry for stage 3.
 5563_stage_03_specific_code:
 	; Write the water/waves pattern names to RAM, 0x0C patterns, to 
-	; the left half.
+	; the left "half".
 	ld de,0e058h		;5563 DE = 0xE058
 	call 056cch		;5566 56cc_stage_03_06_specific_pattern_name_to_new_coarse_line__first_0x0C_names
 
 	; Write the water/waves pattern names to RAM, 0x0A patterns, to 
-	; the right half.
+	; the right "half".
 	ld b,00ah		;5569 B = 0x0A
 	call 056ceh		;556b 56ce_stage_03_06_specific_pattern_name_to_new_coarse_line
 
+	; *(0xE090) += 2
 	ld hl,(0e090h)		;556e
 	inc hl			;5571
 	inc hl			;5572
 	ld (0e090h),hl		;5573
+
+	; HL points to (somewhere inside) table 0x7C85.
+	;
+	; A = *(0x7C85 + x)
 	ld a,(hl)		;5576
 
 	; Check for special value 0xFF.
@@ -7571,18 +7578,22 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc a			;5584
 	jr nz,$+46		;5585 if (not special value) jump to 0x55B3
 
-	; Special value. ?Reset to 0x7C54?
+	; Handle special value. Reset to 0x7C23 or 0x7C54 (depending on current value of HL).
 	ld bc,0ffd0h		;5587 BC = 0xFFD0 (-0x30)
 	add hl,bc		;558a HL -= 0x30
 	ld (0e06fh),hl		;558b track_data_pointer = HL
 
-	; ?Decrement repeat count?
+	; Decrement repeat count of bridge/pylon element or non-bridge/pylon.
 	ld hl,0e08ah		;558e HL = 0xE08A
-	dec (hl)		;5591
+	dec (hl)		;5591 --*(0xE08A), and update Z/NZ flag.
 
-	jr nz,$+82		;5592 if (nz) jump to 0x55E4
-
-	; ?Write side of the road? Alternating between pattern names 0x80 and 0x81.
+	jr nz,$+82		;5592 if (nz) jump to 0x55E4: ++HL, *(HL) = 0x06, jump to 0x55B3
+	
+	; The repeat count is zero. So we are done with bridge/pylon 
+	; element and must switch to non-bridge/pylon (or the other way 
+	; around).
+	;
+	; 0xE07C keeps track of this alternation. Alternate now.
 	ld de,0e07ch		;5594 DE = 0xE07C
 	ld a,(de)		;5597
 	and 001h		;5598 A &= 0x01
@@ -7593,14 +7604,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld bc,00601h		;55a0 BC = 0x0601
 	and a			;55a3 Update Z/NZ flag.
 	jr z,$+7		;55a4 if (z) jump to 0x55AB
-	ld de,07c54h		;55a6 DE = 0x7C54
+	ld de,07c54h		;55a6 DE = 7c54_stage_03_left_and_right_side_of_bridge__pattern_names__no_pylon
 	ld c,010h		;55a9 BC = 0x0610
 
 	; We can get here from:
 	;   0x55A4 (jump)
 	;   0x55A9 (fall)
 	ld (0e06fh),de		;55ab track_data_pointer = DE
-	ld (0e08ah),bc		;55af ???
+	ld (0e08ah),bc		;55af Vertical size of 1 element: 6, repeat count: 1 (pylon element) or 10 (pylon element)
 
 	; Copy 4 pattern names that make up the LEFT side of the bridge 
 	; (water and side, or pylon and side).
@@ -7638,18 +7649,18 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 	; Determine if road with white vertical dash has to be written. 
 	; Occurs 2 times for every 4 lines.
-	ld hl,0e08ch		;55d0 HL = E08C
+	ld hl,0e08ch		;55d0 HL = 0xE08C
 	inc (hl)		;55d3 Increment
 	ld a,(hl)		;55d4 A = *(HL)
 	and 003h		;55d5 A &= 0x03
 	cp 002h			;55d7 Compute A - 0x02 and update C/NC flag.
-	jp nc,0553ah		;55d9 if (no carry) early exit to 553a_post_routine_for_all_stages_something
+	jp nc,0553ah		;55d9 if (no carry) early exit to 553a_post_routine_for_all_stages
 
 	; Write the white dash in the middle of the road.
 	ld hl,0e063h		;55dc HL = 0xE063 (byte 0x0B of upcoming coarse line)
 	ld (hl),0d1h		;55df *(HL) = 0xD1, pattern name of road with white dash.
 
-	jp 0553ah		;55e1 jump to 0x553A: 553a_post_routine_for_all_stages_something
+	jp 0553ah		;55e1 jump to 0x553A: 553a_post_routine_for_all_stages
 
 
 
@@ -7698,7 +7709,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr nz,$+47		;5604 if (nz) jump to 0x5633
 	
 	; Number of scenery lines remaining is 0.
-	dec hl			;5606
+	dec hl			;5606 HL = 0xE08C
 	dec (hl)		;5607
 	jr nz,$+18		;5608 if (nz) jump to 0x561A
 	
@@ -7706,11 +7717,18 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	inc hl			;560d
 	ld (0e08ah),hl		;560e
 	ld a,(hl)		;5611
+
+	; A = (A >> 2) & 0x03, extract bits 2 and 3.
 	rra			;5612
 	rra			;5613
 	and 03fh		;5614
-	ld de,0e08ch		;5616
+
+	ld de,0e08ch		;5616 DE = 0xE08C
 	ld (de),a		;5619
+
+	; We can get here from:
+	;   0x5608 (jump) [from=self]
+	;   0x5619 (fall) [from=self]
 	ld hl,(0e08ah)		;561a
 	ld a,(hl)		;561d
 	and 003h		;561e A &= 0x03 (since table has only 4 entries)
@@ -7729,19 +7747,20 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ldi			;562e *(DE++) = *(HL++), --BC
 	ld (0e08eh),hl		;5630
 
-; We can get here from:
-;   0x5604 (jump)
-;   0x5630 (fall)
-5633_fixme:
+	; We can get here from:
+	;   0x5604 (jump) [from=self]
+	;   0x5630 (fall) [from=self]
+	;
 	; Copy scenery data for left side of the track.
 	; 
 	; Copy 7 bytes from *(0xE08E) to 0xE058.
-	ld de,0e058h		;5633 DE = 0xE058
-	ld bc,00007h		;5636 BC = 0x0007
-	ld hl,(0e08eh)		;5639 HL = *(0xE08E)
+	ld de,0e058h		;5633 LDIR: destination = 0xE058
+	ld bc,00007h		;5636 LDIR: count = 0x0007
+	ld hl,(0e08eh)		;5639 LDIR: source = *(0xE08E)
 	ldir			;563c do { *(DE++) = *(HL++) } while (--BC)
 	
 	ld (0e08eh),hl		;563e Store beginning of next scenery line.
+
 	ret			;5641
 
 
@@ -7759,12 +7778,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	jr nz,$+41		;564d if (nz) jump to 0x5676
 	
 	ld hl,0e092h		;564f HL = 0xE092
-	dec (hl)		;5652
+	dec (hl)		;5652 --*(HL), and update Z/NZ flag.
 	ld hl,(0e090h)		;5653
 	jr nz,$+15		;5656 if (*(0xE092) != 0) jump to 0x5665
 	
-	inc hl			;5658 HL = 0xE093
+	; Advance to next byte of where we are in table 0x7E57.
+	inc hl			;5658
 	ld (0e090h),hl		;5659
+
 	ld a,(hl)		;565c
 	ld b,a			;565d B = A
 	
@@ -7775,12 +7796,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld (0e092h),a		;5662
 	
 	; We can get here from:
-	;   0x5656 (jump) [from=self] *(0xE092) was already non-zero
-	;   0x5662 (fall) [from=self] *(0xE092) was zero, but set now
+	;   0x5656 (jump) [from=self] HL == *(0xE090), *(0xE092) was already non-zero
+	;   0x5662 (fall) [from=self] HL == *(0xE090), *(0xE092) was zero, but set now
 	ld a,(hl)		;5665
 	and 003h		;5666 A &= 0x03 (keep lower 2 bits)
 	add a,a			;5668 A *= 2
-	ld hl,056a4h		;5669 HL = 0x56A4 (table ?to railroad track?)
+	ld hl,056a4h		;5669 HL = 0x56A4 (table of ?shoreline patterns?)
 	call 0403bh		;566c HL += A
 	
 	; HL = *(HL)
@@ -7801,10 +7822,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 		cp 003h		;567d Compute A - 0x03 and update Z/NZ flag.
 	exx			;567f Restore HL, stored at 0x5676.
 	jr nz,$+11		;5680 if ((*(0xE090) & 0x03) != 0) jump to 0x568B
-	
+	; Post: ((*(0xE090) & 0x03) == 0x00
+	;
 	ld (0e094h),hl		;5682
 	ld bc,00004h		;5685 ?Elements are 4 bytes each?
-	add hl,bc		;5688
+	add hl,bc		;5688 HL += 0x0004
 	
 	jr $+13			;5689 jump to 0x5696
 	
@@ -7815,10 +7837,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld b,004h		;568b DJNZ@5694: B = 0x04
 	ld de,0e06eh		;568d DE = 0xE06E
 	
+	; Write pattern names of water to the right side of the screen 
+	; (well, to the pre RAM version).
 	5690_start_of_djnz_loop:
 	ld a,(hl)		;5690
 	ld (de),a		;5691
-	dec de			;5692
+	dec de			;5692 Move "left".
 	inc hl			;5693
 	djnz $-4		;5694 if (--B != 0) jump to 0x5690 (5690_start_of_djnz_loop)
 	
@@ -7826,17 +7850,17 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   0x5689 (jump) [from=self]
 	;   0x5694 (fall) [from=self]
 	ld (0e094h),hl		;5696
-	jp 0553ah		;5699 553a_post_routine_for_all_stages_something
+	jp 0553ah		;5699 553a_post_routine_for_all_stages
 
 
 
-; Data, see 0x5621. Stage 4+5.
+; Table with pointers, see 0x5621. Stage 4+5.
 	defw 0x7C92		;569c #00
 	defw 0x7CA1		;569e #01
 	defw 0x7CB0		;56a0 #02 Stage 4+5, left scenery.
 	defw 0x7D7C		;56a2 #03
 
-; Data, see 0x5669. Only for stage 5? Railroad track
+; Table with pointers, see 0x5669. Only for stage 5? Railroad track
 	defw 0x7D94		;56a4 #00
 	defw 0x7DC5		;56a6 #01 7dc5_shoreline_pattern_names
 	defw 0x7E26		;56a8 #02
@@ -7888,8 +7912,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   DE: Write the generated pattern names to this location.
 ;
 ; We can get here from:
-;   0x556B (call) [from=5563_stage_03_specific_code]                                                 Stage == 3, DE == 0xE064?, B == 0x0A
-;   0x56B4 (call) [from=56ac_stage_06_specific_code]                                                 Stage == 6, DE == 0xE064?, B == 0x0A
+;   0x556B (call) [from=5563_stage_03_specific_code]                                                 Stage == 3, DE == 0xE064, B == 0x0A
+;   0x56B4 (call) [from=56ac_stage_06_specific_code]                                                 Stage == 6, DE == 0xE064, B == 0x0A
 ;   0x56CC (fall) [from=56cc_stage_03_06_specific_pattern_name_to_new_coarse_line__first_0x0C_names] Stage == 3, DE == 0xE058, B == 0x0C
 ;   0x56CC (fall) [from=56cc_stage_03_06_specific_pattern_name_to_new_coarse_line__first_0x0C_names] Stage == 6, DE == 0xE058, B == 0x0C
 56ce_stage_03_06_specific_pattern_name_to_new_coarse_line:
@@ -7993,25 +8017,43 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; Copy the newly constructed coarse pattern name line to the RAM version 
+; of the current coarse pattern names table.
+;
+; It basically copies [0xE058..0xE06D] to *(0xE046).
+; 
 ; We can get here from:
-;   0x5540 (call) [from=553a_post_routine_for_all_stages_something]
-5716_fixme:
-	ld hl,(0e046h)		;5716 HL = *(0xE046)
+;   0x5540 (call) [from=553a_post_routine_for_all_stages]
+5716_write_new_coarse_lines_to_current_coarse:
+	; course_pattern_names__start_address -= 22
+	ld hl,(0e046h)		;5716 HL = course_pattern_names__start_address
 	ld bc,0ffeah		;5719 BC = -0x16
 	add hl,bc		;571c HL -= 0x16 (22)
-	ld (0e046h),hl		;571d
+	ld (0e046h),hl		;571d course_pattern_names__start_address -= 22
+
+	; if (not special situation) jump to actual copy.
 	ld bc,0e170h		;5720 BC = 0xE170
 	and a			;5723 Reset carry flag, for sbc.
 	sbc hl,bc		;5724 HL -= BC
-	jr nz,$+8		;5726 if (*(0xE046) != 0xE186) jump to 0x572E
-	
+	jr nz,$+8		;5726 if (course_pattern_names__start_address != 0xE186 - 0x16) jump to 0x572E
+	;
+	; Special situation: at the start of this routine, 
+	; course_pattern_names__start_address was 0xE186. This comes from the 
+	; initializing routine 504c_init_stage at 0x50B9. It means the 
+	; coarse has to drop in from the top, patterns line by pattern 
+	; line.
+	;
 	; Reset *0xE046 to value 0xE380: the last row of coarse pattern 
 	; name table.
 	ld hl,0e380h		;5728 HL = 0xE380
-	ld (0e046h),hl		;572b
+	ld (0e046h),hl		;572b course_pattern_names__start_address = 0xE380
 	
+	; We can get here from:
+	;   0x5726 (jump) [from=self] course_pattern_names__start_address != 0xE380
+	;   0x572B (fall) [from=self] course_pattern_names__start_address == 0xE380
+
 	; Copy 1 line of new coarse to current coarse.
-	ld de,(0e046h)		;572e
+	ld de,(0e046h)		;572e DE = course_pattern_names__start_address
 	ld hl,0e058h		;5732 HL = 0xE058
 	ld bc,00016h		;5735 LDIR: loop count == 22
 	ldir			;5738 do { *(DE++) = *(HL++) } while (--BC)
@@ -8019,18 +8061,20 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; Copies pattern names staged in [0xE186..0xE395] to VRAM.
+; 
 ; We can get here from:
 ;   0x41C5 (call) [from=41c2_game_state_03_substate_06]
 ;   0x4337 (call) [from=4325_game_state_06__player_car_crashed]
-;   0x5738 (fall) [from=5716_fixme]
+;   0x5738 (fall) [from=5716_write_new_coarse_lines_to_current_coarse]
 573a_copy_coarse_to_VRAM:
 	ld hl,03801h		;573a HL = 0x3801, VDP name table, character 1 (character 0 is elsewhere set to black)
-	ld a,018h		;573d A = 0x18, 24 character per line
-	ld de,(0e046h)		;573f DE = course_pattern_names
+	ld a,018h		;573d A = 0x18, 24 character lines per screen
+	ld de,(0e046h)		;573f course_pattern_names__current_address = course_pattern_names__start_address
 	
 	; We can get here from:
-	;   0x573F (fall) A == 0x18, HL = 0x3801
-	;   0x5764 (jump)
+	;   0x573F (fall) A == number of lines left to copy (0x18), HL == VRAM destination address (0x3801)
+	;   0x5764 (jump) A == number of lines left to copy       , HL == VRAM destination address
 	ex af,af'		;5743 Store A. Restore at 0x5763.
 	call 0053_SETWRT	;5744 [BIOS]: Set VDP for writing, HL=VRAM address
 	ld a,(00006h)		;5747
@@ -8038,9 +8082,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld b,016h		;574b DJNZ: loop count == 0x16 (22)
 	
 	574d_start_of_djnz_loop:
-	ld a,(de)		;574d
-	out (c),a		;574e
-	inc de			;5750
+	ld a,(de)		;574d A = *(course_pattern_names__current_address)
+	out (c),a		;574e Write A to VDP.
+	inc de			;5750 ++course_pattern_names__current_address
 	djnz $-4		;5751 if (--B != 0) jump to 0x573D
 	
 	ld a,0e3h		;5753 A = 0xE3
@@ -8050,19 +8094,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,096h		;5758 A = 0x96
 	cp e			;575a
 	jr nz,$+5		;575b if (DE != 0xE396) jump to 0x5760
-	; Post: DE is past last value of coarse pattern names, i.e. stop 
-	; copying.
+	; Post: DE == 0xE396, which is past the last address of the 
+	; coarse pattern names (0xE395), i.e. wrap around.
 	ld de,0e186h		;575d DE = E186_coarse_pattern_name_table
 	
 	; We can get here from:
-	;   0x5756 (jump)
-	;   0x573D (fall) DE == 0xE186
-	ld c,020h		;5760 C = 0x20 (32)
-	add hl,bc		;5762 HL += 0x20
-	ex af,af'		;5763 Restore A. Stored at 0x5743.
-	dec a			;5764
-	jr nz,$-34		;5765 if (A != 0) jump to 0x5743
-	; Post: A == 0
+	;   0x5756 (jump) DE != 0xE396: Continue copying from wherever we are.
+	;   0x575B (jump) DE != 0xE396: Continue copying from wherever we are.
+	;   0x575D (fall) DE == 0xE186: Start from beginning of table.
+	ld c,020h		;5760 C = 0x20 (32), the number of character on 1 character row.
+	add hl,bc		;5762 HL += 0x20, advance 1 whole row in VRAM.
+	ex af,af'		;5763 A = number of lines left to copy. Stored at 0x5743.
+	dec a			;5764 --A
+	jr nz,$-34		;5765 if (number of lines left to copy > 0) jump to 0x5743
+
+	; Post: A == 0, all 24 lines copied. We are done copying to VRAM.
 	ret			;5767
 
 
@@ -8610,7 +8656,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x553A (call) [from=553a_post_routine_for_all_stages_something]
+;   0x553A (call) [from=553a_post_routine_for_all_stages]
 5944_if_finish_in_sight_then_write_checkpoint_or_goal_to_RAM_buffer:
 	ld hl,(0e078h)		;5944 HL = distance travelled (high+mid byte)
 	ld bc,00f09h		;5947 DE = distance where checkpoint/goal is
@@ -16569,12 +16615,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 6995_stage_04_and_05_something:
 	ld de,063ach		;6995 DE = 0x63AC, pattern source
-	ld hl,02400h		;6998 HL = 0x2400, VRAM destination
+	ld hl,02400h		;6998 HL = 0x2400, VRAM destination, patterns [0x80..0x97]
 	call 45e0_copy2VRAM_3x	;699b
 	
 	ld hl,02400h		;699e HL = 0x2400, VRAM source, patterns [0x80..0x97]
 	ld de,02588h		;69a1 DE = 0x2588, VRAM destination, patterns [0xB1..0xC8]
-	ld c,018h		;69a4 C = 0x18 (copy count)
+	ld c,018h		;69a4 C = 0x18 (copy/mirror count)
 	call 04652h		;69a6 4652_mirror_VRAM_patterns_in_vertical_axis
 	
 	ld de,067c2h		;69a9 DE = 0x67C2, color source
@@ -16587,7 +16633,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	ld de,02468h		;69bb DE = 0x2468, VRAM destination, patterns [0x8D..0x99]
 	ld hl,02400h		;69be HL = 0x2400, VRAM source, patterns [0x80..0x8C]
-	ld c,00dh		;69c1 C = 0x0D (copy count)
+	ld c,00dh		;69c1 C = 0x0D (copy/mirror count)
 	call 04652h		;69c3 4652_mirror_VRAM_patterns_in_vertical_axis
 	
 	ld de,06737h		;69c6 DE = 0x6737, color source
@@ -16613,12 +16659,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Post: stage == 4
 	;
 	ld a,066h		;69f0 A = 0x66, fill byte
-	ld hl,00430h		;69f2 HL = 0x0430, VRAM destination
+	ld hl,00430h		;69f2 HL = 0x0430, VRAM destination, colors [0x86..0x8C]
 	ld bc,00038h		;69f5 BC = 0x0038, fill length
 	call 045cfh		;69f8 45cf_filvrm_color_or_pattern_generator
 	
 	ld a,066h		;69fb A = 0x66, fill byte
-	ld hl,00498h		;69fd HL = 0x0498, VRAM destination
+	ld hl,00498h		;69fd HL = 0x0498, VRAM destination, colors [0x93..0x99]
 	ld bc,00038h		;6a00 BC = 0x0038, fill length
 	jp 045cfh		;6a03 45cf_filvrm_color_or_pattern_generator
 
@@ -22707,8 +22753,8 @@ C
 
 
 ; Referenced by:
-;   0x5103 [from=50ef_init_stage_3]
-7aa1_location_and_type_of_oil__stage_3:
+;   0x5103 [from=50ef_init_stage_03]
+7aa1_location_and_type_of_oil__stage_03:
 	defb 0x03		;7aa1 Appear when distance_travelled == 0x030000
 	defb 0x01		;7aa2 Black/oil.
 
@@ -23226,6 +23272,7 @@ C
 
 ; Data for stage 3. See 0x50F5, 0x55A6.
 7c54_stage_03_left_and_right_side_of_bridge__pattern_names__no_pylon:
+	; Row #00 (1 out of 6).
 	defb 0x04		;7c54 Left side: Plain water
 	defb 0x04		;7c55 Left side: Plain water
 	defb 0x04		;7c56 Left side: Plain water
@@ -23235,6 +23282,7 @@ C
 	defb 0x9B		;7c5a Right side: Water with white wave
 	defb 0x04		;7c5b Right side: Plain water
 
+	; Row #01 (2 out of 6).
 	defb 0x04		;7c5c Left side: Plain water
 	defb 0x9B		;7c5d Left side: Water with white wave
 	defb 0x04		;7c5e Left side: Plain water
@@ -23244,6 +23292,7 @@ C
 	defb 0x04		;7c62 Right side: Plain water
 	defb 0x04		;7c63 Right side: Plain water
 
+	; Row #02 (3 out of 6).
 	defb 0x04		;7c64 Left side: Plain water
 	defb 0x04		;7c65 Left side: Plain water
 	defb 0x04		;7c66 Left side: Plain water
@@ -23253,6 +23302,7 @@ C
 	defb 0x04		;7c6a Right side: Plain water
 	defb 0x04		;7c6b Right side: Plain water
 
+	; Row #03 (4 out of 6).
 	defb 0x04		;7c6c Left side: Plain water
 	defb 0x9B		;7c6d Left side: Water with white wave
 	defb 0x04		;7c6e Left side: Plain water
@@ -23262,6 +23312,7 @@ C
 	defb 0x9B		;7c72 Right side: Water with white wave
 	defb 0x04		;7c73 Right side: Plain water
 
+	; Row #04 (5 out of 6).
 	defb 0x9B		;7c74 Left side: Water with white wave
 	defb 0x04		;7c75 Left side: Plain water
 	defb 0x04		;7c76 Left side: Plain water
@@ -23271,6 +23322,7 @@ C
 	defb 0x04		;7c7a Right side: Plain water
 	defb 0x9B		;7c7b Right side: Water with white wave
 
+	; Row #06 (6 out of 6).
 	defb 0x04		;7c7c Left side: Plain water
 	defb 0x04		;7c7d Left side: Plain water
 	defb 0x9B		;7c7e Left side: Water with white wave
@@ -23280,7 +23332,8 @@ C
 	defb 0x04		;7c82 Right side: Plain water
 	defb 0x04		;7c83 Right side: Plain water
 
-	defb 0xFF		;7c84 Special value. Wrap around to beginning (0x7C54).
+	; Wraparound to start (0x7C54).
+	defb 0xFF		;7c84 Special value.
 
 
 
@@ -23290,7 +23343,7 @@ C
 ; (pattern 0x04), or water with a white wave (pattern 0x98).
 ;
 ; Code references:
-;   0x50EF [from=50ef_init_stage_3] Sets the initial value.
+;   0x50EF [from=50ef_init_stage_03] Sets the initial value.
 ;   0x557A [from=5563_stage_03_specific_code] Wraparound to initial value.
 ; 
 ; The current address/pointer is kept in 0xE090.
@@ -23586,6 +23639,8 @@ C
 
 ; Data, see 0x56A2. ?Stage 4 and/or 5?
 	defb 0x02		;7d7c
+
+	; End of railroad track.
 	defb 0x9A		;7d7d
 	defb 0xA3		;7d7e
 	defb 0xA4		;7d7f
@@ -23593,15 +23648,18 @@ C
 	defb 0xA0		;7d81
 	defb 0x09		;7d82
 	defb 0x09		;7d83
+
+	; Start of railroad track.
 	defb 0x9B		;7d84
 	defb 0x9C		;7d85
 	defb 0x9D		;7d86
 	defb 0x9E		;7d87
 	defb 0x9F		;7d88
 	defb 0x09		;7d89
-
-; Data, see 0x5128. ?Stage 5?
 	defb 0x09		;7d8a
+
+; Data, see 0x5128. ?Stage 5? Stored in 0xE08A.
+
 	defb 0x3E		;7d8b
 	defb 0x05		;7d8c
 	defb 0x58		;7d8d
@@ -23612,64 +23670,86 @@ C
 	defb 0x07		;7d92
 	defb 0x2A		;7d93
 
-; Data, see 0x56A4, 0x56AA.
+
+
+; Stage 5 (and 4?), pattern names.
+; 
+; These pattern names make up the land between track and water.
+;
+; Stage 5: pattern name order: from left to right.
+; Stage 5: pattern names will be copied to the RIGHT side of the screen.
+;
+; See 0x56A4, 0x56AA.
 	defb 0xC5		;7d94
 	defb 0xC5		;7d95
 	defb 0xC5		;7d96
 	defb 0xC5		;7d97
+
 	defb 0xC5		;7d98
 	defb 0xC5		;7d99
 	defb 0xC5		;7d9a
 	defb 0xC5		;7d9b
+
 	defb 0xB5		;7d9c
 	defb 0xC5		;7d9d
 	defb 0xC5		;7d9e
 	defb 0xC5		;7d9f
+
 	defb 0xB4		;7da0
 	defb 0xC5		;7da1
 	defb 0xC5		;7da2
 	defb 0xC5		;7da3
+
 	defb 0xB3		;7da4
 	defb 0xC5		;7da5
 	defb 0xC5		;7da6
 	defb 0xC5		;7da7
+
 	defb 0xC7		;7da8
 	defb 0xB5		;7da9
 	defb 0xC5		;7daa
 	defb 0xC5		;7dab
+
 	defb 0xBD		;7dac
 	defb 0xB4		;7dad
 	defb 0xC5		;7dae
 	defb 0xC5		;7daf
+
 	defb 0xBB		;7db0
 	defb 0xC7		;7db1
 	defb 0xB5		;7db2
 	defb 0xC5		;7db3
+
 	defb 0xC6		;7db4
 	defb 0xBC		;7db5
 	defb 0xB4		;7db6
 	defb 0xC5		;7db7
+
 	defb 0xC2		;7db8
 	defb 0xBB		;7db9
 	defb 0xB3		;7dba
 	defb 0xC5		;7dbb
+
 	defb 0xC6		;7dbc
 	defb 0xC6		;7dbd
 	defb 0xBC		;7dbe
 	defb 0xB5		;7dbf
+
 	defb 0xC6		;7dc0
 	defb 0xC4		;7dc1
 	defb 0xBA		;7dc2
 	defb 0xB4		;7dc3
-	defb 0xFF		;7dc4
+
+	; Wraparound to beginning (0x7D94).
+	defb 0xFF		;7dc4 Special value.
 
 
 
 ; Stage 2: pattern IDs for the shore line (left side). Left to right order.
 ; Stage 5: pattern IDs for the shore line (right side). It is in reverse order.
 ;
-; References:
-;   0x50E8 (50e8_init_stage_2)
+; Code references:
+;   0x50E8 (50e8_init_stage_02)
 ;   0x554F (5545_stage_02_something)
 ;   0x56A6 (5642_stage_05_specific_code)
 7dc5_shoreline_pattern_names:
@@ -23797,11 +23877,14 @@ C
 
 
 
-; Data, see 0x56A8.
+; Pattern names, see 0x56A8.
+;
+; ?Water part of shoreline?
 	defb 0xC6		;7e26
 	defb 0xC6		;7e27
 	defb 0xB7		;7e28
 	defb 0xB2		;7e29
+
 	defb 0xC6		;7e2a
 	defb 0xC3		;7e2b
 	defb 0xBF		;7e2c
@@ -23850,19 +23933,22 @@ C
 
 
 
-; Data.
+; Data. ?Determines the shoreline?
+;
+; Bits 0..1: Used at 0x5666, element of table 0x56A4
+; Bits 2..7: Used at 0x565E, stored in 0xE092
 ; 
-; References:
+; Code references:
 ;   0x511C (stage 4+5)
-	defb 0x39		;7e57 0x39 & 0x03 == 0x01 (offset for table 0x56A4)
-	defb 0x06		;7e58
-	defb 0x33		;7e59
-	defb 0x04		;7e5a
-	defb 0x11		;7e5b
-	defb 0x06		;7e5c
-	defb 0x2B		;7e5d
-	defb 0x04		;7e5e
-	defb 0x25		;7e5f
+	defb 0x39		;7e57 Element #01 of table 0x56A4 (0x56A6): 0x7D94, *(0xE092) = 0x0E
+	defb 0x06		;7e58 Element #02 of table 0x56A4 (0x56A8): 0x7DC5, *(0xE092) = 0x01
+	defb 0x33		;7e59 Element #03 of table 0x56A4 (0x56AA): 0x7E26, *(0xE092) = 0x0C
+	defb 0x04		;7e5a Element #00 of table 0x56A4 (0x56A4): 0x7D94, *(0xE092) = 0x01
+	defb 0x11		;7e5b Element #01 of table 0x56A4 (0x56A6): 0x7D94, *(0xE092) = 0x04
+	defb 0x06		;7e5c Element #02 of table 0x56A4 (0x56A8): 0x7DC5, *(0xE092) = 0x01
+	defb 0x2B		;7e5d Element #00 of table 0x56A4 (0x56A4): 0x7D94, *(0xE092) = 0x0A
+	defb 0x04		;7e5e Element #00 of table 0x56A4 (0x56A4): 0x7D94, *(0xE092) = 0x01
+	defb 0x25		;7e5f Element #01 of table 0x56A4 (0x56A6): 0x7D94, *(0xE092) = 0x09
 
 
 
