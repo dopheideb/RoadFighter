@@ -42,7 +42,7 @@ if __name__ == '__main__':
 			color = n
 			vdp.FILVRM(address=0x0000 + 0x800 * band + 8 * n, byte=color, num=8)
 
-	stage0based = 1
+	stage0based = 2
 	scenery_order_address = 0
 	scenery_order_end_address = 0
 	current_coarse_scenery_item__num_rows_left = 1
@@ -112,7 +112,7 @@ if __name__ == '__main__':
 					band=band
 				)
 
-				## Stage 2
+				## Stage 2.
 				if stage0based == 1:
 					extra_patterns = konami.uncompress_patterns(address=mem.get_word(address=0x698C+1))
 					extra_patterns_index = (mem.get_word(address=0x698F+1) - 0x2000) >> 3
@@ -120,6 +120,98 @@ if __name__ == '__main__':
 						band=band,
 						patterns=extra_patterns,
 						index=extra_patterns_index
+					)
+
+				## Stage 4 and 5.
+				if stage0based in [3,4]:
+					print(f"band={band} A: {vdp.read_vram(mem.get_word(address=0x6998+1), 8)}")
+					## Patterns [0x80..0x97]
+					extra_patterns = konami.uncompress_patterns(address=mem.get_word(address=0x6995+1))
+					extra_patterns_index = (mem.get_word(address=0x6998+1) - 0x2000) >> 3
+					vdp.set_patterns(
+						band=band,
+						patterns=extra_patterns,
+						index=extra_patterns_index
+					)
+					print(f"band={band} B: {vdp.read_vram(mem.get_word(address=0x6998+1), 8)}")
+
+					## Patterns [0xB1..0xC8] (mirror of [0x80..0x97]).
+					konami.mirror_VRAM_patterns_in_vertical_axis(
+						source=mem.get_word(0x699E+1),
+						destination=mem.get_word(0x69A1+1),
+						num=mem.get_byte(0x69A4+1)
+					)
+					print(f"band={band} C: {vdp.read_vram(mem.get_word(address=0x69A1+1), 8)}")
+
+					## Colors [0xB1..0xC8]
+					extra_colors = konami.uncompress_patterns(address=mem.get_word(address=0x69A9+1))
+					extra_colors_index = (mem.get_word(address=0x69AC+1) - 0x0000) >> 3
+					vdp.set_colors(
+						band=band,
+						colors=extra_colors,
+						index=extra_colors_index
+					)
+
+					## Patterns [0x80..0x8C]
+					extra_patterns = konami.uncompress_patterns(address=mem.get_word(address=0x69B2+1))
+					extra_patterns_index = (mem.get_word(address=0x69B5+1) - 0x2000) >> 3
+					vdp.set_patterns(
+						band=band,
+						patterns=extra_patterns,
+						index=extra_patterns_index
+					)
+
+					## Patterns [0x8D..0x99]
+					konami.mirror_VRAM_patterns_in_vertical_axis(
+						source=mem.get_word(0x69BE+1),
+						destination=mem.get_word(0x69BB+1),
+						num=mem.get_byte(0x69C1+1)
+					)
+
+					## Colors [0x80..0x8C,0x8D..0x99]
+					extra_colors = konami.uncompress_patterns(address=mem.get_word(address=0x69C6+1))
+					extra_colors_index_a = (mem.get_word(address=0x69C9+1) - 0x0000) >> 3
+					extra_colors_index_b = (mem.get_word(address=0x69D2+1) - 0x0000) >> 3
+					vdp.set_colors(
+						band=band,
+						colors=extra_colors,
+						index=extra_colors_index_a
+					)
+					vdp.set_colors(
+						band=band,
+						colors=extra_colors,
+						index=extra_colors_index_b
+					)
+
+					## Patterns [0x9A..0xB0]
+					extra_patterns = konami.uncompress_patterns(address=mem.get_word(address=0x69D8+1))
+					extra_patterns_index = (mem.get_word(address=0x69DB+1) - 0x2000) >> 3
+					vdp.set_patterns(
+						band=band,
+						patterns=extra_patterns,
+						index=extra_patterns_index
+					)
+
+					## Colors [0x9A..0xB0]
+					extra_colors = konami.uncompress_patterns(address=mem.get_word(address=0x69E1+1))
+					extra_colors_index = (mem.get_word(address=0x69E4+1) - 0x0000) >> 3
+					vdp.set_colors(
+						band=band,
+						colors=extra_colors,
+						index=extra_colors_index
+					)
+
+				## Stage 4.
+				if stage0based == 3:
+					vdp.FILVRM(
+						address=0x0000 + 0x0800 * band + mem.get_word(0x69F2+1),
+						byte=mem.get_byte(0x69F0+1),
+						num=mem.get_word(0x69F5+1)
+					)
+					vdp.FILVRM(
+						address=0x0000 + 0x0800 * band + mem.get_word(0x69FD+1),
+						byte=mem.get_byte(0x69FB+1),
+						num=mem.get_word(0x6A00+1)
 					)
 
 			scenery_order_end_address =\
