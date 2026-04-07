@@ -378,7 +378,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Setup the VDP.
 	ld a,001h		;406d A = 1
 	ld (0e005h),a		;406f interrupt_sentry = 1
-	call 04685h		;4072 4685_setup_PSG_and_VDP
+	call 04685h		;4072 4685_set_up_PSG_and_VDP
 	xor a			;4075 A = 0
 	ld (0e005h),a		;4076 interrupt_sentry = 1
 	
@@ -450,7 +450,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; Jump table, see 0x4096.
 4099_game_state_jump_table:
-	defw 0x40AB		;4099 #00: 40ab_game_state_00__setup_game
+	defw 0x40AB		;4099 #00: 40ab_game_state_00__set_up_game
 	defw 0x412D		;409b #01: 412d_game_state_01__waiting_for_player_to_start_the_game
 	defw 0x4137		;409d Game state #02: Start demo/next stage
 	defw 0x416F		;409f Game state #03: Start a new game
@@ -464,7 +464,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
-40ab_game_state_00__setup_game:
+40ab_game_state_00__set_up_game:
 	djnz $+21		;40ab if (--B != 0) jump to 0x40C0
 40ad_game_state_00_substate_01__konami_logo_and_line_and_software_letters:
 	ld a,(0e003h)		;40ad A = game_state_ticker
@@ -492,10 +492,10 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; We can get here from:
 	;   0x40AB (djnz)
 	djnz $+13		;40c0 if (--B != 0) jump to 0x40CD
-40cc_game_state_00_substate_02__setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo:
+40cc_game_state_00_substate_02__set_up_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo:
 	call 0440ch		;40c2 440c_decrement_timer_and_do_return_magic
 	; Post: timer ran out.
-	call 049a6h		;40c5 49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo
+	call 049a6h		;40c5 49a6_set_up_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo
 	
 	; Get ready for next substate (#03).
 	ld a,020h		;40c8 A = 0x20
@@ -562,7 +562,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	push de			;40f9
 	ld hl,00600h		;40fa HL = 0x0600 (start address for FILVRM, color table)
 	ld bc,000b0h		;40fd BC = 0x00B0 (length)
-	call 0410bh		;4100 410b == (jump to) 45cf_filvrm_color_or_pattern_generator
+	call 0410bh		;4100 410b == (jump to) 45cf_filvrm_color_or_pattern_generator_3x
 	pop de			;4103
 
 	; Copy light color, one of light blue, light red, light yellow.
@@ -570,7 +570,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,(de)		;4105 A = *DE (value for FILVRM)
 	ld hl,006b0h		;4106 HL = 0x06B0 (start address for FILVRM, color table)
 	ld c,058h		;4109 C = 0x58 (length)
-	jp 045cfh		;410b 45cf_filvrm_color_or_pattern_generator
+	jp 045cfh		;410b 45cf_filvrm_color_or_pattern_generator_3x
 
 
 
@@ -610,12 +610,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x40E6 (djnz)
 411a_game_state_00_substate_00:
-	call 04698h		;411a 4698_setup_VDP_registers
+	call 04698h		;411a 4698_set_up_VDP_registers
 	call 04584h		;411d 4584_clear_name_table_and_set_sprite_00_vpos_to_D0
 	
 	ld a,01bh		;4120 A = 0x1B (silence, on all 3 PSG channels)
 	call 04b6eh		;4122 4b6e_sound_something_with_D_is_0
-	call 04773h		;4125 4773_copy_symbols_to_VRAM
+	call 04773h		;4125 4773_set_up_solids_and_uncompress_symbols_to_VRAM_3x
 	call 048bbh		;4128 48bb_initialize_konami_logo
 	jr $+63			;412b 416a_increase_substate
 
@@ -694,7 +694,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x40BD (jump) A == 0x00 [from=40ad_game_state_00_substate_01__konami_logo_and_line_and_software_letters]
-;   0x40CA (jump) A == 0x20 [from=40cc_game_state_00_substate_02__setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo]
+;   0x40CA (jump) A == 0x20 [from=40cc_game_state_00_substate_02__set_up_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo]
 ;   0x40E3 (jump) A == 0x20 [from=40cf_game_state_00_substate_03__draw_logo_konami_play_select_level_A_level_B]
 ;   0x4165 (fall) A == 0x18 [from=4165_increase_substate_and_set_E004_to_0x18]
 ;   0x4193 (jump) A == 0x18 [from=418e_game_state_03_substate_02]
@@ -748,8 +748,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   0x4181 (fall) DE == 0x4751, "LEVEL B"
 	;   0x417F (jump) DE == 0x4747, "LEVEL A"
 	bit 2,(hl)		;4184
-	jp z,45f0_show_symbols	;4186
-	jp 4607_hide_symbols	;4189 Hide either "LEVEL A" or "LEVEL B"
+	jp z,45f0_show_phrase_set	;4186
+	jp 4607_hide_symbol_set	;4189 Hide either "LEVEL A" or "LEVEL B"
 
 
 
@@ -774,7 +774,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; 
 	call 068aah		;419b 68aa_push_much_stuff_to_VRAM
 	call 0504ch		;419e 504c_init_stage
-	call 044d0h		;41a1 44d0_fixme
+	call 044d0h		;41a1 44d0_draw_minimap_speed_fuel_hiscore_score
 	call 042edh		;41a4 42ed_show_state_something
 	ld a,078h		;41a7 A = 0x78
 	ld (0e004h),a		;41a9 game_state_bits_or_counter_or_timer = 0x78
@@ -1064,7 +1064,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 04429h		;42d5 4429_blacken_whole_coarse_row_or_just_first_character_then_hide_all_or_nearly_all_sprites
 	ret p			;42d8
 	call 068aah		;42d9 68aa_push_much_stuff_to_VRAM
-	call 044d0h		;42dc 44d0_fixme
+	call 044d0h		;42dc 44d0_draw_minimap_speed_fuel_hiscore_score
 	call 042edh		;42df 42ed_show_state_something
 	call 0526bh		;42e2 526b_copy_13_sprites_from_RAM_to_VRAM
 	ld a,078h		;42e5
@@ -1077,8 +1077,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x42DF (call) [from=4294_game_state_04_substate_06]
 ;   0x41A4 (call) [from=4197_game_state_03_substate_03]
 42ed_show_state_something:
-	ld de,0471fh		;42ed 471f_stage_letters
-	call 045f0h		;42f0 45f0_show_symbols
+	ld de,0471fh		;42ed 471f_location_and_pattern_names__stage
+	call 045f0h		;42f0 45f0_show_phrase_set
 	dec l			;42f3
 	dec l			;42f4
 	jp 044edh		;42f5
@@ -1123,7 +1123,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x4096 (jump) [from=4082_increment_ticker__read_input__jump_to_state_handler]
 4306_game_state_05:
-	djnz $+28		;4306 if (--B != 0) jump to 0x4322
+	djnz $+28		;4306 if (--B != 0) jump to 0x4322 (4322_game_state_05_substate_00)
 
 4306_game_state_05_substate_01:
 	call 05224h		;4308 5224_handle_race_substate
@@ -1144,11 +1144,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 414f_set_game_state_to_regA_and_reset_timer	;431b
 	ld (0e004h),a		;431e Store timer
 	ret			;4321
-	
+
+
+
 ; We can get here from:
-;   0x4306 (djnz)
-4306_game_state_05_substate02:
-	jp 0527dh		;4322 527d_fixme
+;   0x4306 (djnz) [from=4306_game_state_05]
+4322_game_state_05_substate_00:
+	jp 0527dh		;4322 527d_game_state_05_substate_00
 
 
 
@@ -1216,8 +1218,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 4364_game_state_07_substate_00:
 	call 04429h		;4364 4429_blacken_whole_coarse_row_or_just_first_character_then_hide_all_or_nearly_all_sprites
 	ret p			;4367
-	ld de,0475eh		;4368 475e_game_over_letters
-	call 045f0h		;436b 45f0_show_symbols
+	ld de,0475eh		;4368 475e_location_and_pattern_names__game_over
+	call 045f0h		;436b 45f0_show_phrase_set
 	ld a,0d8h		;436e
 	jp 04167h		;4370 4167_increase_substate_and_set_E004_to_regA
 	
@@ -1685,15 +1687,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x41A1 (call) [from=4197_game_state_03_substate_03]
 ;   0x42DC (call) [from=4270_game_state_04__demo]
-44d0_fixme:
+44d0_draw_minimap_speed_fuel_hiscore_score:
 	call 044f4h		;44d0 44f4_draw_minimap_speed_fuel
-	ld de,0470dh		;44d3 DE = 470d_hiscore_letters
-	call 045f0h		;44d6 45f0_show_symbols
+	ld de,0470dh		;44d3 DE = 470d_location_and_pattern_names__hiscore__score
+	call 045f0h		;44d6 45f0_show_phrase_set
 	; Fall to 44d9_draw_score_and_hiscore
 
 ; We can get here from:
-;   0x44D6 (fall) [from=44d0_fixme]                            C == 0xFF (due to calling 45f0_show_symbols)
-;   0x6B5F (call) [from=6b5e_car_state_03__reached_checkpoint] C == ?
+;   0x44D6 (fall) [from=44d0_draw_minimap_speed_fuel_hiscore_score] C == 0xFF (due to calling 45f0_show_phrase_set)
+;   0x6B5F (call) [from=6b5e_car_state_03__reached_checkpoint]      C == ?
 44d9_draw_score_and_hiscore:
 	ld de,0e03eh		;44d9 DE = 0xE03E
 	ld hl,03838h		;44dc HL = 0x3838 (name table, start of hiscore)
@@ -1767,7 +1769,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	; Draw "SPEED FUEL".
 	ld de,0476ah		;4524 "SPEED FUEL"
-	call 045f0h		;4527 45f0_show_symbols
+	call 045f0h		;4527 45f0_show_phrase_set
 	
 ; We can get here from:
 ;   0x4527 (fall)
@@ -1930,7 +1932,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x411D (call) [from=411a_game_state_00_substate_00]
-;   0x49AB (call) [from=49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo]
+;   0x49AB (call) [from=49a6_set_up_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo]
 4584_clear_name_table_and_set_sprite_00_vpos_to_D0:
 	call 04467h		;4584 4467_hide_all_sprites_by_using_special_single_0xD0
 	ld hl,03800h		;4587 HL = 0x3800 (VRAM destination, name table)
@@ -1952,7 +1954,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   C_shadow == 0x98 (VDPs writing port #0)
 ;
 ; We can get here from:
-;   0x4611 (call) [from=4611_copy2VRAM]
+;   0x4611 (call) [from=4611_uncompress_to_VRAM]
 4591_setwrt_wrapper:
 	ex af,af'		;4591
 	call 0053_SETWRT	;4592 [BIOS]: Set VDP for writing to VRAM, HL=VRAM address
@@ -2051,16 +2053,16 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;    A: Data byte
 ; 
 ; We can get here from:
-;   0x410B (jump) [from=40ef_draw_road_fighter_logo]                 HL == 0x06B0         (color table),   BC == 0x0058, A == ?
-;   0x4787 (jump) [from=4773_copy_symbols_to_VRAM]                   HL == 0x0080         (color table),   BC == 0x0160, A == 0xF0
-;   0x48A1 (call) [from=489a_setup_first_0x10_patterns_and_colors]   HL == 0x2000         (pattern table), BC == 0x0080, A == 0x00
-;   0x48B1 (call) [from=489a_setup_first_0x10_patterns_and_colors]   HL == 0x0000 + 8 * A (color table),   BC == 0x0008, A in range(0x10)
-;   0x48DA (jump) [from=48c9_copy_konami_logo_characters_to_vram_3x] HL == 0x0200         (color table),   BC == 0x00D8, A == 0xF0
-;   0x697D (call) [from=68aa_push_much_stuff_to_VRAM]                HL == ???
-;   0x69F8 (call) [from=6995_stage_04_and_05_something]              HL == 0x0430         (color table),   BC == 0x0038, A == 0x66
-;   0x6A03 (jump) [from=6995_stage_04_and_05_something]              HL == 0x0498         (color table),   BC == 0x0038, A == 0x66
-;   0x6A27 (call) [from=6a06_fixme]                                  HL == 0x0748         (color table),   BC == 0x0001, A == ?
-45cf_filvrm_color_or_pattern_generator:
+;   0x410B (jump) [from=40ef_draw_road_fighter_logo]                            HL == 0x06B0         (color table),   BC == 0x0058, A == ?
+;   0x4787 (jump) [from=4773_set_up_solids_and_uncompress_symbols_to_VRAM_3x]   HL == 0x0080         (color table),   BC == 0x0160, A == 0xF0
+;   0x48A1 (call) [from=489a_set_up_solid_color_characters_in_VRAM]             HL == 0x2000         (pattern table), BC == 0x0080, A == 0x00
+;   0x48B1 (call) [from=489a_set_up_solid_color_characters_in_VRAM]             HL == 0x0000 + 8 * A (color table),   BC == 0x0008, A in range(0x10)
+;   0x48DA (jump) [from=48c9_copy_konami_logo_characters_to_vram_3x]            HL == 0x0200         (color table),   BC == 0x00D8, A == 0xF0
+;   0x697D (call) [from=68aa_push_much_stuff_to_VRAM]                           HL == ???
+;   0x69F8 (call) [from=6995_stage_04_and_05_something]                         HL == 0x0430         (color table),   BC == 0x0038, A == 0x66
+;   0x6A03 (jump) [from=6995_stage_04_and_05_something]                         HL == 0x0498         (color table),   BC == 0x0038, A == 0x66
+;   0x6A27 (call) [from=6a06_updated_curved_track_with_stage_predominant_color] HL == 0x0748         (color table),   BC == 0x0001, A == ?
+45cf_filvrm_color_or_pattern_generator_3x:
 	ld d,003h		;45cf Loop over all 3 (color or pattern generator) tables (top, middle and bottom section)
 	
 	; We can get here from:
@@ -2086,39 +2088,39 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; Both the pattern table and color table are 3 times 0x800 long (0x1800). 
 ; We can get here from:
-;   0x477C (call) [from=4773_copy_symbols_to_VRAM]                                       DE = 0x478A, HL = 0x2080 (pattern generator table)
-;   0x48CF (call) [from=48c9_copy_konami_logo_characters_to_vram_3x]                     DE = 0x490F, HL = 0x6200 (pattern generator table)
-;   0x49B7 (call) [from=49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo] DE = 0x4A25, HL = 0x2600 (pattern generator table), 4a25_road_fighter_logo_patterns
-;   0x68B0 (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x5DEC, HL = 0x2200 (pattern generator table)
-;   0x68B9 (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x5F25, HL = 0x0200 (color table)
-;   0x68C2 (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x5FEC, HL = 0x2680 (pattern generator table)
-;   0x68CB (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x601D, HL = 0x0680 (color table)
-;   0x68DF (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x601F, HL = 0x06A8 (color table)
-;   0x68E8 (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x5FF7, HL = 0x26C8 (pattern generator table)
-;   0x68F1 (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x6022, HL = 0x06C8 (color table)
-;   0x6905 (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x6022, HL = 0x0708 (color table)
-;   0x690E (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x6008, HL = 0x2748 (pattern generator table)
-;   0x6917 (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x602D, HL = 0x0748 (color table)
-;   0x692B (call) [from=68aa_push_much_stuff_to_VRAM]                                    DE = 0x6031, HL = 0x0798 (color table)
-;   0x6992 (jump) [from=6989_stage_02_something]                                         DE = 0x63AC, HL = 0x2588 (pattern generator table)
-;   0x699B (call) [from=6995_stage_04_and_05_something]                                  DE = 0x63AC, HL = 0x2400 (pattern generator table)
-;   0x69AF (call) [from=6995_stage_04_and_05_something]                                  DE = 0x67C2, HL = 0x0588 (color table)
-;   0x69B8 (call) [from=6995_stage_04_and_05_something]                                  DE = 0x6645, HL = 0x2400 (pattern generator table)
-;   0x69CC (call) [from=6995_stage_04_and_05_something]                                  DE = 0x6737, HL = 0x0400 (color table)
-;   0x69D5 (call) [from=6995_stage_04_and_05_something]                                  DE = 0x6737, HL = 0x0468 (color table)
-;   0x69DE (call) [from=6995_stage_04_and_05_something]                                  DE = 0x6697, HL = 0x24D0 (pattern generator table)
-;   0x69E7 (call) [from=6995_stage_04_and_05_something]                                  DE = 0x69E1, HL = 0x04D0 (color table)
-;   0x6A43 (call) [from=6a30_stage_01_and_02_and_03_and_06_something]                    DE = 0x6A51 + 4*A + 0, HL = 0x2400 (pattern generator table)
-;   0x6A4E (jump) [from=6a30_stage_01_and_02_and_03_and_06_something]                    DE = 0x6A51 + 4*A + 2, HL = 0x0400 (color table)
-;   0x7452 (call) [from=744c_draw_stages_overview_map]                                   DE = 0x74BC, HL = 0x2400 (pattern generator table)
-;   0x745B (call) [from=744c_draw_stages_overview_map]                                   DE = 0x7638, HL = 0x0400 (color table)
+;   0x477C (call) [from=4773_set_up_solids_and_uncompress_symbols_to_VRAM_3x]             DE = 0x478A, HL = 0x2080 (pattern generator table)
+;   0x48CF (call) [from=48c9_copy_konami_logo_characters_to_vram_3x]                      DE = 0x490F, HL = 0x6200 (pattern generator table)
+;   0x49B7 (call) [from=49a6_set_up_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo] DE = 0x4A25, HL = 0x2600 (pattern generator table), 4a25_road_fighter_logo_patterns
+;   0x68B0 (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x5DEC, HL = 0x2200 (pattern generator table)
+;   0x68B9 (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x5F25, HL = 0x0200 (color table)
+;   0x68C2 (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x5FEC, HL = 0x2680 (pattern generator table)
+;   0x68CB (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x601D, HL = 0x0680 (color table)
+;   0x68DF (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x601F, HL = 0x06A8 (color table)
+;   0x68E8 (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x5FF7, HL = 0x26C8 (pattern generator table)
+;   0x68F1 (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x6022, HL = 0x06C8 (color table)
+;   0x6905 (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x6022, HL = 0x0708 (color table)
+;   0x690E (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x6008, HL = 0x2748 (pattern generator table)
+;   0x6917 (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x602D, HL = 0x0748 (color table)
+;   0x692B (call) [from=68aa_push_much_stuff_to_VRAM]                                     DE = 0x6031, HL = 0x0798 (color table)
+;   0x6992 (jump) [from=6989_stage_02_something]                                          DE = 0x63AC, HL = 0x2588 (pattern generator table)
+;   0x699B (call) [from=6995_stage_04_and_05_something]                                   DE = 0x63AC, HL = 0x2400 (pattern generator table)
+;   0x69AF (call) [from=6995_stage_04_and_05_something]                                   DE = 0x67C2, HL = 0x0588 (color table)
+;   0x69B8 (call) [from=6995_stage_04_and_05_something]                                   DE = 0x6645, HL = 0x2400 (pattern generator table)
+;   0x69CC (call) [from=6995_stage_04_and_05_something]                                   DE = 0x6737, HL = 0x0400 (color table)
+;   0x69D5 (call) [from=6995_stage_04_and_05_something]                                   DE = 0x6737, HL = 0x0468 (color table)
+;   0x69DE (call) [from=6995_stage_04_and_05_something]                                   DE = 0x6697, HL = 0x24D0 (pattern generator table)
+;   0x69E7 (call) [from=6995_stage_04_and_05_something]                                   DE = 0x69E1, HL = 0x04D0 (color table)
+;   0x6A43 (call) [from=6a30_stage_01_and_02_and_03_and_06_something]                     DE = 0x6A51 + 4*A + 0, HL = 0x2400 (pattern generator table)
+;   0x6A4E (jump) [from=6a30_stage_01_and_02_and_03_and_06_something]                     DE = 0x6A51 + 4*A + 2, HL = 0x0400 (color table)
+;   0x7452 (call) [from=744c_draw_stages_overview_map]                                    DE = 0x74BC, HL = 0x2400 (pattern generator table)
+;   0x745B (call) [from=744c_draw_stages_overview_map]                                    DE = 0x7638, HL = 0x0400 (color table)
 45e0_copy2VRAM_3x:
 	ld b,003h		;45e0 DJNZ: loop counter
 	
 	45e2_start_of_djnz_loop:
 	push bc			;45e2
 	push de			;45e3 Compressed VRAM data
-	call 4611_copy2VRAM	;45e4
+	call 4611_uncompress_to_VRAM	;45e4
 	ld de,00800h		;45e7 DE = 0x0800
 	add hl,de		;45ea HL += DE
 	pop de			;45eb
@@ -2127,7 +2129,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ret			;45ef
 
 
-; Show predefined symbol set on screen, by adjusting the name table.
+; Show predefined set of phrases on screen, by adjusting the name table.
 ; 
 ; Input:
 ;   HL:
@@ -2143,11 +2145,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x4186 (jump) [from=418e_game_state_03_substate_01]                    DE == 0x4751 "LEVEL A" / "LEVEL B"
 ;   0x42F0 (call) [from=42ed_show_state_something]                         DE == 0x471f "STAGE"
 ;   0x436B (call) [from=4364_game_state_07_substate_00]                    DE == 0x475e "GAME OVER"
-;   0x44D6 (call) [from=44d0_fixme]                                        DE == 0x470D "HISCORE"
+;   0x44D6 (call) [from=44d0_draw_minimap_speed_fuel_hiscore_score]        DE == 0x470D "HISCORE", "SCORE"
 ;   0x4527 (call) [from=44f4_draw_minimap_speed_fuel]                      DE == 0x476A "SPEED FUEL"
 ;   0x49C5 (call) [from=49c2_draw_logo_konami_play_select_level_A_level_B] DE == 0x472A "©KONAMI 1985", "PLAY SELECT", "LEVEL A"
 ;   0x49C8 (call) [from=49c2_draw_logo_konami_play_select_level_A_level_B] DE == 0x4751 "LEVEL B"
-45f0_show_symbols:
+45f0_show_phrase_set:
 	ld c,0ffh		;45f0 C = 0xFF, don't mask the letters/symbols, see 0x4600.
 
 
@@ -2155,15 +2157,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x45F0 (fall) C == 0xFF: show symbols
 ;   0x4609 (jump) C == 0x00: hide symbols
-45f2_fill_name_table:
-	; HL = DE, DE += 2
+45f2_read_vram_destination_and_draw_or_hide_phrase_set:
+	; HL = *(DE), DE += 2
 	ex de,hl		;45f2
 	ld e,(hl)		;45f3
 	inc hl			;45f4
 	ld d,(hl)		;45f5
 	ex de,hl		;45f6
 	inc de			;45f7
-	; Fall to 45f8_draw_or_hide_characters(start=DE, mask=C)
+	; Fall to 45f8_draw_or_hide_phrase_set(start=DE, mask=C)
 
 
 
@@ -2173,14 +2175,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   HL: VRAM destination address
 ;   DE: Start of characters (end at value 0xFF)
 ;    C: Mask to apply:
-;         0x00: Hide characters
-;         0xFF: Show characters
+;         0x00: Hide symbol set
+;         0xFF: Show symbol set
 ; 
 ; We can get here from:
 ;   0x45F7 (fall)
 ;   0x4605 (jump) end of this draw loop
 ;   0x5049 (jump) DE == 0x475B, C == 0x00 (hide characters)
-45f8_draw_or_hide_characters:
+45f8_draw_or_hide_phrase_set:
 	ld a,(de)		;45f8
 	inc de			;45f9
 	ld b,a			;45fa
@@ -2193,13 +2195,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	and c			;4600 Either 0xFF (see 0x45F0) or 0x00 (see 0x4607).
 	call 004D_WRTVRM	;4601 WRTVRM(VRAM_address=HL, value=A)
 	inc hl			;4604
-	jr $-13			;4605 Jump to 45f8_draw_or_hide_characters(start=DE, mask=C)
+	jr $-13			;4605 Jump to 45f8_draw_or_hide_phrase_set(start=DE, mask=C)
 
 
 ; We can get here from:
 ;   0x4189 (jump)
-4607_hide_symbols:
-	ld c,000h		;4607 C = 0
+4607_hide_symbol_set:
+	ld c,000h		;4607 C = 0x00
 	jr $-23			;4609 Jump to 0x45F2
 
 
@@ -2230,45 +2232,55 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x45E4 (call) [from=45e0_copy2VRAM_3x]
 ;   0x4610 (fall) [from=self] HL changed
-4611_copy2VRAM:
+4611_uncompress_to_VRAM:
 	call 04591h		;4611 4591_setwrt_wrapper, C_shadow = 0x98 (VDP writing port #0)
 	
 	; We can get here from:
-	;   0x462A (jump)
-	;   0x4634 (jump)
+	;   0x462A (jump) [from=self] After copying B bytes with values from *(DE++).
+	;   0x4634 (jump) [from=self] After copying B bytes with same value.
+	;
+	; if (*(DE) == 0) return
 	ld a,(de)		;4614 A = *(DE)
 	and a			;4615 Set flags.
 	ret z			;4616 if (A == 0) return, end of sequence.
-	inc de			;4617 
+
+	inc de			;4617 ++DE
 	ld b,a			;4618 DJNZ: loop count = A
 	and 07fh		;4619 A &= 0x7F (i.e. clear bit 7)
 	cp b			;461b Compute A - B and set flags.
-	jr z,$+16		;461c if (DE[0] & 0x80 == 0) jump to 0x462C
-	and a			;461e Set flags.
-	jr z,$-20		;461f if (DE[0] == 0x80) jump to 460b_hl=*de_and_inc_de_twice_and_decompress_and_copy_to_VRAM
-	; Post: DE[0] >= 0x81
+	jr z,$+16		;461c if (*(DE) <= 0x7F) jump to 0x462C
+	and a			;461e Update flags.
+	jr z,$-20		;461f if (*(DE) == 0x80) jump to 460b_hl=*de_and_inc_de_twice_and_decompress_and_copy_to_VRAM
+	; Post: *(DE) >= 0x81
 	ld b,a			;4621 B = A, set number of times to loop/djnz.
 	
+	; Copy B bytes to VRAM. Source: B bytes starting at *(DE).
 	4622_start_of_djnz_loop:
 	ld a,(de)		;4622
 	inc de			;4623
 	exx			;4624
-	out (c),a		;4625 Copy to VRAM
+	out (c),a		;4625 Copy to VRAM.
 	exx			;4627
 	djnz $-6		;4628 if (--B != 0) jump to 0x4622
 	jr $-22			;462a jump to 0x4614
-	
-	; Copy the same byte B times to VRAM.
+
+
+
+	; Copy B bytes to VRAM. Source: register A, i.e. the same value B times.
+	;
 	; We can get here from:
-	;   0x461C (jump)
+	;   0x461C (jump) [from=self]
 	ld a,(de)		;462c
 	inc de			;462d
 	
+	; Copy B bytes to VRAM, all with value of register A.
 	462e_start_of_djnz_loop:
+	; Copy 1 byte to VRAM.
 	exx			;462e
-	out (c),a		;462f Copy to VRAM
+	out (c),a		;462f Copy to VRAM.
 	exx			;4631
 	djnz $-4		;4632 if (--B != 0) jump to 0x462E
+
 	jr $-32			;4634 jump to 0x4614
 
 
@@ -2457,7 +2469,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x4072 (call) [404f_entry_point] interrupt_sentry == 1
-4685_setup_PSG_and_VDP:
+4685_set_up_PSG_and_VDP:
 	; PSG: disable noise, all 3 channels.
 	; PSG: enable tone, all 3 channels.
 	ld a,0b8h		;4685 A = 0xB8
@@ -2480,7 +2492,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x411A (call) [from=411a_game_state_00_substate_00]
 ;   0x4695 (fall)
-4698_setup_VDP_registers:
+4698_set_up_VDP_registers:
 	ld hl,046a9h		;4698 HL = 0x46A9
 	ld d,008h		;469b D = 8, loop 8 times
 	ld c,000h		;469d C = 0
@@ -2592,7 +2604,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; Note: register 14 does not exist in the MSX 1 (TMS9929A for instance).
 ; 
 ; We can get here from:
-;   0x49A8 (call) [from=49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo] B == 0xE0
+;   0x49A8 (call) [from=49a6_set_up_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo] B == 0xE0
 46b1_write_B_to_vdp_color_register:
 	ld c,007h		;46b1 C = 0x07, VDP register to write to. 7 is the color register.
 	jp 04038h		;46b3 4038_wrtvdp_jump(data=B, register_number=0x07)
@@ -2790,9 +2802,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x21		;4709 "A"
 	defb 0x32		;470a "R"
 	defb 0x25		;470b "E"
-	defb 0x00		;470c Last entry.
+
+	defb 0x00		;470c END
+
+
 	
-470d_hiscore_letters:
+470d_location_and_pattern_names__hiscore__score:
 	defw 0x3817		;470d Start at row 0, column 23.
 	; "HISCORE"
 	defb 0x28		;470f "H"
@@ -2802,9 +2817,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x2F		;4713 "O"
 	defb 0x32		;4714 "R"
 	defb 0x25		;4715 "E"
+
 	defb 0xFE		;4716 Not the last entry.
 	
-4717_score_letters:
 	defw 0x3877		;4717 Start at row 3, column 23.
 	; "SCORE"
 	defb 0x33		;4719 "S"
@@ -2812,9 +2827,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x2F		;471b "O"
 	defb 0x32		;471c "R"
 	defb 0x25		;471d "E"
-	defb 0xFF		;471e Last entry.
 
-471f_stage_letters:
+	defb 0xFF		;471e END
+
+
+
+471f_location_and_pattern_names__stage:
 	defw 0x3969		;471f Start at row 11, column 9.
 	; "STAGE"
 	defb 0x33		;4721 "S"
@@ -2823,12 +2841,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x27		;4724 "G"
 	defb 0x25		;4725 "E"
 	
-	defb 0x00		;4726 space
-	defb 0x00		;4727 space
-	defb 0x00		;4728 space
-	defb 0xFF		;4729 Last entry.
+	defb 0x00		;4726 Black space.
+	defb 0x00		;4727 Black space.
+	defb 0x00		;4728 Black space.
 
-472a_copyright_konami_1985_letters,play_select,level_A:
+	defb 0xFF		;4729 END
+
+
+
+472a_location_and_pattern_names__copyright_konami_1985__play_select__level_A:
 	defw 0x394A		;472a Start at row 10, column 10.
 	; "©KONAMI 1985"
 	defb 0x1A		;472c © (copyright symbol)
@@ -2875,10 +2896,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x2C		;474d "L"
 	defb 0x00		;474e space
 	defb 0x21		;474f "A"
-	defb 0xFF		;4750 Last entry.
+
+	defb 0xFF		;4750 END
 
 
-4751_level_B:
+
+4751_location_and_pattern_names__level_B:
 	; "Level B"
 	;
 	; 0x3A00: name table, bottom band
@@ -2891,9 +2914,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x2C		;4757 "L"
 	defb 0x00		;4758 space
 	defb 0x22		;4759 "B"
-	defb 0xFF		;475a Last entry.
-	
-475b_hand_pointing_to_right_characters:
+
+	defb 0xFF		;475a END
+
+
+
+475b_location_and_pattern_names__hand_pointing_towards_right:
 	; Visualization:
 	;
 	; [00] . . . . . . . .|. . . . . . . .|
@@ -2906,9 +2932,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; [06] . . . . x x x x|x . . . . . . .|
 	defb 0x1B		;475b
 	defb 0x1C		;475c
-	defb 0xFF		;475d
+
+	defb 0xFF		;475d END
+
+
 	
-475e_game_over_letters:
+475e_location_and_pattern_names__game_over:
 	; "GAME OVER"
 	defw 0x3969		;475e Start at row 11, column 9.
 	defb 0x27		;4760 "G"
@@ -2920,11 +2949,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defb 0x36		;4766 "V"
 	defb 0x25		;4767 "E"
 	defb 0x32		;4768 "R"
-	defb 0xFF		;4769 end
+
+	defb 0xFF		;4769 END
 
 
 
-476a_speed_fuel_characters:
+476a_location_and_pattern_names__speed_fuel:
 	defb 0x3AF8		;476a Start at row 17, column 24.
 
 	; "SPEED FUEL" (compacted into 6 characters).
@@ -2961,17 +2991,17 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   R-T
 ;   V-W
 ;   Y
-4773_copy_symbols_to_VRAM:
-	call 0489ah		;4773 489a_setup_first_0x10_patterns_and_colors
+4773_set_up_solids_and_uncompress_symbols_to_VRAM_3x:
+	call 0489ah		;4773 489a_set_up_solid_color_characters_in_VRAM
 	
 	ld de,0478ah		;4776 DE = 0x478A
 	ld hl,02080h		;4779 HL = 0x2080 (VRAM destination, pattern table, starting at character 0x10)
-	call 45e0_copy2VRAM_3x	;477c
+	call 045e0h		;477c 45e0_copy2VRAM_3x(source=0x478A, vram_destination=0x2080)
 	
 	ld a,0f0h		;477f A = 0xF0 (0xF: white, 0x0: transparent)
 	ld hl,00080h		;4781 HL = 0x0080 (vram destination, color table)
 	ld bc,00160h		;4784 BC = 0x0160 (copy count)
-	jp 045cfh		;4787 45cf_filvrm_color_or_pattern_generator
+	jp 045cfh		;4787 45cf_filvrm_color_or_pattern_generator_3x
 
 
 
@@ -3369,44 +3399,43 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x4773 (call) [from=4773_copy_symbols_to_VRAM]
-489a_setup_first_0x10_patterns_and_colors:
+;   0x4773 (call) [from=4773_set_up_solids_and_uncompress_symbols_to_VRAM_3x]
+489a_set_up_solid_color_characters_in_VRAM:
 	; Zero the patterns of the first 0x10 patterns.
 	ld hl,02000h		;489a 0x2000 is the start of pattern generator table
 	ld bc,00080h		;489d BC = 0x0080 (copy count)
 	xor a			;48a0 Fill VRAM with 0x00: solid square
-	call 045cfh		;48a1 45cf_filvrm_color_or_pattern_generator
+	call 045cfh		;48a1 45cf_filvrm_color_or_pattern_generator_3x
 	
 	ld hl,00000h		;48a4 0x0000 is the start of the color table.
 	ld de,00008h		;48a7 The color mapping of 1 pattern consist of 8 bytes.
 	ld b,010h		;48aa
 	
-	; Character 0x00: use 0x00 for zeros, use 0x00 for ones.
-	; Character 0x01: use 0x01 for zeros, use 0x00 for ones.
-	; Character 0x02: use 0x02 for zeros, use 0x00 for ones.
-	; Character 0x03: use 0x03 for zeros, use 0x00 for ones.
-	; Character 0x04: use 0x04 for zeros, use 0x00 for ones.
-	; Character 0x05: use 0x05 for zeros, use 0x00 for ones.
-	; Character 0x06: use 0x06 for zeros, use 0x00 for ones.
-	; Character 0x07: use 0x07 for zeros, use 0x00 for ones.
-	; Character 0x08: use 0x08 for zeros, use 0x00 for ones.
-	; Character 0x09: use 0x09 for zeros, use 0x00 for ones.
-	; Character 0x0A: use 0x0A for zeros, use 0x00 for ones.
-	; Character 0x0B: use 0x0B for zeros, use 0x00 for ones.
-	; Character 0x0C: use 0x0C for zeros, use 0x00 for ones.
-	; Character 0x0D: use 0x0D for zeros, use 0x00 for ones.
-	; Character 0x0E: use 0x0E for zeros, use 0x00 for ones.
-	; Character 0x0F: use 0x0F for zeros, use 0x00 for ones.
+	; Character 0x00: use color 0x00 for zeros, use color 0x00 for ones.
+	; Character 0x01: use color 0x01 for zeros, use color 0x00 for ones.
+	; Character 0x02: use color 0x02 for zeros, use color 0x00 for ones.
+	; Character 0x03: use color 0x03 for zeros, use color 0x00 for ones.
+	; Character 0x04: use color 0x04 for zeros, use color 0x00 for ones.
+	; Character 0x05: use color 0x05 for zeros, use color 0x00 for ones.
+	; Character 0x06: use color 0x06 for zeros, use color 0x00 for ones.
+	; Character 0x07: use color 0x07 for zeros, use color 0x00 for ones.
+	; Character 0x08: use color 0x08 for zeros, use color 0x00 for ones.
+	; Character 0x09: use color 0x09 for zeros, use color 0x00 for ones.
+	; Character 0x0A: use color 0x0A for zeros, use color 0x00 for ones.
+	; Character 0x0B: use color 0x0B for zeros, use color 0x00 for ones.
+	; Character 0x0C: use color 0x0C for zeros, use color 0x00 for ones.
+	; Character 0x0D: use color 0x0D for zeros, use color 0x00 for ones.
+	; Character 0x0E: use color 0x0E for zeros, use color 0x00 for ones.
+	; Character 0x0F: use color 0x0F for zeros, use color 0x00 for ones.
 
 	; We can get here from:
 	;   0x48AA (fall)
 	;   0x48B8 (djnz)
 	48ac_start_of_djnz_loop:
 	push bc			;48ac
-	ld bc,00008h		;48ad 1 patterns needs 8 bytes of color mapping (1 for each line)
+	ld bc,00008h		;48ad 1 pattern needs 8 bytes of color mapping (1 for each line).
 	push hl			;48b0
-	call 045cfh		;48b1 45cf_filvrm_color_or_pattern_generator(start_address=HL, num=BC, data_byte=A)
-	
+	call 045cfh		;48b1 45cf_filvrm_color_or_pattern_generator_3x(start_address=HL, num=BC, data_byte=A)
 	pop hl			;48b4
 	add hl,de		;48b5
 	inc a			;48b6 ++A
@@ -3482,13 +3511,13 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; 0x6200 is OUTSIDE VRAM, but BIOS applies mask 0x3FFF. 0x6200 
 	; becomes 0x2200.
 	ld hl,06200h		;48cc HL = 0x6200 (but practically 0x2200)
-	call 45e0_copy2VRAM_3x	;48cf
+	call 045e0h		;48cf 45e0_copy2VRAM_3x(source=0x490F, vram_destination=0x2200)
 	
 	; Set up color table for Konami logo: white letters, transparant background.
 	ld hl,00200h		;48d2 HL = 0x0200 (start at character 0x40)
 	ld bc,000d8h		;48d5 BC = 0x00D8 (copy 0x1B (27) times, since we use 27 different characters)
 	ld a,0f0h		;48d8 A  = 0xF0   (color 1: white, color 2: transparent)
-	jp 045cfh		;48da 45cf_filvrm_color_or_pattern_generator(VRAM_start_address=HL, data_byte=A, count=BC)
+	jp 045cfh		;48da 45cf_filvrm_color_or_pattern_generator_3x(VRAM_start_address=HL, data_byte=A, count=BC)
 
 
 
@@ -3812,21 +3841,21 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x40C5 (call) [from=40cc_game_state_00_substate_02__setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo]
+;   0x40C5 (call) [from=40cc_game_state_00_substate_02__set_up_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo]
 ;   0x49BF (call) [from=43f3_switch_to_game_state_01]
-49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo:
+49a6_set_up_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo:
 	; text_color:     0xE [grey/gray]   (becomes the high nybble)
 	; Backdrop color: 0x0 [transparent] (becomes the low nybble)
 	ld b,0e0h		;49a6 B = 0xE0, text color
 	call 046b1h		;49a8 46b1_write_B_to_vdp_color_register
 	
 	call 04584h		;49ab 4584_clear_name_table_and_set_sprite_00_vpos_to_D0
-	call 04773h		;49ae 4773_copy_symbols_to_VRAM
+	call 04773h		;49ae 4773_set_up_solids_and_uncompress_symbols_to_VRAM_3x
 	
 	; Copy Road Fighter logo patterns to VRAM.
-	ld de,04a25h		;49b1 DE = 0x4A24 (4a25_road_fighter_logo_patterns)
+	ld de,04a25h		;49b1 DE = 0x4A25 (4a25_road_fighter_logo_patterns)
 	ld hl,02600h		;49b4 HL = 0x2600
-	call 45e0_copy2VRAM_3x	;49b7
+	call 045e0h		;49b7 45e0_copy2VRAM_3x(source=4a25_road_fighter_logo_patterns, vram_destination=0x2600
 	
 	; Blink the Road Fighter logo, start with dark+light red (0x01).
 	ld a,001h		;49ba A = 0x01
@@ -3837,7 +3866,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x43FF (call) [from=43f3_switch_to_game_state_01] *(0xE004) == 0x07
 49bf_draw_logo_konami_play_select_level_A_level_B_something:
-	call 049a6h		;49bf 49a6_setup_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo
+	call 049a6h		;49bf 49a6_set_up_VRAM_for_symbols_and_road_fighter_logo_and_draw_logo
 
 
 
@@ -3845,15 +3874,15 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x40D8 (call) [from=40cf_game_state_00_substate_03__draw_logo_konami_play_select_level_A_level_B] *(0xE004) == 0x20 (initial value, see 0x40C8)
 ;   0x49BF (fall) [from=49bf_draw_logo_konami_play_select_level_A_level_B_something                   *(0xE004) == 0x07
 49c2_draw_logo_konami_play_select_level_A_level_B:
-	ld de,0472ah		;49c2 DE = 472a_copyright_konami_1985_letters,play_select,level_A
-	call 45f0_show_symbols	;49c5 Show "©KONAMI 1985" + "PLAY SELECT" + "LEVEL A"
+	ld de,0472ah		;49c2 DE = 472a_location_and_pattern_names__copyright_konami_1985__play_select__level_A
+	call 45f0_show_phrase_set	;49c5 Show "©KONAMI 1985" + "PLAY SELECT" + "LEVEL A"
 	
-	; Post: DE == 0x4751 == 4751_level_B
+	; Post: DE == 0x4751 == 4751_location_and_pattern_names__level_B
 	; 
 	; Why separate level A and B? Since we want to be able to blink 
-	; them, independently. See routine 4607_hide_symbols and code 
+	; them, independently. See routine 4607_hide_symbol_set and code 
 	; 0x4189.
-	call 45f0_show_symbols	;49c8 Show "LEVEL B".
+	call 45f0_show_phrase_set	;49c8 Show "LEVEL B".
 	
 	; Set up details about the "ROAD" part of the Road Fighter 
 	; logo, and then draw "ROAD".
@@ -6037,8 +6066,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; [05] x x x x x x x x|x x . . . . . .|
 ; [06] . . . . x x x x|x . . . . . . .|
 5046_draw_or_hide_hand_pointing_to_right:
-	ld de,0475bh		;5046 475b_hand_pointing_to_right_characters
-	jp 045f8h		;5049 45f8_draw_or_hide_characters(start=0x475B, mask=C)
+	ld de,0475bh		;5046 475b_location_and_pattern_names__hand_pointing_towards_right
+	jp 045f8h		;5049 45f8_draw_or_hide_phrase_set(start=0x475B, mask=C)
 
 
 
@@ -6084,7 +6113,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   0x5078 (fall) HL == 50dc_location_and_type_of_oil__stage_6_and_beyond
 	;   0x5076 (jump) HL == 50be_location_and_type_of_oil__stage_1_to_5_except_stage_3
 	ld (0e0b2h),hl		;507b &oil_details = HL
-	call 050bfh		;507e 50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code
+	call 050bfh		;507e 50bf_set_up_stage_specific_stuff_and_jump_to_stage_specific_code
 	ld a,008h		;5081 A = 0x08
 	ld (0e07dh),a		;5083 Top screen row: set number of horizonl scenery characters before track starts
 
@@ -6146,8 +6175,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x507E (call) [from=504c_init_stage]
 ;   0x56FE (call) [from=56f7_fixme]
-50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code:
-	call 05132h		;50bf 5132_setup_stage_specific_stuff_something
+50bf_set_up_stage_specific_stuff_and_jump_to_stage_specific_code:
+	call 05132h		;50bf 5132_set_up_stage_specific_stuff_something
 	ld a,(0e043h)		;50c2 A = stage
 	dec a			;50c5 Make the value 0 based.
 	call 04045h		;50c6 PC = PC[2 * A]
@@ -6271,8 +6300,8 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; We can get here from:
-;   0x50BF (call) [from=50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code]
-5132_setup_stage_specific_stuff_something:
+;   0x50BF (call) [from=50bf_set_up_stage_specific_stuff_and_jump_to_stage_specific_code]
+5132_set_up_stage_specific_stuff_something:
 	; Compute HL = 0x5161 + 6 * (stage - 1)
 	ld a,(0e043h)		;5132 A = stage
 	dec a			;5135 Make stage 0 based.
@@ -6388,12 +6417,12 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Left column of starting grid: Draw 5 blue cars.
 	ld de,0e11ah		;5197 DE = 0xE11A
 	ld bc,00551h		;519a B = 0x05, C = 0x51
-	call 051a5h		;519d 51a5_setup_stage_01_blue_cars_at_start
+	call 051a5h		;519d 51a5_set_up_stage_01_blue_cars_at_start
 	
 	; Right column of starting grid: Draw 6 blue cars.
 	ld e,042h		;51a0 DE = 0xE142
 	ld bc,00665h		;51a2 B = 0x06, C = 0x65
-	; Fall to 51a5_setup_stage_01_blue_cars_at_start.
+	; Fall to 51a5_set_up_stage_01_blue_cars_at_start.
 
 
 
@@ -6407,7 +6436,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x519D (call) [from=5197_initialize_blue_cars_on_starting_grid_of_stage_01] DE == 0xE11A, B == 0x05, C = 0x51
 ;   0x51A2 (fall) [from=5197_initialize_blue_cars_on_starting_grid_of_stage_01] DE == 0xE142, B == 0x06, C = 0x65
-51a5_setup_stage_01_blue_cars_at_start:
+51a5_set_up_stage_01_blue_cars_at_start:
 	ld a,008h		;51a5 A = 0x08
 	
 	; B == 5: Initialize 5 blue cars (2*5 sprites) in the left starting column.
@@ -6442,7 +6471,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Referenced by:
-;   0x51A8 [from=51a5_setup_stage_01_blue_cars_at_start]
+;   0x51A8 [from=51a5_set_up_stage_01_blue_cars_at_start]
 51c1_patterns_and_colors_of_blue_car:
 	defb 0x00		;51c1 Pattern of shadow of blue car.
 	defb 0x01		;51c2 Color of shadow of blue car: black.
@@ -6556,7 +6585,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	call 06e4ah		;523f 6e4a_handling_moving_objects_something_if_not_crashed
 	call 05501h		;5242 5501_if_distance_travelled_changed__add_to_score_and_update_hiscore
 	call 07411h		;5245 7411_decrement_fuel_remaining
-	call 06ca1h		;5248 6ca1_fixme
+	call 06ca1h		;5248 6ca1_handle_accelerating_and_decelerating
 	call 06f25h		;524b 6f25_load_next_initial_moving_object_if_speed_is_high
 	jp 044d9h		;524e 44d9_draw_score_and_hiscore
 
@@ -6620,51 +6649,78 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 
+; Game state 05, substate 00. This is the start of the stage. Stage 1: 
+; blue cars drive away.
+; 
 ; We can get here from:
-;   0x4322 (jump) [from=4306_game_state_05_substate_02]
-527d_fixme:
+;   0x4322 (jump) [from=4322_game_state_05_substate_00]
+527d_game_state_05_substate_00:
 	call 05270h		;527d 5270_copy_30_sprites_from_RAM_to_VRAM
 	call 06a70h		;5280 6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine
-	call 06ca1h		;5283 6ca1_fixme
+	call 06ca1h		;5283 6ca1_handle_accelerating_and_decelerating
 	call 0738ch		;5286 738c_update_distance_travelled
 	call 05501h		;5289 5501_if_distance_travelled_changed__add_to_score_and_update_hiscore
-	jp 0528fh		;528c ?WHY, it is the next op, isn't it?
+	jp 0528fh		;528c ?WHY, it is the next opcode, isn't it?
 
 ; We can get here from:
-;   0x528c (jump) [from=527d_fixme] Basically an expensive fall.
+;   0x528c (jump) [from=527d_game_state_05_substate_00] Basically an expensive fall.
+	; There are 11 (0x0B) blue cars in stage 1.
 	ld b,00bh		;528f B = 0x0B
-	ld hl,0e116h		;5291 HL = 0xE116 sprite attributes of ?opponent cars?
+
+	; Start at sprite 3 (0xE11A): shadow of opponent car 1. Note 
+	; that 0xE116 is incremented 4 times in the next 4 opcodes, so 
+	; 0xE116 + 4 = 0xE11A.
+	ld hl,0e116h		;5291 HL = 0xE116
 
 	5294_start_of_djnz_loop:
+	; HL += 4, go to next sprite.
 	inc hl			;5294 
 	inc hl			;5295
 	inc hl			;5296
 	inc hl			;5297
-	ld a,(hl)		;5298
+
+	ld a,(hl)		;5298 A = sprite.vpos
 	sub 0c0h		;5299 A -= 0xC0
 	cp 020h			;529b Compute A - 0x20 and update C/NC flag.
-	jr c,$+14		;529d if (0xC0 <= (*HL) <= 0xDF) jump to 0x52AB
-	ld a,(hl)		;529f
+	jr c,$+14		;529d if (0xC0 <= sprite.vpos <= 0xDF) jump to 0x52AB
+	; Post: sprite.vpos < 0xC0 or sprite.vpos >= 0xE0
+	;
+	; This blue car and its shadow drive away, 6 pixels at the time. 
+	;
+	; sprite.vpos -= 0x06 (shadow)
+	ld a,(hl)		;529f A = sprite.vpos
 	sub 006h		;52a0 A -= 0x06
-	ld (hl),a		;52a2
+	ld (hl),a		;52a2 sprite.vpos = A
+
+	; sprite.vpos -= 0x06 (regular)
 	inc hl			;52a3
 	inc hl			;52a4
 	inc hl			;52a5
 	inc hl			;52a6
-	ld (hl),a		;52a7
+	ld (hl),a		;52a7 sprite.vpos = A
+
 	; We can get here from:
-	;   0x52A7 (fall)
-	;   0x52A8 (jump)
+	;   0x52A7 (fall) [from=self]
+	;   0x52A8 (jump) [from=self]
 	djnz $-20		;52a8 if (--B != 0) jump to 0x5294
 	ret			;52aa
 
+
+
 	; We can get here from:
-	;   0x529D (jump)
+	;   0x529D (jump) 0xC0 <= sprite.vpos <= 0xDF
+	;
+	; This sprite position means the left the top of the screen, and 
+	; is completely invisible. If the last car has left the screen 
+	; (B == 1) we advance to the next substate.
 	ld a,b			;52ab A = B
-	cp 001h			;52ac Compute A - 1 and set flags.
-	jp z,0416ah		;52ae if (A == 1) jump to 416a_increase_substate
+	cp 001h			;52ac Compute A - 1 and update flags.
+	jp z,0416ah		;52ae if (B == 1) jump to 416a_increase_substate
+	
+	; Ignore next sprite.
 	ld a,004h		;52b1 A = 4
 	call 0403bh		;52b3 HL += 4
+
 	jr $-14			;52b6 jump to 0x52A8
 
 
@@ -7078,7 +7134,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x70DF (call) [from=70d9_moving_object_state_01_and_04]
-53dd_setup_spinning_oil_drum:
+53dd_set_up_spinning_oil_drum:
 	ld hl,(0e078h)		;53dd HL = *(0xE078), distance travelled
 	ld bc,00f00h		;53e0 BC = 0x0F00
 	and a			;53e3 Clear carry flag, for sbc at 0x53E4.
@@ -7443,7 +7499,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 ; We can get here from:
 ;   0x5242 (call) [from=5224_handle_race_substate]
-;   0x5289 (call) [from=527d_fixme]
+;   0x5289 (call) [from=527d_game_state_05_substate_00]
 5501_if_distance_travelled_changed__add_to_score_and_update_hiscore:
 	ld a,(0e049h)		;5501 A = car_state
 	dec a			;5504 --A, updates Z/NZ flag
@@ -7508,7 +7564,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 553a_post_routine_for_all_stages:
 	call 05944h		;553a 5944_if_finish_in_sight_then_write_checkpoint_or_goal_to_RAM_buffer
 	call 054afh		;553d 54af_oil_something
-	call 05716h		;5540 5716_write_new_coarse_lines_to_current_coarse
+	call 05716h		;5540 5716_write_upcoming_coarse_line_to_ram_and_vram_coarse
 	pop hl			;5543 ?Don't return to caller?
 	ret			;5544
 
@@ -7997,7 +8053,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   Stage 6: 0x7ED0
 	cp 0feh			;56fa Compute A - 0xFE and update Z/NZ flag.
 	jr nz,$+5		;56fc if (current_track_layout != 0xFE) jump to 0x5701
-	call 050bfh		;56fe 50bf_setup_stage_specific_stuff_and_jump_to_stage_specific_code
+	call 050bfh		;56fe 50bf_set_up_stage_specific_stuff_and_jump_to_stage_specific_code
 
 	; We can get here from:
 	;   0x56FC (jump) current_track_layout != 0xFE (call to 0x50BF is SKIPPED)
@@ -8024,7 +8080,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; 
 ; We can get here from:
 ;   0x5540 (call) [from=553a_post_routine_for_all_stages]
-5716_write_new_coarse_lines_to_current_coarse:
+5716_write_upcoming_coarse_line_to_ram_and_vram_coarse:
 	; course_pattern_names__start_address -= 22
 	ld hl,(0e046h)		;5716 HL = course_pattern_names__start_address
 	ld bc,0ffeah		;5719 BC = -0x16
@@ -8066,7 +8122,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ; We can get here from:
 ;   0x41C5 (call) [from=41c2_game_state_03_substate_06]
 ;   0x4337 (call) [from=4325_game_state_06__player_car_crashed]
-;   0x5738 (fall) [from=5716_write_new_coarse_lines_to_current_coarse]
+;   0x5738 (fall) [from=5716_write_upcoming_coarse_line_to_ram_and_vram_coarse]
 573a_copy_coarse_to_VRAM:
 	ld hl,03801h		;573a HL = 0x3801, VDP name table, character 1 (character 0 is elsewhere set to black)
 	ld a,018h		;573d A = 0x18, 24 character lines per screen
@@ -8102,7 +8158,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	;   0x5756 (jump) DE != 0xE396: Continue copying from wherever we are.
 	;   0x575B (jump) DE != 0xE396: Continue copying from wherever we are.
 	;   0x575D (fall) DE == 0xE186: Start from beginning of table.
-	ld c,020h		;5760 C = 0x20 (32), the number of character on 1 character row.
+	ld c,020h		;5760 C = 0x20 (32), the number of characters on 1 character row.
 	add hl,bc		;5762 HL += 0x20, advance 1 whole row in VRAM.
 	ex af,af'		;5763 A = number of lines left to copy. Stored at 0x5743.
 	dec a			;5764 --A
@@ -10276,6 +10332,14 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 
 
 ; Compressed pattern data, seen at 0x68AA.
+;
+; Contains (but not limited to):
+;   - Traffic lights
+;   - Speed/fuel
+;   - Bars of the speedometer/fuelometer
+;   - Minimap outlining
+;   - Black oil puddle
+;   - Blue water puddle
 	defb 0x08, 0xFE		;5ded x x x x x x x .   01 Character 0x40.
 				;5ded x x x x x x x .   02
 				;5ded x x x x x x x .   03
@@ -16459,25 +16523,27 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 ;   0x419B (call) [from=4197_game_state_03_substate_03]
 ;   0x42D9 (call) [from=4294_game_state_04_substate_06]
 68aa_push_much_stuff_to_VRAM:
+	; Set up pattern generators [0x40..0x7B].
 	ld de,05dech		;68aa DE = 0x5DEC, pattern source
 	ld hl,02200h		;68ad HL = 0x2200, VRAM destination
-	call 45e0_copy2VRAM_3x	;68b0
+	call 045e0h		;68b0 45e0_copy2VRAM_3x(source=0x5DEC, vram_destination=0x2200)
 	
+	; Set up color generators [0x40..0x7B].
 	ld de,05f25h		;68b3 DE = 0x5F25, color source
 	ld hl,00200h		;68b6 HL = 0x0200, VRAM destination
-	call 45e0_copy2VRAM_3x	;68b9
+	call 045e0h		;68b9 45e0_copy2VRAM_3x(source=0x5F25, vram_destination=0x0200)
 
 
 
 	; Track patterns 0xD0 upto and including 0xD4.
 	ld hl,02680h		;68bc HL = 0x2680, VRAM destination
 	ld de,05fech		;68bf DE = 0x5FEC, pattern source
-	call 45e0_copy2VRAM_3x	;68c2
+	call 045e0h		;68c2 45e0_copy2VRAM_3x(source=0x5FEC, vram_destination=0x2680)
 	
 	; Track colors 0xD0 upto and including 0xD4.
 	ld hl,00680h		;68c5 HL = 0x0680, VRAM destination
 	ld de,0601dh		;68c8 DE = 0x601D, color source
-	call 45e0_copy2VRAM_3x	;68cb
+	call 045e0h		;68cb 45e0_copy2VRAM_3x(source=0x601D, vram_destination=0x0680)
 
 
 
@@ -16490,19 +16556,19 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Track color 0xD5 upto and including 0xD8.
 	ld hl,006a8h		;68d9 HL = 0x06A8, VRAM destination
 	ld de,0601fh		;68dc DE = 0x601F, color source
-	call 45e0_copy2VRAM_3x	;68df
+	call 045e0h		;68df 45e0_copy2VRAM_3x(source=0x601F, vram_destination=0x06A8)
 
 
 
 	; Track patterns 0xD9 upto and including 0xE0.
 	ld hl,026c8h		;68e2 HL = 0x26C8, VRAM destination
 	ld de,05ff7h		;68e5 DE = 0x5FF7, pattern source
-	call 45e0_copy2VRAM_3x	;68e8
+	call 045e0h		;68e8 45e0_copy2VRAM_3x(source=0x5FF7, vram_destination=0x26C8)
 	
 	; Track colors 0xD9 upto and including 0xE0.
 	ld hl,006c8h		;68eb HL = 0x06C8, VRAM destination
 	ld de,06022h		;68ee DE = 0x6022, color source
-	call 45e0_copy2VRAM_3x	;68f1
+	call 045e0h		;68f1 45e0_copy2VRAM_3x(source=0x6022, vram_destination=0x06C8)
 
 
 
@@ -16515,19 +16581,19 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Track colors 0xE1 upto and including 0xE8.
 	ld hl,00708h		;68ff HL = 0x0708, VRAM destination
 	ld de,06022h		;6902 DE = 0x6022, color source
-	call 45e0_copy2VRAM_3x	;6905
+	call 045e0h		;6905 45e0_copy2VRAM_3x(source=0x6022, vram_destination=0x0708)
 
 
 
 	; Track patterns 0xE9 upto and including 0xF2.
 	ld hl,02748h		;6908 HL = 0x2748, VRAM destination
 	ld de,06008h		;690b DE = 0x6008, pattern source
-	call 45e0_copy2VRAM_3x	;690e
+	call 045e0h		;690e 45e0_copy2VRAM_3x(source=0x6008, vram_destination=0x2748)
 	
 	; Track colors 0xE9 upto and including 0xF3 (!).
 	ld hl,00748h		;6911 HL = 0x0748, VRAM destination
 	ld de,0602dh		;6914 DE = 0x602D, color source
-	call 45e0_copy2VRAM_3x	;6917
+	call 045e0h		;6917 45e0_copy2VRAM_3x(source=0x602D, vram_destination=0x0748)
 
 
 
@@ -16540,7 +16606,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; Track colors 0xF3 upto and including 0xFA.
 	ld hl,00798h		;6925 HL = 0x0798
 	ld de,06031h		;6928 DE = 0x6031
-	call 45e0_copy2VRAM_3x	;692b
+	call 045e0h		;692b 45e0_copy2VRAM_3x(source=0x6031, vram_destination=0x0798)
 
 
 
@@ -16562,7 +16628,9 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; DE += 2,  so DE == 0x5B97
 	call 0460bh		;6942 460b_hl=*de_and_inc_de_twice_and_decompress_and_copy_to_VRAM
 	
-	call 06a06h		;6945 6a06_fixme
+	call 06a06h		;6945 6a06_updated_curved_track_with_stage_predominant_color
+
+	; Stage specific stuff.
 	ld a,(0e043h)		;6948 A = stage
 	dec a			;694b
 	jp z,06a30h		;694c if (stage == 1) jump to 0x6A30 (6a30_stage_01_and_02_and_03_and_06_something)
@@ -16577,30 +16645,51 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	; stage == 6
 	call 06a30h		;695e 6a30_stage_01_and_02_and_03_and_06_something
 	
+
+
+	; Stage 6 specific: Use cyan instead of white for the side of 
+	; the road. Otherwise, both the scenery and side of the road is 
+	; white, which would make the road not very visible to the player.
+	;
+	; 0x06C8: start at pattern index 0xD9 (0x06C8 >> 3)
+	; 0x0100: operate on 0x20 patterns (0x0100 >> 3)
+	; ==> Patterns [0xD9..0xF8]
 	ld hl,006c8h		;6961 HL = 0x06C8, address to read with RDVRM
 	ld bc,00100h		;6964 BC = 0x0100
+
+	; We can get here from:
+	;   0x6964 (fall) [from=self]
+	;   0x6985 (jump) [from=self]
 	push bc			;6967
 	push hl			;6968
 	call 004A_RDVRM		;6969 A = VRAM[0x06C8] (inside color table)
-	ld b,a			;696c
-	and 00fh		;696d
-	cp 00fh			;696f
-	jr nz,$+8		;6971 if (nz) jump to 0x6979
-	ld a,b			;6973
-	and 0f0h		;6974
-	or 007h			;6976
-	ld b,a			;6978
+	ld b,a			;696c B = VRAM[0x06C8]
+	and 00fh		;696d A = VRAM[0x06C8] & 0x0F
+	cp 00fh			;696f Compute A - 0x0F and update flags.
+	jr nz,$+8		;6971 if (A != 0x0F) jump to 0x6979
+	; Post: VRAM[0x06C8] & 0x0F == 0x0F, i.e. white is the second color.
+	;
+	; Make cyan the new second color.
+	ld a,b			;6973 A = VRAM[0x06C8]
+	and 0f0h		;6974 A = VRAM[0x06C8] & 0xF0
+	or 007h			;6976 A = (VRAM[0x06C8] & 0xF0) | 0x07
+	ld b,a			;6978 B = (VRAM[0x06C8] & 0xF0) | 0x07
+
+	; We can get here from:
+	;   0x6978 (fall) [from=self] Second color was white, but must become cyan.
+	;   0x6971 (jump) [from=self] Second color is untouched.
 	ld a,b			;6979
 	ld bc,00001h		;697a
-	call 045cfh		;697d 45cf_filvrm_color_or_pattern_generator
+	call 045cfh		;697d 45cf_filvrm_color_or_pattern_generator_3x
 	
 	pop hl			;6980
 	pop bc			;6981
 	inc hl			;6982
-	dec bc			;6983
-	ld a,b			;6984
-	or c			;6985
-	jr nz,$-31		;6986 if (nz) jump to 0x6967
+	dec bc			;6983 --BC
+	ld a,b			;6984 A = B, but because of 0x6964 and 0x6983 it means that A is set to 0.
+	or c			;6985 A |= C
+	jr nz,$-31		;6986 if (BC != 0) jump to 0x6967
+
 	ret			;6988
 
 
@@ -16616,7 +16705,7 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 6995_stage_04_and_05_something:
 	ld de,063ach		;6995 DE = 0x63AC, pattern source
 	ld hl,02400h		;6998 HL = 0x2400, VRAM destination, patterns [0x80..0x97]
-	call 45e0_copy2VRAM_3x	;699b
+	call 045e0h		;699b 45e0_copy2VRAM_3x(source=0x63AC, vram_destination=0x2400
 	
 	ld hl,02400h		;699e HL = 0x2400, VRAM source, patterns [0x80..0x97]
 	ld de,02588h		;69a1 DE = 0x2588, VRAM destination, patterns [0xB1..0xC8]
@@ -16625,11 +16714,11 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	ld de,067c2h		;69a9 DE = 0x67C2, color source
 	ld hl,00588h		;69ac HL = 0x0588, VRAM destination, colors [0xB1..0xC8]
-	call 45e0_copy2VRAM_3x	;69af
+	call 045e0h		;69af 45e0_copy2VRAM_3x(source=0x67C2, vram_destination=0x0588)
 	
 	ld de,06645h		;69b2 DE = 0x6645, pattern source
 	ld hl,02400h		;69b5 HL = 0x2400, VRAM destination, patterns [0x80..0x8C]
-	call 45e0_copy2VRAM_3x	;69b8
+	call 045e0h		;69b8 45e0_copy2VRAM_3x(source=0x6645, vram_destination=0x2400)
 	
 	ld de,02468h		;69bb DE = 0x2468, VRAM destination, patterns [0x8D..0x99]
 	ld hl,02400h		;69be HL = 0x2400, VRAM source, patterns [0x80..0x8C]
@@ -16638,19 +16727,19 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	
 	ld de,06737h		;69c6 DE = 0x6737, color source
 	ld hl,00400h		;69c9 HL = 0x0400, VRAM destination, colors [0x80..0x8C]
-	call 45e0_copy2VRAM_3x	;69cc
+	call 045e0h		;69cc 45e0_copy2VRAM_3x(source=0x6737, vram_destination=0x0400)
 	
 	ld de,06737h		;69cf DE = 0x6737, color source
 	ld hl,00468h		;69d2 HL = 0x0468, VRAM destination, colors [0x8D..0x99]
-	call 45e0_copy2VRAM_3x	;69d5
+	call 045e0h		;69d5 45e0_copy2VRAM_3x(source=0x6737, vram_destination=0x0468)
 	
 	ld de,06697h		;69d8 DE = 0x6697, pattern source
 	ld hl,024d0h		;69db HL = 0x24D0, VRAM destination, patterns [0x9A..0xB0]
-	call 45e0_copy2VRAM_3x	;69de
+	call 045e0h		;69de 45e0_copy2VRAM_3x(source=0x6697, vram_destination=0x24D0)
 	
 	ld de,0675eh		;69e1 DE = 0x675E, color source
 	ld hl,004d0h		;69e4 HL = 0x04D0, VRAM destination, colors [0x9A..0xB0]
-	call 45e0_copy2VRAM_3x	;69e7
+	call 045e0h		;69e7 45e0_copy2VRAM_3x(source=0x675E, vram_destination=0x04D0)
 	
 	ld a,(0e043h)		;69ea A = stage
 	cp 004h			;69ed
@@ -16661,25 +16750,37 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	ld a,066h		;69f0 A = 0x66, fill byte
 	ld hl,00430h		;69f2 HL = 0x0430, VRAM destination, colors [0x86..0x8C]
 	ld bc,00038h		;69f5 BC = 0x0038, fill length
-	call 045cfh		;69f8 45cf_filvrm_color_or_pattern_generator
+	call 045cfh		;69f8 45cf_filvrm_color_or_pattern_generator_3x
 	
 	ld a,066h		;69fb A = 0x66, fill byte
 	ld hl,00498h		;69fd HL = 0x0498, VRAM destination, colors [0x93..0x99]
 	ld bc,00038h		;6a00 BC = 0x0038, fill length
-	jp 045cfh		;6a03 45cf_filvrm_color_or_pattern_generator
+	jp 045cfh		;6a03 45cf_filvrm_color_or_pattern_generator_3x
 
 
 
 ; We can get here from:
 ;   0x6945 (call) [from=68aa_push_much_stuff_to_VRAM]
-6a06_fixme:
+6a06_updated_curved_track_with_stage_predominant_color:
+	; Retrieve the stage specific color:
+	;   Stage 01: Green
+	;   Stage 02: Sand
+	;   Stage 03: Transparent
+	;   Stage 04: Dark red
+	;   Stage 05: Light red
+	;   Stage 06: White
+	;
+	; *(0xE09D) = 6a69_stage_specific_predominant_color[stage]
 	ld a,(0e043h)		;6a06 A = stage
-	ld hl,06a69h		;6a09
+	ld hl,06a69h		;6a09 HL = 6a69_stage_specific_predominant_color
 	call 0403bh		;6a0c HL += 0x6A69 + stage
 	ld a,(hl)		;6a0f
 	ld (0e09dh),a		;6a10
 	
-	ld hl,00748h		;6a13 HL = 0x0748 (inside color table, upper band, character 0xE9 (233))
+	; 0x0748 is inside the color table:
+	;   - Upper band
+	;   - Character 0xE9 (233), the first track character of the curved track characters
+	ld hl,00748h		;6a13 HL = 0x0748
 	ld b,080h		;6a16 B = 0x80 (DJNZ counter)
 	
 	; We can get here from:
@@ -16688,18 +16789,23 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	6a18_start_of_djnz:
 	push bc			;6a18
 	push hl			;6a19
-	call 004A_RDVRM		;6a1a A = vram[HL]
-	and 00fh		;6a1d ?Get color?
+
+	; vram[HL] = 6a69_stage_specific_predominant_color[stage] | (vram[HL] & 0x0F)
+	;
+	; And also for middle and lower band.
+	call 004A_RDVRM		;6a1a A = vram[HL], get both colors.
+	and 00fh		;6a1d
 	ld b,a			;6a1f
 	ld a,(0e09dh)		;6a20
 	or b			;6a23 A |= B
 	ld bc,00001h		;6a24 BC = 0x0001
-	call 045cfh		;6a27 45cf_filvrm_color_or_pattern_generator
+	call 045cfh		;6a27 45cf_filvrm_color_or_pattern_generator_3x
 	
 	pop hl			;6a2a
 	pop bc			;6a2b
-	inc hl			;6a2c
+	inc hl			;6a2c ++HL
 	djnz $-21		;6a2d if (--B != 0) jump to 0x6A18
+
 	ret			;6a2f
 
 
@@ -16715,23 +16821,45 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	dec a			;6a33 --A, so it becomes 0 based instead of 1 based.
 	add a,a			;6a34 A *= 2
 	add a,a			;6a35 A *= 2
-	ld hl,06a51h		;6a36
-	call 0403bh		;6a39 HL += A
+	ld hl,06a51h		;6a36 HL = 0x6A51
+	call 0403bh		;6a39 HL = 0x6A51 + A
 	
+	; DE = *(HL++)
 	ld e,(hl)		;6a3c
 	inc hl			;6a3d
 	ld d,(hl)		;6a3e
+	; Post:
+	;            | DE     | Meaning of DE
+	;   ---------+--------+--------------
+	;   stage 01 | 0x603E | Address of stage 01 specific patterns.
+	;   stage 02 | 0x6279 | Address of stage 02 specific patterns.
+	;   stage 03 | 0x64CA | Address of stage 03 specific patterns.
+	;   stage 04 | 0x6645 | Address of stage 04 specific patterns.
+	;   stage 05 | 0x6645 | Address of stage 05 specific patterns.
+	;   stage 06 | 0x67D5 | Address of stage 06 specific patterns.
+
 	push hl			;6a3f
-	ld hl,02400h		;6a40
-	call 45e0_copy2VRAM_3x	;6a43
+	ld hl,02400h		;6a40 HL = 0x2400, pattern 0x80 (128), upper band
+	call 045e0h		;6a43 45e0_copy2VRAM_3x(source=DE, vram_destination=0x2400)
 	
 	pop hl			;6a46
 	inc hl			;6a47
+
 	ld e,(hl)		;6a48
 	inc hl			;6a49
 	ld d,(hl)		;6a4a
-	ld hl,00400h		;6a4b HL = 0x0400
-	jp 045e0h		;6a4e 45e0_copy2VRAM_3x
+	; Post:
+	;            | DE     | Meaning of DE
+	;   ---------+--------+--------------
+	;   stage 01 | 0x61C8 | Address of stage 01 specific colors.
+	;   stage 02 | 0x6431 | Address of stage 02 specific colors.
+	;   stage 03 | 0x65D7 | Address of stage 03 specific colors.
+	;   stage 04 | 0x6737 | Address of stage 04 specific colors.
+	;   stage 05 | 0x6737 | Address of stage 05 specific colors.
+	;   stage 06 | 0x6885 | Address of stage 06 specific colors.
+
+	ld hl,00400h		;6a4b HL = 0x0400, color 0x80 (128), upper band
+	jp 045e0h		;6a4e 45e0_copy2VRAM_3x(source=DE, vram_destination=0x0400)
 
 
 
@@ -16754,27 +16882,24 @@ defw 0x0000		;400E RESERVED FOR FUTURE USE.       Not used, so zeroed.
 	defw 0x67D5		;6a65 Stage 06: patterns
 	defw 0x6885		;6a67 Stage 06: colors
 
-; ???	
-	defb 0x68		;6a68
-	defb 0x00		;6a69
-
 
 
 ; Referenced by:
-;   0x6A09
-6a6a_data:
-	defb 0x20		;6a6a Stage #01
-	defb 0xB0		;6a6b Stage #02
-	defb 0x00		;6a6c Stage #03
-	defb 0x60		;6a6d Stage #04
-	defb 0x90		;6a6e Stage #05
-	defb 0xF0		;6a6f Stage #06
+;   0x6A09 [from=6a06_updated_curved_track_with_stage_predominant_color]
+6a69_stage_specific_predominant_color:
+	defb 0x00		;6a69 Unused, because of 1-based stage.
+	defb 0x20		;6a6a Stage #01, use color 0x2 for scenery besides curved track (green).
+	defb 0xB0		;6a6b Stage #02, use color 0xB for scenery besides curved track (sand).
+	defb 0x00		;6a6c Stage #03, use color 0x0 for scenery besides curved track (transparent).
+	defb 0x60		;6a6d Stage #04, use color 0x6 for scenery besides curved track (dark red).
+	defb 0x90		;6a6e Stage #05, use color 0x9 for scenery besides curved track (light red).
+	defb 0xF0		;6a6f Stage #06, use color 0xF for scenery besides curved track (white).
 
 
 
 ; We can get here from:
 ;   0x5233 (call) [from=5224_handle_race_substate]
-;   0x5280 (call) [from=527d_fixme]
+;   0x5280 (call) [from=527d_game_state_05_substate_00]
 6a70_handle_newly_pressed_left_and_right_and_jump_to_correct_car_state_routine:
 	ld a,(0e008h)		;6a70 A = pressed_keys_but_not_during_previous_interrupt
 	and 00ch		;6a73 A &= (KEY_STATE_LEFT | KEY_STATE_RIGHT)
@@ -16964,7 +17089,7 @@ C
 	
 	; Still some speed.
 	ld (hl),a		;6b18 car_speed = A, store decreased speed.
-	jp 06c73h		;6b19 6c73_fixme
+	jp 06c73h		;6b19 6c73_handle_decelerating__common
 
 
 
@@ -17311,8 +17436,8 @@ C
 
 
 ; We can get here from:
-;   0x6CAA (jump) [from=6ca1_fixme]
-6c67_decelerate:
+;   0x6CAA (jump) [from=6ca1_handle_accelerating_and_decelerating]
+6c67_handle_decelerating_by_letting_gaspedal_go:
 	call 06c89h		;6c67 6c89_Z_if_car_state_01_or_02_or_07_else_NZ
 	ret z			;6c6a if (car_state in [CAR_STATE_CRASHED, CAR_STATE_OUT_OF_FUEL_WITH_SPEED, CAR_STATE_SPINNING]) return
 	
@@ -17322,14 +17447,14 @@ C
 	ret z			;6c70 if (car_speed == 0) return
 	dec a			;6c71 Decrease speed
 	ld (hl),a		;6c72 car_speed = A
-	; Fall to 6c73_fixme.
+	; Fall to 6c73_handle_decelerating__common.
 
 
 
 ; We can get from:
 ;   0x6B19 (jump) [from=6b05_car_state_02__no_fuel_remaining]
-;   0x6C72 (fall) [from=6c67_decelerate]
-6c73_fixme:
+;   0x6C72 (fall) [from=6c67_handle_decelerating_by_letting_gaspedal_go]
+6c73_handle_decelerating__common:
 	xor a			;6c73 A = 0x00
 	ld (0e038h),a		;6c74 is_accelerating = 0x00
 	
@@ -17338,7 +17463,7 @@ C
 	cp 0f8h			;6c7b ?Check for leaving top of screen?
 	jp nc,06e1dh		;6c7d if (car_vpos >= 0xF8) jump to 6e1d_store_car_sprite_attributes
 	
-	call 06c93h		;6c80 6c93_speed_test. Set carry or not, depending on speed.
+	call 06c93h		;6c80 6c93_speed_test__carry_means_do_change_vpos
 	ret nc			;6c83
 	
 	ld bc,0ffb8h		;6c84 BC = 0xFFB8 (-0x0048)
@@ -17373,15 +17498,20 @@ C
 ;         Speed <  0x18: carry flag NOT set (NC)
 ; 0x18 <= Speed <  0x50: carry flag set     (C )
 ; 0x50 <= Speed <  0x7E: carry flag NOT set (NC)
-; 0x7E <= Speed        : carry flag set     (C ) ?HIGH GEAR?
-6c93_speed_test:
+; 0x7E <= Speed        : carry flag set     (C )
+;
+; No carry: don't change vpos of player
+;    carry: do    change vpos of player:
+;           - If accelerating: Move towards bottom of screen
+;           - If decelerating: Move towards top of screen
+6c93_speed_test__carry_means_do_change_vpos:
 	ld a,(0e04fh)		;6c93 A = car_speed	
 	cp 018h			;6c96 carry flag = A <  0x18, no carry flag if A >= 0x18
 	ccf			;6c98 carry flag = A >= 0x18, no carry flag if A <  0x18
-	ret nc			;6c99 if (car_speed < 0x18) return
+	ret nc			;6c99 if (car_speed < 0x18) return (NC)
 	
 	cp 050h			;6c9a
-	ret c			;6c9c if (car_speed < 0x50) return
+	ret c			;6c9c if (car_speed < 0x50) return (C)
 	cp 07eh			;6c9d carry flag = A <  0x7E, no carry flag if A >= 0x7E
 	ccf			;6c9f carry flag = A >= 0x7E, no carry flag if A <  0x7E
 	
@@ -17391,8 +17521,8 @@ C
 
 ; We can get here from:
 ;   0x5248 (call) [from=5224_handle_race_substate]
-;   0x5283 (call) [from=527d_fixme]
-6ca1_fixme:
+;   0x5283 (call) [from=527d_game_state_05_substate_00]
+6ca1_handle_accelerating_and_decelerating:
 	call 06c89h		;6ca1 6c89_Z_if_car_state_01_or_02_or_07_else_NZ
 	ret z			;6ca4 if (car_state in [CAR_STATE_CRASHED, CAR_STATE_OUT_OF_FUEL_WITH_SPEED, CAR_STATE_SPINNING]) return
 	
@@ -17401,7 +17531,7 @@ C
 	; Check if space/trigger 1 is pressed.
 	ld a,(0e009h)		;6ca5 A = pressed_keys
 	and 010h		;6ca8 A &= KEY_STATE_SPACE
-	jr z,$-67		;6caa if ((pressed_keys & KEY_STATE_SPACE) == 0) jump to 0x6C67 (6c67_decelerate)
+	jr z,$-67		;6caa if ((pressed_keys & KEY_STATE_SPACE) == 0) jump to 0x6C67 (6c67_handle_decelerating_by_letting_gaspedal_go)
 	
 	; Case: gas pedal is pressed.
 	;
@@ -17415,11 +17545,11 @@ C
 	
 	ld a,001h		;6cb5 A = 0x01
 	ld (0e038h),a		;6cb7 is_accelerating = 0x01
-	ld hl,(0e04bh)		;6cba HL = &car_vpos_word
-	ld a,h			;6cbd
-	cp 09ah			;6cbe
+	ld hl,(0e04bh)		;6cba HL = car_vpos_word
+	ld a,h			;6cbd A = car_vpos
+	cp 09ah			;6cbe Compute car_vpos - 0x9A and update flags.
 	jp nc,06e1dh		;6cc0 if (A >= 0x9A) jump to 6e1d_store_car_sprite_attributes
-	call 6c93_speed_test	;6cc3
+	call 06c93h		;6cc3 6c93_speed_test__carry_means_do_change_vpos
 	ret nc			;6cc6
 	ld bc,00048h		;6cc7 BC = 0x0048
 	; Fall to 6cca_add_BC_to_car_vpos_word_and_jump_to_6e1d_store_car_sprite_attributes
@@ -17941,8 +18071,8 @@ C
 ;   0x6AB8 (jump) [from=6ab5_set_car_orientation_to_regA]
 ;   0x6BB6 (call) [from=6b90_car_state_04__skidding]
 ;   0x6C21 (jump) [from=6c05_car_state_05__bounce_against_side_of_road]
-;   0x6C7D (jump) [from=6c73_fixme]
-;   0x6CC0 (jump) [from=6ca1_fixme]
+;   0x6C7D (jump) [from=6c73_handle_decelerating__common]
+;   0x6CC0 (jump) [from=6ca1_handle_accelerating_and_decelerating]
 ;   0x6CCE (jump) [from=6cca_add_BC_to_car_vpos_word_and_jump_to_6e1d_store_car_sprite_attributes]
 ;   0x6ED9 (call) [from=6e54_handling_moving_objects_something]
 ;   0x747D (call) [from=747d_game_state_08_substate_02]
@@ -18921,7 +19051,7 @@ C
 70d9_moving_object_state_01_and_04:
 	call 072b8h		;70d9 72b8_play_sound_if_regular_blue_car_is_near
 	call 071c6h		;70dc 71c6_moving_object_state_03_and_partly_01_and_04
-	call 053ddh		;70df 53dd_setup_spinning_oil_drum
+	call 053ddh		;70df 53dd_set_up_spinning_oil_drum
 	call 0716dh		;70e2 716d_purple_car_something
 
 
@@ -20218,12 +20348,12 @@ C
 	; Copy patterns 0x80..0xB2 (inclusive) to VRAM (all three bands).
 	ld hl,02400h		;744c HL = 0x2400, VRAM destination (pattern table)
 	ld de,074bch		;744f DE = 0x74BC, pattern source. Ends at 0x7637.
-	call 45e0_copy2VRAM_3x	;7452
+	call 045e0h		;7452 45e0_copy2VRAM_3x(source=0x74BC, vram_destination=0x2400)
 	
 	; Copy color for patterns 0x80..0xB2 (inclusive) to VRAM (all three bands).
 	ld hl,00400h		;7455 HL = 0x0400, VRAM destination
 	ld de,07638h		;7458 DE = 0x7638, color source
-	call 45e0_copy2VRAM_3x	;745b
+	call 045e0h		;745b 45e0_copy2VRAM_3x(source=0x7638, vram_destination=0x0400)
 	
 	; Draw overview of all stages (update pattern name table).
 	ld hl,0382bh		;745e Destination: 0x382B. Part of VRAM pattern name table: Upper left corner of overview map of all stages.
@@ -20275,6 +20405,7 @@ C
 	; Minicar has reached to checkpoint/goal in the stages overview map.
 	xor a			;7491 A = 0x00
 	jp 04167h		;7492 4167_increase_substate_and_set_E004_to_regA
+
 
 
 ; In stages overview map: blink the minicar for a while. (Minicar has 
@@ -24085,7 +24216,7 @@ C
 	defb 0x21		;7eae 3 lanes, bending left, 0x28 times.
 	defb 0x29		;7eaf
 
-	defb 0x24		;7eb0
+	defb 0x24		;7eb0 3 lanes, squeezing to 2 lanes from right, 0x17 times.
 	defb 0x18		;7eb1
 
 	defb 0x10		;7eb2 2 lanes, straight ahead, 0x20 times.

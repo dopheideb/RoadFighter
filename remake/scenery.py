@@ -4,14 +4,406 @@ from   konami import Konami
 from   memory import Memory
 import numpy as np
 import pygame
-from   tms9918a import TMS9918A
 import rom as _rom
+from   tms9918a import TMS9918A
+from   typing import Final, Self
+
+ADDRESS: Final[dict[int]] =\
+{
+	'470d_location_and_pattern_names__hiscore__score':	0x470D,
+	'476a_location_and_pattern_names__speed_fuel':		0x476A,
+	'course_pattern_names__current_address': 0xE046,
+	'course_pattern_names__upcoming_line': 0xE058,
+}
+
+class RoadFighter:
+	def __init__(
+			self: Self,
+			memory: Memory,
+			vdp: TMS9918A=TMS9918A(),
+	):
+		self.mem = memory
+		self.konami = Konami(memory=mem, vdp=vdp)
+		self.vdp = vdp
+
+	def get_byte(self: Self, address: str|int, signed: bool=False) -> int:
+		if isinstance(address, str):
+			address = ADDRESS[address]
+		return self.mem.get_byte(address=address)
+	def get_word(self: Self, address: str|int, endianness: str='little') -> bytes:
+		if isinstance(address, str):
+			address = ADDRESS[address]
+		return self.mem.get_word(address=address)
+
+	def set_byte(self: Self, address: str, value: int) -> bytes:
+		if isinstance(address, str):
+			address = ADDRESS[address]
+		return self.mem.set_byte(address, value=value)
+	def set_word(self: Self, address: str, value: int) -> bytes:
+		if isinstance(address, str):
+			address = ADDRESS[address]
+		return self.mem.set_word(address, value=value)
+
+
+
+	def x45cf_filvrm_color_or_pattern_generator(self: Self, address: int, value: int, count: int) -> None:
+		for band in range(3):
+			for offset in range(count):
+				self.vdp.WRTVRM(
+					address=address+offset,
+					byte=value,
+				)
+			address += 0x0800
+
+	def x45e0_copy2VRAM_3x(self: Self, source: int, destination: int) -> None:
+		print(f"source={source:04X}, destination={destination:04X}")
+		for band in range(3):
+			self.x4611_uncompress_to_VRAM(source, destination)
+			destination += 0x0800
+
+	def x45f0_show_phrase_set(self: Self, address: int) -> None:
+		mask = 0xFF
+		assert mask == self.mem.get_byte(0x45F0 + 1)
+		self.x45f2_read_vram_destination_and_draw_or_hide_phrase_set(
+			phrase_set_address=address,
+			mask=mask,
+		)
+
+	def x45f2_read_vram_destination_and_draw_or_hide_phrase_set(
+			self: Self,
+			phrase_set_address: int,
+			mask: int,
+	) -> None:
+		vram_destination_address = self.mem.get_word(phrase_set_address)
+		phrase_set_address += 2
+		self.x45f8_draw_or_hide_phrase_set(
+			vram_destination_address=vram_destination_address,
+			phrase_set_address=phrase_set_address,
+			mask=mask,
+		)
+
+	def x45f8_draw_or_hide_phrase_set(
+			self: Self,
+			vram_destination_address: int,
+			phrase_set_address: int,
+			mask: int,
+	) -> None:
+		while True:
+			value = self.mem.get_byte(phrase_set_address)
+			phrase_set_address += 1
+
+			if value == 0xFF:
+				## We have reached the end of the symbol 
+				## set.
+				break
+
+			if value == 0xFE:
+				## We have reached the end of the 
+				## current word/phrase. Continue with 
+				## the next.
+				self.x45f2_read_vram_destination_and_draw_or_hide_phrase_set(
+					phrase_set_address=phrase_set_address,
+					mask=mask,
+				)
+				break
+
+			value &= mask
+			self.vdp.WRTVRM(
+				address=vram_destination_address,
+				byte=value
+			)
+			vram_destination_address += 1
+		pass
+
+
+
+	def x4611_uncompress_to_VRAM(self: Self, source: int, destination: int) -> None:
+		address = source
+		while True:
+			opcode = self.mem.get_byte(address)
+			if opcode == 0x00:
+				## 0x4616
+				break
+
+			if opcode <= 0x7F:
+				copy_count = opcode
+				address += 1
+
+				value = self.mem.get_byte(address)
+				address += 1
+
+				for _ in range(copy_count):
+					self.vdp.WRTVRM(
+						address=destination,
+						byte=value
+					)
+					destination += 1
+
+				continue
+
+			if opcode >= 0x81:
+				copy_count = opcode & 0x7F
+				address += 1
+
+				for _ in range(copy_count):
+					value = self.mem.get_byte(address=address)
+					address += 1
+
+					self.vdp.WRTVRM(
+						address=destination,
+						byte=value
+					)
+					destination += 1
+				continue
+
+			assert opcode == 0x80
+			raise NotImplementedError("opcode 0x80 not yet implemented")
+
+
+
+	def x4773_setup_solids_and_uncompress_symbols_to_VRAM_3x(self: Self) -> None:
+		self.x489a_set_up_solid_color_characters_in_VRAM()
+
+		compressed_patterns_address = self.get_word(0x4776 + 1)
+		vram_destination_address    = self.get_word(0x4779 + 1)
+
+		self.x45e0_copy2VRAM_3x(
+			source=compressed_patterns_address,
+			destination=vram_destination_address,
+		)
+
+		## 0x447F: Set the color of all the symbols.
+		##
+		## high nybble == 0xF: white
+		## low  nybble == 0x0: transparent (usually means black)
+		color_value = 0xF0
+
+		## The first 16 characters are the solids. The symbols 
+		## come right after the solids.
+		vram_destination_address = 0x10 << 3
+		assert vram_destination_address == self.mem.get_word(0x4781 + 1)
+
+		num_patters = 44
+		copy_count = num_patters * 8
+		assert copy_count == self.get_word(0x4784 + 1)
+
+		self.x45cf_filvrm_color_or_pattern_generator(
+			address=vram_destination_address,
+			value=color_value,
+			count=copy_count,
+		)
+
+
+
+	def x489a_set_up_solid_color_characters_in_VRAM(self: Self) -> None:
+		##
+		## Fill the pattern generator table.
+		##
+		start_vram_address_solid_patterns = 0x2000
+		assert start_vram_address_solid_patterns == self.get_word(0x489A + 1)
+
+		## We need to setup 16 characters (because there are 16 
+		## colors).
+		num_characters = 16
+		copy_count = num_characters << 3
+		assert copy_count == self.get_word(0x489D + 1)
+
+		## 0x00 means: use a single color for the whole pattern 
+		## line.
+		value=0x00
+
+		## Set up
+		self.x45cf_filvrm_color_or_pattern_generator(
+			address=start_vram_address_solid_patterns,
+			value=value,
+			count=copy_count,
+		)
+
+
+
+		##
+		## Fill the color generator table.
+		##
+		start_vram_address_solid_colors = 0x0000
+		assert start_vram_address_solid_colors == self.get_word(0x48A4 + 1)
+
+		copy_count = 8
+		assert copy_count == self.mem.get_word(0x48AD + 1)
+
+		vram_address_solid_colors = start_vram_address_solid_colors
+		for color_id in range(num_characters):
+			self.x45cf_filvrm_color_or_pattern_generator(
+				address=vram_address_solid_colors,
+				value=color_id,
+				count=copy_count,
+			)
+			vram_address_solid_colors += 8
+
+
+
+	def x5716_write_upcoming_coarse_line_to_ram_and_vram_coarse(self: Self) -> None:
+		course_pattern_names__current_address = self.get_word('course_pattern_names__current_address')
+		course_pattern_num_cols = 0x16
+		assert course_pattern_num_cols == 0x10000 - self.get_word(0x5719 + 1)
+
+		course_pattern_names__current_address -= course_pattern_num_cols
+
+		## Wraparound if necessary.
+		if course_pattern_names__current_address == 0xE170:
+			course_pattern_names__current_address = 0xE380
+		self.set_word('course_pattern_names__current_address', course_pattern_names__current_address)
+
+		source_address = ADDRESS['course_pattern_names__upcoming_line']
+		assert source_address == 0xE058
+
+		ldir_count = self.get_word(0x5735 + 1)
+		assert ldir_count == 0x16
+
+		## Copy 22 bytes from 0xE058 to somewhere in 
+		## [0xE186..0xE395]: copy upcoming coarse line to RAM 
+		## version of the coarse names.
+		for n in range(ldir_count):
+			val = self.get_byte(address=source_address)
+			self.set_byte(address=course_pattern_names__current_address, value=val)
+
+			source_address += 1
+			course_pattern_names__current_address += 1
+
+		self.x573a_copy_coarse_to_VRAM()
+
+
+
+	def x573a_copy_coarse_to_VRAM(self: Self) -> None:
+		## In screen 2, the VDP has 24 rows of characters.
+		num_rows = 24
+
+		## The coarse starts at column 1 (0 based).
+		VRAM_destination_address = self.get_word(0x573A + 1)
+		assert VRAM_destination_address == 0x3801
+
+		## The coarse isn't as wide as the screen. (Score and 
+		## highscore are not part of the coarse columns for 
+		## instance).
+		num_columns = 22
+
+		course_pattern_names__current_address = self.get_word('course_pattern_names__current_address')
+
+		for row_num in range(num_rows):
+			for col_num in range(num_columns):
+				vdp.WRTVRM(
+					address=VRAM_destination_address+col_num,
+					byte=mem.get_byte(course_pattern_names__current_address),
+				)
+				course_pattern_names__current_address += 1
+
+			assert mem.get_byte(0x5760 + 1) == 0x20
+			num_characters_on_1_character_row = 0x20
+
+			VRAM_destination_address += num_characters_on_1_character_row
+
+			assert course_pattern_names__current_address <= 0xE396
+			if course_pattern_names__current_address == 0xE396:
+				course_pattern_names__current_address = 0xE186
+
+
+
+	def x68aa_push_much_stuff_to_VRAM(self: Self) -> None:
+		## Set up pattern generators [0x40..0x7B].
+		compressed_patterns_address = self.get_word(0x68AA + 1)
+		vram_destination_address    = self.get_word(0x68AD + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+		## Set up color generators [0x40..0x7B].
+		compressed_patterns_address = self.get_word(0x68B3 + 1)
+		vram_destination_address    = self.get_word(0x68B6 + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+
+
+		## Set up pattern generators [0xD0..0xD4]: track
+		compressed_patterns_address = self.get_word(0x68BF + 1)
+		vram_destination_address    = self.get_word(0x68BC + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+		## Set up color generators [0xD0..0xD4]: track
+		compressed_patterns_address = self.get_word(0x68C8 + 1)
+		vram_destination_address    = self.get_word(0x68C5 + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+
+
+		## Set up pattern generators [0xD5..0xD8]: track
+		konami.mirror_VRAM_patterns_in_vertical_axis(
+			source=self.mem.get_word(0x68CE + 1),
+			destination=mem.get_word(0x68D1 + 1),
+			num=mem.get_byte(0x68D4 + 1),
+		)
+
+		## Set up color generators [0xD5..0xD8]: track
+		compressed_patterns_address = self.get_word(0x68DC + 1)
+		vram_destination_address    = self.get_word(0x68D9 + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+
+
+		## Set up pattern generators [0xD9..0xE0]: track
+		compressed_patterns_address = self.get_word(0x68E5 + 1)
+		vram_destination_address    = self.get_word(0x68E2 + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+		## Set up color generators [0xD9..0xE0]: track
+		compressed_patterns_address = self.get_word(0x68EE + 1)
+		vram_destination_address    = self.get_word(0x68EB + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+
+
+		## Set up pattern generators [0xE1..0xE8]: track
+		konami.mirror_VRAM_patterns_in_vertical_axis(
+			source=self.mem.get_word(0x68F4 + 1),
+			destination=mem.get_word(0x68F7 + 1),
+			num=mem.get_byte(0x68FA + 1),
+		)
+
+		## Set up color generators [0xE1..0xE8]: track
+		compressed_patterns_address = self.get_word(0x6902 + 1)
+		vram_destination_address    = self.get_word(0x68FF + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+
+
+		## Set up pattern generators [0xE9..0xF2]: track
+		compressed_patterns_address = self.get_word(0x690B + 1)
+		vram_destination_address    = self.get_word(0x6908 + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+		## Set up color generators [0xE9..0xF3]: track
+		compressed_patterns_address = self.get_word(0x6914 + 1)
+		vram_destination_address    = self.get_word(0x6911 + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+
+
+		## Set up pattern generators [0xF3..0xF8]: track
+		konami.mirror_VRAM_patterns_in_vertical_axis(
+			source=self.mem.get_word(0x691A + 1),
+			destination=mem.get_word(0x691D + 1),
+			num=mem.get_byte(0x68FA + 1),
+		)
+
+		## Set up color generators [0xF3..0xFA]: track
+		compressed_patterns_address = self.get_word(0x6928 + 1)
+		vram_destination_address    = self.get_word(0x6925 + 1)
+		self.x45e0_copy2VRAM_3x(source=compressed_patterns_address, destination=vram_destination_address)
+
+
 
 if __name__ == '__main__':
 	rom = _rom.ROM(file='./RoadFighter.rom')
 	mem = Memory(rom)
 	vdp = TMS9918A()
 	konami = Konami(memory=mem, vdp=vdp)
+	rf = RoadFighter(memory=mem, vdp=vdp)
 
 	## Initialize pygame.
 	pygame.init()
@@ -32,17 +424,15 @@ if __name__ == '__main__':
 	vdp.color_register = mem.get_byte(0x49A6+1)
 	assert vdp.color_register == 0xE0
 
-	## Patterns 0..15: fill with the corresponding color.
-	for band in range(3):
-		## Set the pattern.
-		vdp.FILVRM(address=0x2000 + 0x800 * band, byte=0x00, num=8 * 16)
+	rf.x4773_setup_solids_and_uncompress_symbols_to_VRAM_3x()
+	phrase_set_address = ADDRESS['470d_location_and_pattern_names__hiscore__score']
+	rf.x45f0_show_phrase_set(address=phrase_set_address)
+	phrase_set_address = ADDRESS['476a_location_and_pattern_names__speed_fuel']
+	rf.x45f0_show_phrase_set(address=phrase_set_address)
 
-		## Set the color.
-		for n in range(16):
-			color = n
-			vdp.FILVRM(address=0x0000 + 0x800 * band + 8 * n, byte=color, num=8)
+	rf.x68aa_push_much_stuff_to_VRAM()
 
-	stage0based = 2
+	stage0based = -1
 	scenery_order_address = 0
 	scenery_order_end_address = 0
 	current_coarse_scenery_item__num_rows_left = 1
@@ -57,6 +447,9 @@ if __name__ == '__main__':
 			stage0based += 1
 			stage0based %= 6
 			print(f"stage0based={stage0based}")
+
+			## 0x50B9
+			rf.set_word('course_pattern_names__current_address', 0xE186)
 
 			## Shore line is in stage 2 and 5.
 			shore_line_pointer = 0x7DC5
@@ -80,14 +473,6 @@ if __name__ == '__main__':
 			scenery_colors = konami.uncompress_patterns(address=compressed_colors_address)
 			scenery_colors_index = (mem.get_word(0x6A4B + 1) - 0x0000) >> 3
 
-			## Track patterns and colors 0xD0 upto and including 0xD4.
-			compressed_road_patterns = mem.get_word(0x68BF+1)
-			compressed_road_colors   = mem.get_word(0x68C8+1)
-			road_patterns = konami.uncompress_patterns(address=compressed_road_patterns)
-			road_colors   = konami.uncompress_patterns(address=compressed_road_colors)
-			road_patterns_index = (mem.get_word(0x68BC+1) - 0x2000) >> 3
-			road_colors_index   = (mem.get_word(0x68C5+1) - 0x0000) >> 3
-
 			## Copy patterns and colors to VRAM.
 			for band in range(3):
 				vdp.set_patterns(
@@ -98,17 +483,6 @@ if __name__ == '__main__':
 				vdp.set_pattern_colors(
 					colors=scenery_colors,
 					index=scenery_colors_index,
-					band=band
-				)
-
-				vdp.set_patterns(
-					patterns=road_patterns,
-					index=road_patterns_index,
-					band=band
-				)
-				vdp.set_pattern_colors(
-					colors=road_colors,
-					index=road_colors_index,
 					band=band
 				)
 
@@ -235,22 +609,15 @@ if __name__ == '__main__':
 			if stage0based == 2:
 				scenery_objects_address = 0x7C54
 
-		## Copy VDP lines downwards, starting at the next to last line.
-		for r in reversed(range(23)):
-			pattern_line = vdp.read_vram(start=0x3800 + 0x20 * r, num=0x20)
-			vdp.write_vram(start=0x3800 + 0x20 * (r + 1), data=pattern_line)
-
 		## Initialize basic new line.
-		num_initial_black = 0x1
-		num_scenery_columns = 0x16
-		pattern_black = 0x00
 		pattern_basic_scenery = mem.get_byte(address=0x5191 + stage0based)
-		for col in range(0, num_initial_black):
-			vdp.WRTVRM(0x3800, pattern_black)
-		for col in range(num_initial_black, num_initial_black + num_scenery_columns + 1):
-			vdp.WRTVRM(0x3800 + col, pattern_basic_scenery)
-		for col in range(num_initial_black + num_scenery_columns, 0x20):
-			vdp.WRTVRM(0x3800 + col, 0x00)
+
+		## 0x592A
+		num_scenery_columns = 0x16
+		assert num_scenery_columns - 1 == rf.get_word(0x5934 + 1)
+		addr = ADDRESS['course_pattern_names__upcoming_line']
+		for n in range(num_scenery_columns):
+			rf.set_byte(addr + n, pattern_basic_scenery)
 
 		## Draw water in stage 3, or snow in stage 6.
 		if stage0based in [2,5]:
@@ -363,14 +730,18 @@ if __name__ == '__main__':
 			print(f"{scenery_object_address:04x} {offset:04x}")
 			name = mem.get_byte(address=offset)
 
-			vram_offset = 1 + scenery_element_indent + c
+			offset = scenery_element_indent + c
 			## Don't write in score section.
-			if vram_offset >= 0x17:
+			if offset >= 0x16:
 				break
-			vdp.WRTVRM(0x3800 + vram_offset, name)
+			rf.set_byte(0xE058 + offset, name)
 
 		if stage0based == 2:
 			print(f"stage={stage0based+1}, scenery_objects_address={scenery_objects_address:04x}")
+
+		## When track, scenery (i.e. the coarse) pattern names 
+		## etc are all in RAM, it is copied to actual VRAM.
+		rf.x5716_write_upcoming_coarse_line_to_ram_and_vram_coarse()
 
 		## Show the output of the MSX/VDP.
 		surf = vdp.make_surface()

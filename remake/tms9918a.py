@@ -71,11 +71,11 @@ class TMS9918A:
 
 	def read_vram(self: Self, start: int, num: int) -> np.ndarray[Any, np.dtype[np.uint8]]:
 		stop = start + num
-		return self._vram[start:stop]
+		return self._vram[start:stop].copy()
 
 	def write_vram(self: Self, start: int, data: np.ndarray | list[int]) -> None:
 		num = len(data)
-		self._vram[start:start+num] = data
+		self._vram[start:start+num] = data.copy()
 
 	def WRTVRM(self: Self, address: int, byte: int) -> None:
 		self._vram[address] = byte

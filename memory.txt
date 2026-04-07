@@ -6,6 +6,58 @@
 0x3800-0x3AFF	Name table		defined at 0x46AB, 1 * 256 * 3, i.e. 1 byte  per character
 0x3B00-0x3BFF	Sprite attribute table	defined at 0x46AE, 4 * 32     , i.e. 4 bytes per sprite
 
+
+
+Color table:
+0x0000-0x07FF	Band 0 (upper/top)
+0x0800-0x0FFF	Band 1 (middle)
+0x1000-0x17FF	Band 2 (lower/bottom)
+
+Color table layout, upper band:
+            | low nybble                                                                      |
+high nybble |    0    1    2    3    4    5    6    7    8   9     A    B    C    D    E    F | high nybble
+------------+---------------------------------------------------------------------------------+------------
+          0 | 0000 0008 0010 0018 0020 0028 0030 0038 0040 0048 0050 0058 0060 0068 0070 0078 | 0
+          1 | 0080 0088 0090 0098 00A0 00A8 00B0 00B8 00C0 00C8 00D0 00D8 00E0 00E8 00F0 00F8 | 1
+          2 | 0100 0108 0110 0118 0120 0128 0130 0138 0140 0148 0150 0158 0160 0168 0170 0178 | 2
+          3 | 0180 0188 0190 0198 01A0 01A8 01B0 01B8 01C0 01C8 01D0 01D8 01E0 01E8 01F0 01F8 | 3
+          4 | 0200 0208 0210 0218 0220 0228 0230 0238 0240 0248 0250 0258 0260 0268 0270 0278 | 4
+          5 | 0280 0288 0290 0298 02A0 02A8 02B0 02B8 02C0 02C8 02D0 02D8 02E0 02E8 02F0 02F8 | 5
+          6 | 0300 0308 0310 0318 0320 0328 0330 0338 0340 0348 0350 0358 0360 0368 0370 0378 | 6
+          7 | 0380 0388 0390 0398 03A0 03A8 03B0 03B8 03C0 03C8 03D0 03D8 03E0 03E8 03F0 03F8 | 7
+          8 | 0400 0408 0410 0418 0420 0428 0430 0438 0440 0448 0450 0458 0460 0468 0470 0478 | 8
+          9 | 0480 0488 0490 0498 04A0 04A8 04B0 04B8 04C0 04C8 04D0 04D8 04E0 04E8 04F0 04F8 | 9
+          A | 0500 0508 0510 0518 0520 0528 0530 0538 0540 0548 0550 0558 0560 0568 0570 0578 | A
+          B | 0580 0588 0590 0598 05A0 05A8 05B0 05B8 05C0 05C8 05D0 05D8 05E0 05E8 05F0 05F8 | B
+          C | 0600 0608 0610 0618 0620 0628 0630 0638 0640 0648 0650 0658 0660 0668 0670 0678 | C
+          D | 0680 0688 0690 0698 06A0 06A8 06B0 06B8 06C0 06C8 06D0 06D8 06E0 06E8 06F0 06F8 | D
+          E | 0700 0708 0710 0718 0720 0728 0730 0738 0740 0748 0750 0758 0760 0768 0770 0778 | E
+          F | 0780 0788 0790 0798 07A0 07A8 07B0 07B8 07C0 07C8 07D0 07D8 07E0 07E8 07F0 07F8 | F
+------------+---------------------------------------------------------------------------------+------------
+high nybble |    0    1    2    3    4    5    6    7    8   9     A    B    C    D    E    F | high nybble
+            | low nybble                                                                      |
+
+Converting pattern color address to band+index in bash:
+  ADDRESS=$[ 0x06C8 ]
+  BAND=$[ ${ADDRESS} >> 11 ]
+  INDEX=$[ (${ADDRESS} & 0x7FF) >> 3 ]
+  printf "BAND=%d, INDEX=%d, INDEX=0x%02X\n" "${BAND}" "${INDEX}" "${INDEX}"
+
+
+
+Pattern generator table:
+0x2000-0x27FF	Band 0 (upper/top)
+0x2800-0x2FFF	Band 1 (middle)
+0x3000-0x37FF	Band 2 (lower/bottom)
+
+Converting pattern color address to band+index in bash:
+  ADDRESS=$[ 0x2400 ]
+  BAND=$[ (${ADDRESS} - 0x2000) >> 11 ]
+  INDEX=$[ ((${ADDRESS} - 0x2000) & 0x7FF) >> 3 ]
+  printf "BAND=%d, INDEX=%d, INDEX=0x%02X\n" "${BAND}" "${INDEX}" "${INDEX}"
+
+
+
 Name table:
 0x3800-0x38FF	Band 0 (upper/top)
 0x3900-0x39FF	Band 1 (middle)
@@ -42,6 +94,10 @@ Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D
 [r17,L7] | 3AE0 3AE1 3AE2 3AE3 3AE4 3AE5 3AE6 3AE7 3AE8 3AE9 3AEA 3AEB 3AEC 3AED 3AEE 3AEF 3AF0 3AF1 3AF2 3AF3 3AF4 3AF5 3AF6 3AF7 3AF8 3AF9 3AFA 3AFB 3AFC 3AFD 3AFE 3AFF | [r17,L7]
 ---------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------+---------
 Row      |   00   01   02   03   04   05   06   07   08   09   0A   0B   0C   0D   0E   0F  10   11   12   13   14   15   16   17   18   19   1A   1B   1C   1D   1E   1F  | Row
+
+
+
+Example of name table of the start of stage 1:
 
 Base | 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F 10 11 12 13 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F | Base
 -----+-------------------------------------------------------------------------------------------------+-----
@@ -559,10 +615,10 @@ This table was generated with:
 		Low byte of fuel_used.
 0xE057 (byte)	[&fuel_used__high_byte]
 		High byte of fuel_used.
-0xE058-0xE06D	[&???]
+0xE058-0xE06D	[&course_pattern_names__upcoming_line]
 		0x16 (22) bytes. Pattern names of next coarse line. 
 		These names will be copied to somewhere inside 
-		[0xE186..0xE395] during routing 0x5716.
+		[0xE186..0xE395] during routine 0x5716.
 
 0xE058		Byte #00
 0xE059		Byte #01
@@ -770,7 +826,7 @@ This table was generated with:
 0xE09A		Entry #02
 0xE09B		Entry #03
 0xE09C		Entry #04
-0xE09D		Entry #05
+0xE09D		Entry #05, also seems temporay storage for 0x6A20
 0xE09E		Entry #06
 0xE09F		Entry #07
 0xE0A0		Entry #08
