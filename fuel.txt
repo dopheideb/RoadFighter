@@ -145,8 +145,8 @@ Address	Byte	Offset to 0x5311	Address	Moving object 1	Moving object 2
 
 == Putting it all together with a trainer ==
 
-The following trainer assures you will decrease your speed when a speed 
-blue car is in screen.
+The following trainer assures you will decrease your speed when a 
+speeding blue car is in screen.
 
 debug set_bp 0x46F2 {(([peek 0xE0E5] == 2 && [peek 0xE0E6] != 0x00) || ([peek 0xE0F5] == 2 && [peek 0xE0F6] != 0x00)) && [peek 0xE04F] > 0xC8 } {
         ## Mark space as NOT pressed, i.e. don't press the gas pedal.
